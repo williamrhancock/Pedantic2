@@ -2,6 +2,8 @@
 @tailwind components;
 @tailwind utilities;
 
+/* ReactFlow styles - imported via side effect in component */
+
 @layer base {
   :root {
     --background: 0 0% 100%;
@@ -64,6 +66,36 @@
     --input: 217.2 32.6% 17.5%;
     --ring: 212.7 26.8% 83.9%;
   }
+
+  /* Nebula Theme (Dark) */
+  [data-theme="nebula"] {
+    --theme-bg: linear-gradient(135deg, #0f0c29 0%, #302b63 50%, #24243e 100%);
+    --theme-bg-mesh: radial-gradient(at 0% 0%, rgba(139, 92, 246, 0.3) 0px, transparent 50%),
+                      radial-gradient(at 100% 0%, rgba(20, 184, 166, 0.2) 0px, transparent 50%),
+                      radial-gradient(at 100% 100%, rgba(139, 92, 246, 0.2) 0px, transparent 50%),
+                      radial-gradient(at 0% 100%, rgba(20, 184, 166, 0.3) 0px, transparent 50%);
+    --theme-glass: rgba(255, 255, 255, 0.1);
+    --theme-border: rgba(255, 255, 255, 0.2);
+    --theme-text: rgba(255, 255, 255, 0.9);
+    --theme-text-muted: rgba(255, 255, 255, 0.6);
+    --theme-accent: #8b5cf6;
+    --theme-accent-secondary: #14b8a6;
+  }
+
+  /* Aurora Theme (Light) */
+  [data-theme="aurora"] {
+    --theme-bg: linear-gradient(135deg, #fafafa 0%, #f5f5f5 50%, #ffffff 100%);
+    --theme-bg-mesh: radial-gradient(at 0% 0%, rgba(139, 92, 246, 0.05) 0px, transparent 50%),
+                      radial-gradient(at 100% 0%, rgba(20, 184, 166, 0.05) 0px, transparent 50%),
+                      radial-gradient(at 100% 100%, rgba(139, 92, 246, 0.05) 0px, transparent 50%),
+                      radial-gradient(at 0% 100%, rgba(20, 184, 166, 0.05) 0px, transparent 50%);
+    --theme-glass: rgba(255, 255, 255, 0.8);
+    --theme-border: rgba(0, 0, 0, 0.1);
+    --theme-text: rgba(0, 0, 0, 0.9);
+    --theme-text-muted: rgba(0, 0, 0, 0.6);
+    --theme-accent: #8b5cf6;
+    --theme-accent-secondary: #14b8a6;
+  }
 }
 
 @layer base {
@@ -72,6 +104,137 @@
   }
   body {
     @apply bg-background text-foreground;
+    font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  }
+}
+
+/* Theme Backgrounds */
+.theme-background {
+  position: fixed;
+  inset: 0;
+  z-index: 0;
+  background: var(--theme-bg);
+  background-size: 200% 200%;
+  animation: gradient-mesh 15s ease infinite;
+}
+
+.theme-background::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: var(--theme-bg-mesh);
+  background-size: 200% 200%;
+  animation: gradient-mesh 20s ease infinite;
+  opacity: 0.8;
+}
+
+/* Grain Noise Overlay */
+.grain-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 1;
+  pointer-events: none;
+  opacity: 0.03;
+  background-image: url('data:image/svg+xml;utf8,<svg viewBox="0 0 400 400" xmlns="http://www.w3.org/2000/svg"><filter id="noiseFilter"><feTurbulence type="fractalNoise" baseFrequency="0.9" numOctaves="4" stitchTiles="stitch"/></filter><rect width="100%" height="100%" filter="url(#noiseFilter)"/></svg>');
+  background-size: 200px 200px;
+}
+
+[data-theme="aurora"] .grain-overlay {
+  opacity: 0.015;
+}
+
+/* Glassmorphism Utilities */
+.glass-card {
+  background: var(--theme-glass);
+  backdrop-filter: blur(24px);
+  -webkit-backdrop-filter: blur(24px);
+  border: 1px solid var(--theme-border);
+  border-radius: 1rem;
+  box-shadow: 
+    inset 0 1px 0 0 rgba(255, 255, 255, 0.1),
+    0 8px 32px rgba(0, 0, 0, 0.12);
+  transition: all 0.3s ease;
+}
+
+.glass-card:hover {
+  transform: translateY(-2px);
+  box-shadow: 
+    inset 0 1px 0 0 rgba(255, 255, 255, 0.15),
+    0 12px 40px rgba(139, 92, 246, 0.2),
+    0 0 0 1px rgba(139, 92, 246, 0.3);
+}
+
+.glass-card-executing {
+  animation: pulse-glow 2s ease-in-out infinite;
+  border-color: rgba(139, 92, 246, 0.6);
+}
+
+/* Custom Scrollbar */
+.custom-scrollbar::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+.custom-scrollbar::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.custom-scrollbar::-webkit-scrollbar-thumb {
+  background: var(--theme-border);
+  border-radius: 4px;
+}
+
+.custom-scrollbar::-webkit-scrollbar-thumb:hover {
+  background: var(--theme-accent);
+}
+
+/* React Flow Custom Styles */
+.react-flow__node {
+  border: none !important;
+  background: transparent !important;
+}
+
+.react-flow__edge-path {
+  stroke-width: 2px;
+}
+
+.react-flow__edge.selected .react-flow__edge-path {
+  stroke-width: 3px;
+}
+
+/* Animation Keyframes */
+@keyframes pulse-glow {
+  0%, 100% {
+    box-shadow: 
+      inset 0 1px 0 0 rgba(255, 255, 255, 0.1),
+      0 0 20px rgba(139, 92, 246, 0.4),
+      0 0 40px rgba(139, 92, 246, 0.2);
+    border-color: rgba(139, 92, 246, 0.5);
+  }
+  50% {
+    box-shadow: 
+      inset 0 1px 0 0 rgba(255, 255, 255, 0.15),
+      0 0 30px rgba(139, 92, 246, 0.6),
+      0 0 60px rgba(139, 92, 246, 0.3);
+    border-color: rgba(139, 92, 246, 0.8);
+  }
+}
+
+@keyframes flow-dots {
+  0% {
+    offset-distance: 0%;
+  }
+  100% {
+    offset-distance: 100%;
+  }
+}
+
+@keyframes gradient-mesh {
+  0%, 100% {
+    background-position: 0% 50%;
+  }
+  50% {
+    background-position: 100% 50%;
   }
 }
 

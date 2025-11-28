@@ -1,0 +1,34 @@
+'use client'
+
+import React from 'react'
+import { GlassmorphicNode } from '@/components/nodes/GlassmorphicNode'
+
+export type WorkflowNodeType = 'start' | 'end' | 'python' | 'typescript' | 'http' | 'file' | 'condition' | 'database' | 'llm'
+
+export interface WorkflowNodeData {
+  type: WorkflowNodeType
+  title: string
+  code?: string
+  config?: any
+  isExecuting?: boolean
+  executionStatus?: 'success' | 'error' | 'running'
+}
+
+// Simple wrapper component
+export function WorkflowNode({ id, data, selected }: { id: string; data: WorkflowNodeData; selected: boolean }) {
+  return (
+    <GlassmorphicNode
+      id={id}
+      type={data.type}
+      title={data.title}
+      isSelected={selected}
+      isExecuting={data.isExecuting}
+      executionStatus={data.executionStatus}
+      data={{
+        code: data.code,
+        config: data.config,
+      }}
+    />
+  )
+}
+

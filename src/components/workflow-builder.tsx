@@ -27,7 +27,9 @@ class EndNode extends Classic.Node<{ input: Classic.Socket }, {}, {}> {
   }
 }
 
-class PythonNode extends Classic.Node<{ input: Classic.Socket }, { output: Classic.Socket }, { code: string }> {
+type CodeControl = Classic.InputControl<'text'>
+
+class PythonNode extends Classic.Node<{ input: Classic.Socket }, { output: Classic.Socket }, { code: CodeControl }> {
   constructor(code = 'def run(input):\n    return input') {
     super('Python Code')
     this.addInput('input', new Classic.Input(new Classic.Socket('socket'), 'Input'))
@@ -36,7 +38,7 @@ class PythonNode extends Classic.Node<{ input: Classic.Socket }, { output: Class
   }
 }
 
-class TypeScriptNode extends Classic.Node<{ input: Classic.Socket }, { output: Classic.Socket }, { code: string }> {
+class TypeScriptNode extends Classic.Node<{ input: Classic.Socket }, { output: Classic.Socket }, { code: CodeControl }> {
   constructor(code = 'async function run(input: any): Promise<any> {\n    return input;\n}') {
     super('TypeScript Code')
     this.addInput('input', new Classic.Input(new Classic.Socket('socket'), 'Input'))
@@ -45,7 +47,38 @@ class TypeScriptNode extends Classic.Node<{ input: Classic.Socket }, { output: C
   }
 }
 
+type NodeKind = 'start' | 'end' | 'python' | 'typescript'
+
+const instantiateNode = (type: NodeKind, options?: { code?: string }) => {
+  switch (type) {
+    case 'start':
+      return new StartNode()
+    case 'end':
+      return new EndNode()
+    case 'python':
+      return new PythonNode(options?.code)
+    case 'typescript':
+      return new TypeScriptNode(options?.code)
+    default:
+      return new StartNode()
+  }
+}
+
 type Schemes = GetSchemes<StartNode | EndNode | PythonNode | TypeScriptNode, Classic.Connection<StartNode | EndNode | PythonNode | TypeScriptNode, StartNode | EndNode | PythonNode | TypeScriptNode>>
+
+interface StoredNodeData {
+  type: NodeKind
+  title?: string
+  code?: string
+  position?: [number, number]
+}
+
+interface StoredConnectionData {
+  source: string
+  target: string
+  sourceOutput?: string
+  targetInput?: string
+}
 
 export function WorkflowBuilder() {
   const containerRef = useRef<HTMLDivElement>(null)
@@ -59,55 +92,6 @@ export function WorkflowBuilder() {
   const saveWorkflowMutation = trpc.saveWorkflow.useMutation()
   const executeWorkflowMutation = trpc.executeWorkflow.useMutation()
 
-  // Debounced save function
-  const debouncedSave = useCallback(
-    debounce(async (editor: NodeEditor<Schemes>) => {
-      if (!editor) return
-      
-      try {
-        const nodes: Record<string, any> = {}
-        const connections: Record<string, any> = {}
-
-        // Export nodes
-        for (const [id, node] of editor.getNodes()) {
-          const nodeData: any = {
-            type: getNodeType(node),
-            position: area?.nodeViews.get(id)?.position || [0, 0],
-            title: node.label
-          }
-
-          if (node instanceof PythonNode || node instanceof TypeScriptNode) {
-            const codeControl = node.controls.code as Classic.InputControl<'text'>
-            nodeData.code = codeControl.value || ''
-          }
-
-          nodes[id] = nodeData
-        }
-
-        // Export connections
-        for (const [id, connection] of editor.getConnections()) {
-          connections[id] = {
-            source: connection.source,
-            target: connection.target,
-            sourceOutput: connection.sourceOutput,
-            targetInput: connection.targetInput
-          }
-        }
-
-        const workflowData = { nodes, connections }
-        
-        await saveWorkflowMutation.mutateAsync({
-          id: 1,
-          name: 'Untitled',
-          data: workflowData
-        })
-      } catch (error) {
-        console.error('Failed to save workflow:', error)
-      }
-    }, 1000),
-    [area, saveWorkflowMutation]
-  )
-
   const getNodeType = (node: any): string => {
     if (node instanceof StartNode) return 'start'
     if (node instanceof EndNode) return 'end'
@@ -116,33 +100,73 @@ export function WorkflowBuilder() {
     return 'unknown'
   }
 
-  const createNode = async (type: 'start' | 'end' | 'python' | 'typescript', position: [number, number] = [0, 0]) => {
-    if (!editor || !area) return
+  // Debounced save function
+  const debouncedSave = useCallback(
+    (editorInstance: NodeEditor<Schemes>) => {
+      if (!editorInstance) return
+      
+      const saveData = async () => {
+        try {
+          const nodes: Record<string, any> = {}
+          const connections: Record<string, any> = {}
 
-    let node: StartNode | EndNode | PythonNode | TypeScriptNode
+          // Export nodes
+          for (const node of editorInstance.getNodes()) {
+            const id = node.id
+            const nodeData: any = {
+              type: getNodeType(node),
+              position: area?.nodeViews.get(id)?.position || [0, 0],
+              title: node.label
+            }
 
-    switch (type) {
-      case 'start':
-        node = new StartNode()
-        break
-      case 'end':
-        node = new EndNode()
-        break
-      case 'python':
-        node = new PythonNode()
-        break
-      case 'typescript':
-        node = new TypeScriptNode()
-        break
-      default:
-        return
-    }
+            if (node instanceof PythonNode || node instanceof TypeScriptNode) {
+              const codeControl = node.controls.code as Classic.InputControl<'text'>
+              nodeData.code = codeControl.value || ''
+            }
+
+            nodes[id] = nodeData
+          }
+
+          // Export connections
+          for (const connection of editorInstance.getConnections()) {
+            connections[connection.id] = {
+              source: connection.source,
+              target: connection.target,
+              sourceOutput: connection.sourceOutput,
+              targetInput: connection.targetInput
+            }
+          }
+
+          const workflowData = { nodes, connections }
+          
+          await saveWorkflowMutation.mutateAsync({
+            id: 1,
+            name: 'Untitled',
+            data: workflowData
+          })
+        } catch (error) {
+          console.error('Failed to save workflow:', error)
+        }
+      }
+
+      // Debounce the actual save
+      const timeoutId = setTimeout(saveData, 1000)
+      return () => clearTimeout(timeoutId)
+    },
+    [area, saveWorkflowMutation]
+  )
+
+  const createNode = async (type: NodeKind, position: [number, number] = [0, 0]) => {
+    if (!editor || !area) return null
+
+    const node = instantiateNode(type)
 
     await editor.addNode(node)
     await area.translate(node.id, { x: position[0], y: position[1] })
     
     // Trigger save
     debouncedSave(editor)
+    return node
   }
 
   const executeWorkflow = async () => {
@@ -157,7 +181,8 @@ export function WorkflowBuilder() {
       const nodes: Record<string, any> = {}
       const connections: Record<string, any> = {}
 
-      for (const [id, node] of editor.getNodes()) {
+      for (const node of editor.getNodes()) {
+        const id = node.id
         const nodeData: any = {
           type: getNodeType(node),
           title: node.label
@@ -171,8 +196,8 @@ export function WorkflowBuilder() {
         nodes[id] = nodeData
       }
 
-      for (const [id, connection] of editor.getConnections()) {
-        connections[id] = {
+      for (const connection of editor.getConnections()) {
+        connections[connection.id] = {
           source: connection.source,
           target: connection.target,
           sourceOutput: connection.sourceOutput,
@@ -226,8 +251,8 @@ export function WorkflowBuilder() {
       const reactPlugin = new ReactPlugin<Schemes, AreaExtra>()
       const contextMenu = new ContextMenuPlugin<Schemes>({
         items: ContextMenuPresets.classic.setup([
-          ['Add Python Node', () => createNode('python', [100, 100])],
-          ['Add TypeScript Node', () => createNode('typescript', [100, 100])],
+          ['Add Python Node', () => instantiateNode('python')],
+          ['Add TypeScript Node', () => instantiateNode('typescript')],
         ])
       })
 
@@ -243,11 +268,13 @@ export function WorkflowBuilder() {
             const Component = nodeComponents[nodeType as keyof typeof nodeComponents]
             
             if (Component) {
-              return (props: any) => {
+              const NodeComponent = (props: any) => {
+                const codeControl = payload.controls?.code as CodeControl | undefined
+
                 const nodeData = {
                   ...payload,
                   title: payload.label,
-                  code: payload.controls?.code?.value || ''
+                  code: codeControl?.value || ''
                 }
                 
                 // Add execution status styling
@@ -264,12 +291,14 @@ export function WorkflowBuilder() {
                   </div>
                 )
               }
+              NodeComponent.displayName = `NodeComponent_${nodeType}`
+              return NodeComponent
             }
             
-            return Presets.classic.node
+            return (Presets.classic as any).node
           }
         }
-      }))
+      }) as any)
 
       connection.addPreset(ConnectionPresets.classic.setup())
 
@@ -286,6 +315,7 @@ export function WorkflowBuilder() {
     }
 
     init()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
   // Load workflow data
@@ -297,7 +327,9 @@ export function WorkflowBuilder() {
       await editor.clear()
 
       // Load nodes
-      for (const [id, nodeData] of Object.entries(workflow.data.nodes)) {
+      const storedNodes = workflow.data.nodes as Record<string, StoredNodeData>
+
+      for (const [id, nodeData] of Object.entries(storedNodes)) {
         let node: StartNode | EndNode | PythonNode | TypeScriptNode
 
         switch (nodeData.type) {
@@ -333,16 +365,18 @@ export function WorkflowBuilder() {
       }
 
       // Load connections
-      for (const [id, connData] of Object.entries(workflow.data.connections)) {
+      const storedConnections = workflow.data.connections as Record<string, StoredConnectionData>
+
+      for (const [id, connData] of Object.entries(storedConnections)) {
         const sourceNode = editor.getNode(connData.source)
         const targetNode = editor.getNode(connData.target)
         
         if (sourceNode && targetNode) {
-          const connection = new Classic.Connection(
-            sourceNode,
-            connData.sourceOutput,
-            targetNode,
-            connData.targetInput
+          const connection: any = new Classic.Connection(
+            sourceNode as any,
+            connData.sourceOutput ?? 'output',
+            targetNode as any,
+            connData.targetInput ?? 'input'
           )
           connection.id = id
           await editor.addConnection(connection)
