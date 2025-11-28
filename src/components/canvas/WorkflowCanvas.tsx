@@ -1,6 +1,6 @@
 'use client'
 
-import React, { useCallback, useMemo, useEffect, useState } from 'react'
+import React, { useCallback, useMemo, useEffect, useState, useRef } from 'react'
 import ReactFlow, {
   Background,
   Controls,
@@ -11,6 +11,7 @@ import ReactFlow, {
   type Connection,
   type NodeTypes,
   type EdgeTypes,
+  ReactFlowInstance,
 } from 'reactflow'
 import 'reactflow/dist/style.css'
 import { useTheme } from '@/contexts/ThemeContext'
@@ -20,10 +21,24 @@ import { AnimatedEdge } from './EdgeTypes'
 // Re-export types for convenience
 export type { WorkflowNodeType, WorkflowNodeData }
 
-// Define nodeTypes and edgeTypes at MODULE level - they will NEVER be recreated
-// This is the ONLY way to avoid React Flow's warning
-const nodeTypes: NodeTypes = { workflowNode: WorkflowNode }
-const edgeTypes: EdgeTypes = { animated: AnimatedEdge }
+// Use a ref to store nodeTypes/edgeTypes - this survives Fast Refresh
+// This is the most reliable way to ensure stable references
+let nodeTypesRef: NodeTypes | null = null
+let edgeTypesRef: EdgeTypes | null = null
+
+function getNodeTypes(): NodeTypes {
+  if (!nodeTypesRef) {
+    nodeTypesRef = Object.freeze({ workflowNode: WorkflowNode })
+  }
+  return nodeTypesRef
+}
+
+function getEdgeTypes(): EdgeTypes {
+  if (!edgeTypesRef) {
+    edgeTypesRef = Object.freeze({ animated: AnimatedEdge })
+  }
+  return edgeTypesRef
+}
 
 interface WorkflowCanvasProps {
   nodes: Array<{
@@ -54,8 +69,10 @@ function WorkflowCanvasInner({
   isExecuting = false,
 }: WorkflowCanvasProps) {
   const { isDark } = useTheme()
+  const reactFlowInstance = useRef<ReactFlowInstance | null>(null)
 
   // Convert to react-flow format
+  // CRITICAL: Set hidden: false to prevent React Flow from hiding nodes
   const reactFlowNodes = useMemo<Node[]>(() => {
     return initialNodes.map((node) => ({
       id: node.id,
@@ -69,6 +86,7 @@ function WorkflowCanvasInner({
         isExecuting: node.isExecuting || isExecuting,
         executionStatus: node.executionStatus,
       },
+      hidden: false, // Force nodes to be visible - this is the key fix!
     }))
   }, [initialNodes, isExecuting])
 
@@ -103,11 +121,99 @@ function WorkflowCanvasInner({
 
   const [nodes, setNodes] = useState<Node[]>(reactFlowNodes)
   const [edges, setEdges] = useState<Edge[]>([])
+  const prevNodeIdsRef = useRef<string>('')
+  const isUpdatingFromPropsRef = useRef(false)
 
+  // Use a ref to track the last node IDs to prevent unnecessary updates
+  const lastInitialNodesRef = useRef(initialNodes)
+  
   useEffect(() => {
-    console.log('WorkflowCanvas: Updating nodes', reactFlowNodes.length, reactFlowNodes)
-    setNodes(reactFlowNodes)
-  }, [reactFlowNodes])
+    // Only update if the nodes array reference changed AND content is different
+    const currentIds = initialNodes.map(n => n.id).sort().join(',')
+    const lastIds = lastInitialNodesRef.current.map(n => n.id).sort().join(',')
+    
+    if (currentIds !== lastIds || initialNodes !== lastInitialNodesRef.current) {
+      isUpdatingFromPropsRef.current = true
+      lastInitialNodesRef.current = initialNodes
+      
+      // Recalculate reactFlowNodes - ensure all required properties are set
+      // CRITICAL: Set hidden: false to prevent React Flow from hiding nodes
+      const newReactFlowNodes: Node[] = initialNodes.map((node) => ({
+        id: node.id,
+        type: 'workflowNode' as const,
+        position: node.position || { x: 0, y: 0 },
+        data: {
+          type: node.type,
+          title: node.title,
+          code: node.code,
+          config: node.config,
+          isExecuting: node.isExecuting || isExecuting,
+          executionStatus: node.executionStatus,
+        },
+        selected: false,
+        draggable: true,
+        selectable: true,
+        hidden: false, // Force nodes to be visible - this is the key fix!
+      }))
+      
+      setNodes(newReactFlowNodes)
+      
+      // Always fit view when nodes change to ensure they're visible
+      if (newReactFlowNodes.length > 0 && reactFlowInstance.current) {
+        const calculateAndSetViewport = () => {
+          if (!reactFlowInstance.current) return
+          
+          const nodePositions = newReactFlowNodes.map(n => n.position)
+          const minX = Math.min(...nodePositions.map(p => p.x))
+          const maxX = Math.max(...nodePositions.map(p => p.x))
+          const minY = Math.min(...nodePositions.map(p => p.y))
+          const maxY = Math.max(...nodePositions.map(p => p.y))
+          const centerX = (minX + maxX) / 2
+          const centerY = (minY + maxY) / 2
+          
+          // Get container dimensions
+          const container = document.querySelector('.react-flow') as HTMLElement
+          if (!container) return
+          
+          const containerWidth = container.offsetWidth || 800
+          const containerHeight = container.offsetHeight || 600
+          
+          // Calculate zoom to fit all nodes
+          const padding = 100
+          const contentWidth = Math.max(maxX - minX, 200) + padding * 2
+          const contentHeight = Math.max(maxY - minY, 200) + padding * 2
+          const zoomX = containerWidth / contentWidth
+          const zoomY = containerHeight / contentHeight
+          const zoom = Math.min(zoomX, zoomY, 1.5)
+          
+          // Calculate viewport transform
+          const viewportX = containerWidth / 2 - centerX * zoom
+          const viewportY = containerHeight / 2 - centerY * zoom
+          
+          // Set viewport directly
+          reactFlowInstance.current.setViewport({ x: viewportX, y: viewportY, zoom }, { duration: 0 })
+          
+          // Force all nodes visible immediately
+          requestAnimationFrame(() => {
+            document.querySelectorAll('.react-flow__node').forEach((node) => {
+              const el = node as HTMLElement
+              el.style.setProperty('visibility', 'visible', 'important')
+            })
+          })
+        }
+        
+        setTimeout(calculateAndSetViewport, 50)
+        setTimeout(calculateAndSetViewport, 200)
+        setTimeout(calculateAndSetViewport, 500)
+        setTimeout(calculateAndSetViewport, 1000)
+      }
+      
+      // Reset flag after update
+      setTimeout(() => {
+        isUpdatingFromPropsRef.current = false
+      }, 100)
+    }
+  }, [initialNodes, isExecuting])
 
   useEffect(() => {
     const timer = setTimeout(() => {
@@ -157,17 +263,36 @@ function WorkflowCanvasInner({
 
   const handleNodesChange = useCallback(
     (changes: any) => {
+      // Ignore changes if we're currently updating from props to prevent infinite loop
+      if (isUpdatingFromPropsRef.current) {
+        return
+      }
+      
+      // Filter out 'select' changes as they don't need to update parent state
+      const meaningfulChanges = changes.filter((change: any) => 
+        change.type === 'position' || change.type === 'remove' || change.type === 'add'
+      )
+      
+      if (meaningfulChanges.length === 0) {
+        return
+      }
+      
       setNodes((nds) => {
         let updatedNodes = [...nds]
-        changes.forEach((change: any) => {
+        meaningfulChanges.forEach((change: any) => {
           if (change.type === 'position' && change.position) {
             updatedNodes = updatedNodes.map((node) =>
-              node.id === change.id ? { ...node, position: change.position } : node
+              node.id === change.id ? { ...node, position: change.position, hidden: false } : { ...node, hidden: false }
             )
           } else if (change.type === 'remove') {
             updatedNodes = updatedNodes.filter((node) => node.id !== change.id)
+          } else if (change.type === 'add' && change.item) {
+            updatedNodes.push({ ...change.item, hidden: false })
           }
         })
+        // Ensure all nodes have hidden: false
+        updatedNodes = updatedNodes.map(node => ({ ...node, hidden: false }))
+        // Notify parent of meaningful changes
         if (externalOnNodesChange) {
           Promise.resolve().then(() => externalOnNodesChange(updatedNodes))
         }
@@ -202,28 +327,135 @@ function WorkflowCanvasInner({
     [onNodeClick]
   )
 
-  console.log('WorkflowCanvas render:', { 
-    nodeCount: nodes.length, 
-    edgeCount: edges.length,
-    nodes: nodes.map(n => ({ id: n.id, type: n.type, pos: n.position }))
-  })
+  const onInit = useCallback((instance: ReactFlowInstance) => {
+    reactFlowInstance.current = instance
+    
+    // Immediately set viewport to center on nodes BEFORE React Flow calculates visibility
+    if (nodes.length > 0) {
+      // Use requestAnimationFrame to ensure DOM is ready
+      requestAnimationFrame(() => {
+        requestAnimationFrame(() => {
+          const nodePositions = nodes.map(n => n.position)
+          if (nodePositions.length === 0) return
+          
+          const minX = Math.min(...nodePositions.map(p => p.x))
+          const maxX = Math.max(...nodePositions.map(p => p.x))
+          const minY = Math.min(...nodePositions.map(p => p.y))
+          const maxY = Math.max(...nodePositions.map(p => p.y))
+          const centerX = (minX + maxX) / 2
+          const centerY = (minY + maxY) / 2
+          
+          const container = document.querySelector('.react-flow') as HTMLElement
+          if (!container) return
+          
+          const containerWidth = container.offsetWidth || 800
+          const containerHeight = container.offsetHeight || 600
+          
+          const padding = 100
+          const contentWidth = Math.max(maxX - minX, 200) + padding * 2
+          const contentHeight = Math.max(maxY - minY, 200) + padding * 2
+          const zoomX = containerWidth / contentWidth
+          const zoomY = containerHeight / contentHeight
+          const zoom = Math.min(zoomX, zoomY, 1.5, 1.0) // Cap at 1.0 to ensure nodes are visible
+          
+          const viewportX = containerWidth / 2 - centerX * zoom
+          const viewportY = containerHeight / 2 - centerY * zoom
+          
+          // Set viewport BEFORE React Flow tries to calculate visibility
+          instance.setViewport({ x: viewportX, y: viewportY, zoom }, { duration: 0 })
+        })
+      })
+    }
+  }, [nodes])
+
+  // Inject a style tag to force visibility with maximum specificity
+  // Use attribute selectors to target inline styles directly
+  useEffect(() => {
+    // Remove any existing style tag we created
+    const existingStyle = document.getElementById('react-flow-force-visible')
+    if (existingStyle) {
+      existingStyle.remove()
+    }
+    
+    // Create a style tag that targets nodes with inline visibility: hidden
+    // This uses attribute selectors which have higher specificity
+    const style = document.createElement('style')
+    style.id = 'react-flow-force-visible'
+    style.textContent = `
+      /* Force all React Flow nodes to be visible - use attribute selectors for inline styles */
+      .react-flow__node[style*="visibility"],
+      .react-flow__node[style*="visibility: hidden"],
+      .react-flow__node[style*="visibility:hidden"],
+      .react-flow__nodes .react-flow__node,
+      .react-flow__pane .react-flow__node,
+      .react-flow__viewport .react-flow__node,
+      .react-flow__renderer .react-flow__node,
+      .react-flow .react-flow__node,
+      div.react-flow__node {
+        visibility: visible !important;
+      }
+      
+      /* Target by data attributes with inline styles */
+      [data-id].react-flow__node[style],
+      [data-testid*="rf__node"][style] {
+        visibility: visible !important;
+      }
+    `
+    // Insert at the beginning of head to ensure it loads first
+    document.head.insertBefore(style, document.head.firstChild)
+    
+    return () => {
+      const styleToRemove = document.getElementById('react-flow-force-visible')
+      if (styleToRemove) {
+        styleToRemove.remove()
+      }
+    }
+  }, [])
+
+  // Simple, single-pass visibility fix - no constant checking
+  useEffect(() => {
+    if (nodes.length === 0) return
+    
+    // Wait for React Flow to render, then fix visibility once
+    const fixVisibility = () => {
+      requestAnimationFrame(() => {
+        document.querySelectorAll('.react-flow__node').forEach((node) => {
+          const el = node as HTMLElement
+          // Use CSS custom property to override inline style
+          el.style.setProperty('visibility', 'visible', 'important')
+        })
+      })
+    }
+    
+    // Fix after a short delay to let React Flow render
+    const timeout = setTimeout(fixVisibility, 100)
+    
+    return () => clearTimeout(timeout)
+  }, [nodes.length])
+
+  // Ensure all nodes have hidden: false before passing to ReactFlow
+  const visibleNodes = useMemo(() => {
+    return nodes.map(node => ({ ...node, hidden: false }))
+  }, [nodes])
 
   return (
-    <div className="w-full h-full" style={{ minHeight: '600px' }}>
+    <div className="w-full h-full" style={{ minHeight: '600px', position: 'relative', height: '100%', width: '100%' }}>
       <ReactFlow
-        nodes={nodes}
+        style={{ width: '100%', height: '100%' }}
+        nodes={visibleNodes}
         edges={edges}
         onNodesChange={handleNodesChange}
         onEdgesChange={handleEdgesChange}
         onConnect={onConnect}
         onNodeClick={onNodeClickInternal}
-        nodeTypes={nodeTypes}
-        edgeTypes={edgeTypes}
-        fitView
-        fitViewOptions={{ padding: 0.2, includeHiddenNodes: false }}
+        onInit={onInit}
+        nodeTypes={getNodeTypes()}
+        edgeTypes={getEdgeTypes()}
         minZoom={0.1}
         maxZoom={4}
         defaultViewport={{ x: 0, y: 0, zoom: 1 }}
+        fitView={false}
+        onlyRenderVisibleElements={false}
         className={isDark ? 'dark' : ''}
       >
         <Background color={isDark ? '#4a5568' : '#e2e8f0'} gap={16} size={1} />

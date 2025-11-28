@@ -189,7 +189,17 @@
 }
 
 /* React Flow Custom Styles */
-.react-flow__node {
+/* Force React Flow nodes to be visible - maximum specificity to override inline styles */
+.react-flow__nodes .react-flow__node,
+.react-flow__pane .react-flow__node,
+.react-flow__viewport .react-flow__node,
+.react-flow__renderer .react-flow__node,
+.react-flow .react-flow__node,
+div.react-flow__node[style*="visibility"],
+div.react-flow__node[style*="visibility: hidden"],
+div.react-flow__node[style*="visibility:hidden"] {
+  visibility: visible !important;
+  display: block !important;
   border: none !important;
   background: transparent !important;
 }
