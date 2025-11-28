@@ -362,30 +362,50 @@ function WorkflowCanvasInner({
     setEdgeMenuState(null)
   }, [edgeMenuState, externalOnEdgesChange])
 
-  const handleRerouteEdge = useCallback(() => {
-    if (!edgeMenuState) return
-    
-    setEdges((eds) => {
-      const edgeToReroute = eds.find((e) => e.id === edgeMenuState.edgeId)
-      if (edgeToReroute) {
-        const updatedEdges = eds.filter((edge) => edge.id !== edgeMenuState.edgeId)
-        if (externalOnEdgesChange) {
-          Promise.resolve().then(() => externalOnEdgesChange(updatedEdges))
-        }
-        return updatedEdges
-      }
-      return eds
-    })
-    setEdgeMenuState(null)
-  }, [edgeMenuState, externalOnEdgesChange])
-
-  const handleCancelEdgeMenu = useCallback(() => {
+const handleCancelEdgeMenu = useCallback(() => {
     setEdgeMenuState(null)
   }, [])
 
-const onInit = useCallback((instance: ReactFlowInstance) => {
+  const onInit = useCallback((instance: ReactFlowInstance) => {
     reactFlowInstance.current = instance
     
+    // Only set viewport once on initial load if not already initialized
+    if (nodes.length > 0 && !viewportInitializedRef.current) {
+      requestAnimationFrame(() => {
+        requestAnimationFrame(() => {
+          if (viewportInitializedRef.current || isDraggingRef.current) return
+          
+          const nodePositions = nodes.map(n => n.position)
+          if (nodePositions.length === 0) return
+          
+          const minX = Math.min(...nodePositions.map(p => p.x))
+          const maxX = Math.max(...nodePositions.map(p => p.x))
+          const minY = Math.min(...nodePositions.map(p => p.y))
+          const maxY = Math.max(...nodePositions.map(p => p.y))
+          const centerX = (minX + maxX) / 2
+          const centerY = (minY + maxY) / 2
+          
+          const container = document.querySelector('.react-flow') as HTMLElement
+          if (!container) return
+          
+          const containerWidth = container.offsetWidth || 800
+          const containerHeight = container.offsetHeight || 600
+          
+          const padding = 100
+          const contentWidth = Math.max(maxX - minX, 200) + padding * 2
+          const contentHeight = Math.max(maxY - minY, 200) + padding * 2
+          const zoomX = containerWidth / contentWidth
+          const zoomY = containerHeight / contentHeight
+          const zoom = Math.min(zoomX, zoomY, 1.5, 1.0)
+          
+          const viewportX = containerWidth / 2 - centerX * zoom
+          const viewportY = containerHeight / 2 - centerY * zoom
+          
+          instance.setViewport({ x: viewportX, y: viewportY, zoom }, { duration: 0 })
+          viewportInitializedRef.current = true
+        })
+      })
+    }
   }, [nodes])
 
   // Inject a style tag to force visibility with maximum specificity
@@ -477,8 +497,6 @@ const onInit = useCallback((instance: ReactFlowInstance) => {
         defaultViewport={{ x: 0, y: 0, zoom: 1 }}
         fitView={false}
         onlyRenderVisibleElements={false}
-        edgesDeletable={true}
-        edgesFocusable={true}
         className={isDark ? 'dark' : ''}
       >
         <Background color={isDark ? '#4a5568' : '#e2e8f0'} gap={16} size={1} />
@@ -506,7 +524,6 @@ const onInit = useCallback((instance: ReactFlowInstance) => {
             x={edgeMenuState.x}
             y={edgeMenuState.y}
             onDelete={handleDeleteEdge}
-            onReroute={handleRerouteEdge}
             onCancel={handleCancelEdgeMenu}
           />
         </>

@@ -1,18 +1,17 @@
 'use client'
 
 import React from 'react'
-import { Trash2, Route, X } from 'lucide-react'
+import { Trash2, X } from 'lucide-react'
 import { useTheme } from '@/contexts/ThemeContext'
 
 interface EdgeContextMenuProps {
   x: number
   y: number
   onDelete: () => void
-  onReroute: () => void
   onCancel: () => void
 }
 
-export function EdgeContextMenu({ x, y, onDelete, onReroute, onCancel }: EdgeContextMenuProps) {
+export function EdgeContextMenu({ x, y, onDelete, onCancel }: EdgeContextMenuProps) {
   const { isDark } = useTheme()
 
   return (
@@ -48,21 +47,6 @@ export function EdgeContextMenu({ x, y, onDelete, onReroute, onCancel }: EdgeCon
         >
           <Trash2 className="w-4 h-4" />
           <span className="text-sm font-medium">Delete</span>
-        </button>
-        
-        <button
-          onClick={onReroute}
-          className={`
-            w-full flex items-center gap-2 px-3 py-2 rounded-md
-            transition-all duration-200
-            ${isDark 
-              ? 'text-purple-400 hover:bg-purple-500/20 hover:text-purple-300' 
-              : 'text-purple-600 hover:bg-purple-50 hover:text-purple-700'
-            }
-          `}
-        >
-          <Route className="w-4 h-4" />
-          <span className="text-sm font-medium">ReRoute</span>
         </button>
         
         <div className="h-px bg-white/10 my-1" />
