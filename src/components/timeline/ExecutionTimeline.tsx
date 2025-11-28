@@ -59,7 +59,7 @@ export function ExecutionTimeline({ entries }: ExecutionTimelineProps) {
 
   return (
     <div className="h-full flex flex-col glass-card p-4">
-      <h3 className="text-lg font-semibold mb-4 text-foreground">
+      <h3 className="text-lg font-semibold mb-4 text-white">
         Execution Timeline
       </h3>
       
@@ -68,9 +68,9 @@ export function ExecutionTimeline({ entries }: ExecutionTimelineProps) {
         className="flex-1 overflow-y-auto custom-scrollbar space-y-3"
       >
         {entries.length === 0 ? (
-          <div className="text-center text-muted-foreground py-8">
+          <div className="text-center text-gray-300 py-8">
             <p className="text-sm">No executions yet</p>
-            <p className="text-xs mt-2">Execute a workflow to see results</p>
+            <p className="text-xs mt-2 text-gray-400">Execute a workflow to see results</p>
           </div>
         ) : (
           <div className="relative">
@@ -125,20 +125,20 @@ function TimelineEntryComponent({
       >
         <div className="flex items-start justify-between gap-2">
           <div className="flex-1 min-w-0">
-            <h4 className="font-semibold text-foreground truncate">
+            <h4 className="font-semibold text-white truncate">
               {entry.nodeTitle}
             </h4>
-            <p className="text-xs text-muted-foreground mt-1">
+            <p className="text-xs text-gray-300 mt-1">
               {entry.nodeId} • {entry.timestamp.toLocaleTimeString()}
             </p>
             {entry.executionTime && (
-              <p className="text-xs text-muted-foreground">
+              <p className="text-xs text-gray-400">
                 {entry.executionTime.toFixed(2)}s
               </p>
             )}
           </div>
           <div className={`transition-transform ${isExpanded ? 'rotate-180' : ''}`}>
-            <ChevronDown className="w-4 h-4 text-muted-foreground" />
+            <ChevronDown className="w-4 h-4 text-gray-400" />
           </div>
         </div>
 
@@ -147,31 +147,31 @@ function TimelineEntryComponent({
             {entry.error && (
               <div className="mb-2">
                 <p className="text-xs font-semibold text-red-400 mb-1">Error:</p>
-                <pre className="text-xs bg-black/20 p-2 rounded overflow-x-auto">
+                <pre className="text-xs bg-black/30 p-2 rounded overflow-x-auto text-gray-200">
                   {entry.error}
                 </pre>
               </div>
             )}
             {entry.stdout && (
               <div className="mb-2">
-                <p className="text-xs font-semibold text-muted-foreground mb-1">STDOUT:</p>
-                <pre className="text-xs bg-black/20 p-2 rounded overflow-x-auto">
+                <p className="text-xs font-semibold text-gray-300 mb-1">STDOUT:</p>
+                <pre className="text-xs bg-black/30 p-2 rounded overflow-x-auto text-gray-200">
                   {entry.stdout}
                 </pre>
               </div>
             )}
             {entry.stderr && (
               <div className="mb-2">
-                <p className="text-xs font-semibold text-muted-foreground mb-1">STDERR:</p>
-                <pre className="text-xs bg-black/20 p-2 rounded overflow-x-auto">
+                <p className="text-xs font-semibold text-gray-300 mb-1">STDERR:</p>
+                <pre className="text-xs bg-black/30 p-2 rounded overflow-x-auto text-gray-200">
                   {entry.stderr}
                 </pre>
               </div>
             )}
             {entry.output && (
               <div>
-                <p className="text-xs font-semibold text-muted-foreground mb-1">Output:</p>
-                <pre className="text-xs bg-black/20 p-2 rounded overflow-x-auto max-h-48">
+                <p className="text-xs font-semibold text-gray-300 mb-1">Output:</p>
+                <pre className="text-xs bg-black/30 p-2 rounded overflow-x-auto text-gray-200 max-h-48">
                   {JSON.stringify(entry.output, null, 2)}
                 </pre>
               </div>
