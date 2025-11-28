@@ -464,6 +464,8 @@ function WorkflowCanvasInner({
         defaultViewport={{ x: 0, y: 0, zoom: 1 }}
         fitView={false}
         onlyRenderVisibleElements={false}
+        edgesDeletable={true}
+        edgesFocusable={true}
         className={isDark ? 'dark' : ''}
       >
         <Background color={isDark ? '#4a5568' : '#e2e8f0'} gap={16} size={1} />
