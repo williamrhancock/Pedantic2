@@ -1,0 +1,132 @@
+{
+  "format": "pedantic-workflow-v1",
+  "metadata": {
+    "name": "Untitled Workflow",
+    "description": "",
+    "tags": [],
+    "exportedAt": "2025-11-28T14:53:44.035Z",
+    "version": "1.0.0"
+  },
+  "workflow": {
+    "nodes": {
+      "start": {
+        "type": "start",
+        "title": "Start",
+        "position": {
+          "x": 100,
+          "y": 100
+        }
+      },
+      "typescript_1764340664572": {
+        "type": "typescript",
+        "title": "TypeScript Code",
+        "code": "interface Output {\n  user: {\n    name: string;\n    email: string;\n    age: number;\n    country: string;\n    interests: string[];\n  };\n  timestamp: string;\n}\n\nasync function run(input: any): Promise<Output> {\n  return {\n    user: {\n      name: \"Alice Johnson\",\n      email: \"alice.johnson@example.com\",\n      age: 28,\n      country: \"Canada\",\n      interests: [\"hiking\", \"photography\", \"coding\", \"coffee\", \"jazz\"]\n    },\n    timestamp: new Date().toISOString()\n  };\n}",
+        "position": {
+          "x": 300,
+          "y": 300
+        }
+      },
+      "typescript_1764340674638": {
+        "type": "typescript",
+        "title": "TypeScript Code",
+        "code": "interface Input {\n  user: {\n    name: string;\n    email: string;\n    age: number;\n    country: string;\n    interests: string[];\n  };\n}\n\ninterface Output {\n  user: {\n    name: string;\n    email: string;\n    age: number;\n    country: string;\n    interests: string[];\n    domain: string;\n    isAdult: boolean;\n    countryCode: string;\n    riskScore: number;\n  };\n  enrichedAt: string;\n}\n\nasync function run(input: Input): Promise<Output> {\n  const domain = input.user.email.split(\"@\")[1];\n  const countryMap: Record<string, string> = {\n    Canada: \"CA\",\n    USA: \"US\",\n    Germany: \"DE\",\n    France: \"FR\"\n  };\n\n  // Simulate some business logic\n  const riskScore = input.user.interests.includes(\"extreme sports\") ? 85 :\n                   input.user.age < 21 ? 72 : Math.floor(Math.random() * 40) + 10;\n\n  return {\n    user: {\n      ...input.user,\n      domain,\n      isAdult: input.user.age >= 18,\n      countryCode: countryMap[input.user.country] || \"XX\",\n      riskScore\n    },\n    enrichedAt: new Date().toISOString()\n  };\n}",
+        "position": {
+          "x": 300,
+          "y": 350
+        }
+      },
+      "typescript_1764340688455": {
+        "type": "typescript",
+        "title": "TypeScript Code",
+        "code": "interface Input {\n  user: {\n    name: string;\n    email: string;\n    age: number;\n    country: string;\n    interests: string[];\n    domain: string;\n    isAdult: boolean;\n    countryCode: string;\n    riskScore: number;\n  };\n}\n\ninterface Output {\n  user: {\n    name: string;\n    email: string;\n    age: number;\n    country: string;\n    interests: string[];\n    domain: string;\n    isAdult: boolean;\n    countryCode: string;\n    riskScore: number;\n  };\n  analysis: {\n    interestCount: number;\n    longestInterest: string;\n    hasCreativeInterest: boolean;\n    hasTechInterest: boolean;\n    interestKeywords: string[];\n    summary: string;\n  };\n  originalInterests: string[];\n}\n\nasync function run(input: Input): Promise<Output> {\n  const interests = input.user.interests || [];\n  const creative = [\"photography\", \"music\", \"art\", \"writing\", \"dance\", \"design\"];\n  const tech = [\"coding\", \"ai\", \"programming\", \"robotics\", \"blockchain\", \"gaming\"];\n\n  const hasCreative = interests.some(i => creative.some(c => i.toLowerCase().includes(c)));\n  const hasTech = interests.some(i => tech.some(t => i.toLowerCase().includes(t)));\n\n  const longest = interests.reduce((a, b) => a.length > b.length ? a : b, \"\");\n\n  return {\n    user: input.user, // Pass through user data for next node\n    originalInterests: interests,\n    analysis: {\n      interestCount: interests.length,\n      longestInterest: longest,\n      hasCreativeInterest: hasCreative,\n      hasTechInterest: hasTech,\n      interestKeywords: interests.map(i => i.toLowerCase()),\n      summary: hasCreative && hasTech\n        ? \"Creative tech enthusiast\"\n        : hasCreative\n        ? \"Creative soul\"\n        : hasTech\n        ? \"Tech-savvy\"\n        : \"General interests\"\n    }\n  };\n}",
+        "position": {
+          "x": 300,
+          "y": 400
+        }
+      },
+      "typescript_1764340705555": {
+        "type": "typescript",
+        "title": "TypeScript Code",
+        "code": "interface Input {\n  user: {\n    name: string;\n    email: string;\n    age: number;\n    country: string;\n    interests: string[];\n    domain: string;\n    isAdult: boolean;\n    countryCode: string;\n    riskScore: number;\n  };\n  analysis: {\n    hasCreativeInterest: boolean;\n    hasTechInterest: boolean;\n    summary: string;\n  };\n}\n\ninterface Output {\n  user: {\n    name: string;\n    email: string;\n  };\n  decision: {\n    approved: boolean;\n    reason: string;\n    tier: \"premium\" | \"standard\" | \"review\" | \"rejected\";\n    confidence: number;\n  };\n  analysis: {\n    summary: string;\n  };\n  evaluatedAt: string;\n}\n\nasync function run(input: Input): Promise<Output> {\n  const { user, analysis } = input;\n\n  let decision;\n  \n  if (!user.isAdult) {\n    decision = { approved: false, reason: \"Under 18\", tier: \"rejected\", confidence: 100 };\n  } else if (user.riskScore > 80) {\n    decision = { approved: false, reason: \"High risk score\", tier: \"rejected\", confidence: 95 };\n  } else if (analysis.hasTechInterest && analysis.hasCreativeInterest && user.riskScore < 30) {\n    decision = { approved: true, reason: \"Perfect creative-tech profile\", tier: \"premium\", confidence: 98 };\n  } else if (user.riskScore < 50) {\n    decision = { approved: true, reason: \"Low risk, good fit\", tier: \"standard\", confidence: 85 };\n  } else {\n    decision = { approved: false, reason: \"Requires manual review\", tier: \"review\", confidence: 70 };\n  }\n\n  return {\n    user: { name: user.name, email: user.email }, // Pass essential user data\n    decision,\n    analysis: { summary: analysis.summary }, // Pass analysis summary\n    evaluatedAt: new Date().toISOString()\n  };\n}",
+        "position": {
+          "x": 300,
+          "y": 450
+        }
+      },
+      "typescript_1764340709888": {
+        "type": "typescript",
+        "title": "TypeScript Code",
+        "code": "interface Input {\n  user: { name: string; email: string };\n  decision: { approved: boolean; tier: string; reason: string };\n  analysis: { summary: string };\n}\n\ninterface Output {\n  email: {\n    to: string;\n    subject: string;\n    body: string;\n    htmlBody: string;\n    sentAt: string;\n  };\n  preview: string;\n}\n\nasync function run(input: Input): Promise<Output> {\n  const { user, decision, analysis } = input;\n  const name = user.name.split(\" \")[0];\n\n  let subject, body;\n\n  if (decision.tier === \"premium\") {\n    subject = `Welcome to the Inner Circle, ${name}!`;\n    body = `Dear ${user.name},\n\nWe're thrilled to welcome you as a PREMIUM member!\n\nYour unique blend of creativity and technical passion (${analysis.summary}) stood out immediately.\n\nGet ready for exclusive content, early access, and VIP events.\n\nWelcome to the family!\n\nBest regards,\nThe Team`;\n  } else if (decision.approved) {\n    subject = `Welcome aboard, ${name}!`;\n    body = `Hi ${name},\n\nGreat news — your application has been approved!\n\nWe're excited to have someone with your interests on board.\n\nYou'll get access to all standard features right away.\n\nWelcome!\n\nThe Team`;\n  } else {\n    subject = \"Update on Your Application\";\n    body = `Hi ${name},\n\nThank you for your interest.\n\nAfter review, we've decided not to move forward at this time.\n\nReason: ${decision.reason}\n\nWe wish you all the best!\n\nThe Team`;\n  }\n\n  const htmlBody = body.replace(/\\n/g, \"<br>\");\n\n  return {\n    email: {\n      to: user.email,\n      subject,\n      body,\n      htmlBody,\n      sentAt: new Date().toISOString()\n    },\n    preview: `${subject} → sent to ${user.email}`\n  };\n}",
+        "position": {
+          "x": 300,
+          "y": 500
+        }
+      },
+      "typescript_1764340726388": {
+        "type": "typescript",
+        "title": "TypeScript Code",
+        "code": "interface Input {\n  user: any;\n  decision: any;\n  analysis: any;\n  email: any;\n}\n\ninterface Output {\n  workflowSummary: {\n    userId: string;\n    status: string;\n    tier: string;\n    emailSent: boolean;\n    timestamp: string;\n    log: string[];\n  };\n  rawData: any;\n}\n\nasync function run(input: any): Promise<Output> {\n  const log = [\n    `User: ${input.user?.name || \"Unknown\"} (${input.user?.email})`,\n    `Age: ${input.user?.age}, Risk: ${input.user?.riskScore}`,\n    `Interests: ${input.user?.interests?.join(\", \")}`,\n    `Profile: ${input.analysis?.summary || \"N/A\"}`,\n    `Decision: ${input.decision?.tier?.toUpperCase() || \"unknown\"} – ${input.decision?.reason || \"no reason\"}`,\n    `Email: \"${input.email?.subject}\" → ${input.email?.to}`\n  ];\n\n  return {\n    workflowSummary: {\n      userId: input.user?.email || \"unknown\",\n      status: input.decision?.approved ? \"approved\" : \"rejected\",\n      tier: input.decision?.tier || \"none\",\n      emailSent: !!input.email?.subject,\n      timestamp: new Date().toISOString(),\n      log\n    },\n    rawData: input\n  };\n}",
+        "position": {
+          "x": 300,
+          "y": 550
+        }
+      },
+      "end": {
+        "type": "end",
+        "title": "End",
+        "position": {
+          "x": 300,
+          "y": 100
+        }
+      }
+    },
+    "connections": {
+      "start_typescript_1764340664572": {
+        "source": "start",
+        "target": "typescript_1764340664572",
+        "sourceOutput": "output",
+        "targetInput": "input"
+      },
+      "typescript_1764340664572_typescript_1764340674638": {
+        "source": "typescript_1764340664572",
+        "target": "typescript_1764340674638",
+        "sourceOutput": "output",
+        "targetInput": "input"
+      },
+      "typescript_1764340674638_typescript_1764340688455": {
+        "source": "typescript_1764340674638",
+        "target": "typescript_1764340688455",
+        "sourceOutput": "output",
+        "targetInput": "input"
+      },
+      "typescript_1764340688455_typescript_1764340705555": {
+        "source": "typescript_1764340688455",
+        "target": "typescript_1764340705555",
+        "sourceOutput": "output",
+        "targetInput": "input"
+      },
+      "typescript_1764340705555_typescript_1764340709888": {
+        "source": "typescript_1764340705555",
+        "target": "typescript_1764340709888",
+        "sourceOutput": "output",
+        "targetInput": "input"
+      },
+      "typescript_1764340709888_typescript_1764340726388": {
+        "source": "typescript_1764340709888",
+        "target": "typescript_1764340726388",
+        "sourceOutput": "output",
+        "targetInput": "input"
+      },
+      "typescript_1764340726388_end": {
+        "source": "typescript_1764340726388",
+        "target": "end",
+        "sourceOutput": "output",
+        "targetInput": "input"
+      }
+    },
+    "metadata": {
+      "nodeCount": 8,
+      "lastModified": "2025-11-28T14:53:44.035Z"
+    }
+  }
+}

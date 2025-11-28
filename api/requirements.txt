@@ -1,0 +1,12 @@
+fastapi==0.104.1
+uvicorn[standard]==0.24.0
+restrictedpython==7.4
+python-multipart==0.0.6
+pydantic==2.5.0
+pytz==2023.3
+requests==2.31.0
+numpy==1.26.2
+pandas==2.1.4
+aiohttp==3.9.1
+aiofiles==23.2.0
+python-dotenv==1.0.0

@@ -1,0 +1,240 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    --background: 0 0% 100%;
+    --foreground: 222.2 84% 4.9%;
+
+    --card: 0 0% 100%;
+    --card-foreground: 222.2 84% 4.9%;
+
+    --popover: 0 0% 100%;
+    --popover-foreground: 222.2 84% 4.9%;
+
+    --primary: 222.2 47.4% 11.2%;
+    --primary-foreground: 210 40% 98%;
+
+    --secondary: 210 40% 96%;
+    --secondary-foreground: 222.2 84% 4.9%;
+
+    --muted: 210 40% 96%;
+    --muted-foreground: 215.4 16.3% 46.9%;
+
+    --accent: 210 40% 96%;
+    --accent-foreground: 222.2 84% 4.9%;
+
+    --destructive: 0 84.2% 60.2%;
+    --destructive-foreground: 210 40% 98%;
+
+    --border: 214.3 31.8% 91.4%;
+    --input: 214.3 31.8% 91.4%;
+    --ring: 222.2 84% 4.9%;
+
+    --radius: 0.5rem;
+  }
+
+  .dark {
+    --background: 222.2 84% 4.9%;
+    --foreground: 210 40% 98%;
+
+    --card: 222.2 84% 4.9%;
+    --card-foreground: 210 40% 98%;
+
+    --popover: 222.2 84% 4.9%;
+    --popover-foreground: 210 40% 98%;
+
+    --primary: 210 40% 98%;
+    --primary-foreground: 222.2 47.4% 11.2%;
+
+    --secondary: 217.2 32.6% 17.5%;
+    --secondary-foreground: 210 40% 98%;
+
+    --muted: 217.2 32.6% 17.5%;
+    --muted-foreground: 215 20.2% 65.1%;
+
+    --accent: 217.2 32.6% 17.5%;
+    --accent-foreground: 210 40% 98%;
+
+    --destructive: 0 62.8% 30.6%;
+    --destructive-foreground: 210 40% 98%;
+
+    --border: 217.2 32.6% 17.5%;
+    --input: 217.2 32.6% 17.5%;
+    --ring: 212.7 26.8% 83.9%;
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+  body {
+    @apply bg-background text-foreground;
+  }
+}
+
+/* Rete.js specific styles */
+.rete {
+  position: relative;
+  font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+  color: #3b4048;
+  overflow: hidden;
+  height: 100%;
+}
+
+.rete .connection path {
+  fill: none;
+  stroke-width: 5px;
+  stroke: #4f46e5;
+  pointer-events: auto;
+}
+
+.rete .connection .main-path {
+  stroke: #4f46e5;
+  stroke-width: 4px;
+}
+
+.node {
+  background: white;
+  border: 2px solid #e2e8f0;
+  border-radius: 10px;
+  cursor: pointer;
+  box-sizing: border-box;
+  width: 360px;
+  height: auto;
+  padding: 16px;
+  position: relative;
+  user-select: none;
+  box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.1);
+}
+
+.node:hover {
+  border-color: #4f46e5;
+}
+
+.node.selected {
+  border-color: #4f46e5;
+  box-shadow: 0 0 0 2px #4f46e520;
+}
+
+.node.running {
+  border-color: #eab308;
+  box-shadow: 0 0 0 2px #eab30820;
+}
+
+.node.success {
+  border-color: #22c55e;
+  box-shadow: 0 0 0 2px #22c55e20;
+}
+
+.node.error {
+  border-color: #ef4444;
+  box-shadow: 0 0 0 2px #ef444420;
+}
+
+.input, .output {
+  position: absolute;
+  z-index: 1;
+}
+
+.input {
+  left: -10px;
+}
+
+.output {
+  right: -10px;
+}
+
+.input .socket, .output .socket {
+  display: inline-block;
+  cursor: pointer;
+  border: 2px solid white;
+  border-radius: 12px;
+  width: 20px;
+  height: 20px;
+  vertical-align: middle;
+  background: #96a3b0;
+  z-index: 2;
+  box-sizing: border-box;
+}
+
+.input .socket:hover, .output .socket:hover {
+  border-color: #4f46e5;
+}
+
+.input .socket.multiple, .output .socket.multiple {
+  border-color: yellow;
+}
+
+.control input, .control select {
+  width: 100%;
+  border-radius: 4px;
+  border: 1px solid #e2e8f0;
+  padding: 8px;
+  font-size: 12px;
+}
+
+.control .input-title, .control .output-title {
+  vertical-align: middle;
+  color: white;
+  display: inline-block;
+  font-family: sans-serif;
+  font-size: 14px;
+  margin: 0px;
+  line-height: 24px;
+}
+
+.control .input-label, .control .output-label {
+  color: #999;
+  font-size: 12px;
+  margin: 4px 0;
+}
+
+.node .title {
+  color: white;
+  font-family: sans-serif;
+  font-size: 18px;
+  padding: 8px 4px;
+  margin: -16px -16px 16px -16px;
+  border-radius: 8px 8px 0 0;
+  background: #4f46e5;
+  text-align: center;
+}
+
+.node .start-title {
+  background: #22c55e;
+}
+
+.node .python-title {
+  background: #3776ab;
+}
+
+.node .typescript-title {
+  background: #3178c6;
+}
+
+.node .end-title {
+  background: #ef4444;
+}
+
+.context-menu {
+  background: white;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  box-shadow: 0 10px 15px -3px rgb(0 0 0 / 0.1);
+  padding: 8px 0;
+  min-width: 180px;
+}
+
+.context-menu-item {
+  padding: 8px 16px;
+  cursor: pointer;
+  font-size: 14px;
+  color: #374151;
+}
+
+.context-menu-item:hover {
+  background: #f3f4f6;
+}
