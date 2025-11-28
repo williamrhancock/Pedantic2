@@ -123,6 +123,8 @@ function WorkflowCanvasInner({
   const [edges, setEdges] = useState<Edge[]>([])
   const prevNodeIdsRef = useRef<string>('')
   const isUpdatingFromPropsRef = useRef(false)
+  const viewportInitializedRef = useRef(false)
+  const isDraggingRef = useRef(false)
 
   // Use a ref to track the last node IDs to prevent unnecessary updates
   const lastInitialNodesRef = useRef(initialNodes)
@@ -158,10 +160,11 @@ function WorkflowCanvasInner({
       
       setNodes(newReactFlowNodes)
       
-      // Always fit view when nodes change to ensure they're visible
-      if (newReactFlowNodes.length > 0 && reactFlowInstance.current) {
+      // Only calculate viewport when nodes are added/removed (ID changes), not on position changes
+      // This prevents jitter during drag operations
+      if (newReactFlowNodes.length > 0 && reactFlowInstance.current && !viewportInitializedRef.current) {
         const calculateAndSetViewport = () => {
-          if (!reactFlowInstance.current) return
+          if (!reactFlowInstance.current || isDraggingRef.current) return
           
           const nodePositions = newReactFlowNodes.map(n => n.position)
           const minX = Math.min(...nodePositions.map(p => p.x))
@@ -171,29 +174,25 @@ function WorkflowCanvasInner({
           const centerX = (minX + maxX) / 2
           const centerY = (minY + maxY) / 2
           
-          // Get container dimensions
           const container = document.querySelector('.react-flow') as HTMLElement
           if (!container) return
           
           const containerWidth = container.offsetWidth || 800
           const containerHeight = container.offsetHeight || 600
           
-          // Calculate zoom to fit all nodes
           const padding = 100
           const contentWidth = Math.max(maxX - minX, 200) + padding * 2
           const contentHeight = Math.max(maxY - minY, 200) + padding * 2
           const zoomX = containerWidth / contentWidth
           const zoomY = containerHeight / contentHeight
-          const zoom = Math.min(zoomX, zoomY, 1.5)
+          const zoom = Math.min(zoomX, zoomY, 1.5, 1.0)
           
-          // Calculate viewport transform
           const viewportX = containerWidth / 2 - centerX * zoom
           const viewportY = containerHeight / 2 - centerY * zoom
           
-          // Set viewport directly
           reactFlowInstance.current.setViewport({ x: viewportX, y: viewportY, zoom }, { duration: 0 })
+          viewportInitializedRef.current = true
           
-          // Force all nodes visible immediately
           requestAnimationFrame(() => {
             document.querySelectorAll('.react-flow__node').forEach((node) => {
               const el = node as HTMLElement
@@ -202,10 +201,8 @@ function WorkflowCanvasInner({
           })
         }
         
-        setTimeout(calculateAndSetViewport, 50)
-        setTimeout(calculateAndSetViewport, 200)
-        setTimeout(calculateAndSetViewport, 500)
-        setTimeout(calculateAndSetViewport, 1000)
+        // Only run once, not multiple times
+        setTimeout(calculateAndSetViewport, 100)
       }
       
       // Reset flag after update
@@ -266,6 +263,16 @@ function WorkflowCanvasInner({
       // Ignore changes if we're currently updating from props to prevent infinite loop
       if (isUpdatingFromPropsRef.current) {
         return
+      }
+      
+      // Track dragging state
+      const hasPositionChanges = changes.some((change: any) => change.type === 'position')
+      if (hasPositionChanges) {
+        isDraggingRef.current = true
+        // Clear dragging flag after drag ends
+        setTimeout(() => {
+          isDraggingRef.current = false
+        }, 100)
       }
       
       // Filter out 'select' changes as they don't need to update parent state
@@ -330,11 +337,12 @@ function WorkflowCanvasInner({
   const onInit = useCallback((instance: ReactFlowInstance) => {
     reactFlowInstance.current = instance
     
-    // Immediately set viewport to center on nodes BEFORE React Flow calculates visibility
-    if (nodes.length > 0) {
-      // Use requestAnimationFrame to ensure DOM is ready
+    // Only set viewport once on initial load if not already initialized
+    if (nodes.length > 0 && !viewportInitializedRef.current) {
       requestAnimationFrame(() => {
         requestAnimationFrame(() => {
+          if (viewportInitializedRef.current || isDraggingRef.current) return
+          
           const nodePositions = nodes.map(n => n.position)
           if (nodePositions.length === 0) return
           
@@ -356,13 +364,13 @@ function WorkflowCanvasInner({
           const contentHeight = Math.max(maxY - minY, 200) + padding * 2
           const zoomX = containerWidth / contentWidth
           const zoomY = containerHeight / contentHeight
-          const zoom = Math.min(zoomX, zoomY, 1.5, 1.0) // Cap at 1.0 to ensure nodes are visible
+          const zoom = Math.min(zoomX, zoomY, 1.5, 1.0)
           
           const viewportX = containerWidth / 2 - centerX * zoom
           const viewportY = containerHeight / 2 - centerY * zoom
           
-          // Set viewport BEFORE React Flow tries to calculate visibility
           instance.setViewport({ x: viewportX, y: viewportY, zoom }, { duration: 0 })
+          viewportInitializedRef.current = true
         })
       })
     }
