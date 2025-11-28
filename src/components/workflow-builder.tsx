@@ -11,6 +11,7 @@ import { DataflowEngine } from 'rete-engine'
 import { trpc } from '@/lib/trpc-provider'
 import { nodeComponents } from '@/components/nodes/node-components'
 import { debounce } from 'lodash'
+import { FloatingAddButton } from '@/components/ui/FloatingAddButton'
 
 // Node classes matching our schema
 class StartNode extends Classic.Node<{}, { output: Classic.Socket }, {}> {
@@ -87,6 +88,7 @@ export function WorkflowBuilder() {
   const [isExecuting, setIsExecuting] = useState(false)
   const [executionResults, setExecutionResults] = useState<Record<string, any>>({})
   const [logs, setLogs] = useState<string[]>([])
+  const [nodeCounter, setNodeCounter] = useState(0) // For unique node IDs
 
   const { data: workflow, refetch: refetchWorkflow } = trpc.getWorkflow.useQuery({ id: 1 })
   const saveWorkflowMutation = trpc.saveWorkflow.useMutation()
@@ -98,6 +100,27 @@ export function WorkflowBuilder() {
     if (node instanceof PythonNode) return 'python'
     if (node instanceof TypeScriptNode) return 'typescript'
     return 'unknown'
+  }
+
+  const addNode = async () => {
+    if (!editor || !area) return
+
+    const newNodeId = `node-${nodeCounter}`
+    setNodeCounter(prev => prev + 1)
+
+    // Calculate a position for the new node (e.g., center of the visible area)
+    const view = area.area.transform
+    const x = (-view.x + window.innerWidth / 2) / area.area.transform.k
+    const y = (-view.y + window.innerHeight / 2) / area.area.transform.k
+
+    const node = instantiateNode('python') // Default to Python node for now
+    node.id = newNodeId
+    node.label = `Python Node ${nodeCounter}`
+
+    await editor.addNode(node)
+    await area.translate(node.id, { x, y })
+
+    debouncedSave(editor)
   }
 
   // Debounced save function
@@ -437,6 +460,7 @@ export function WorkflowBuilder() {
           </div>
         </div>
       </div>
+      <FloatingAddButton onClick={addNode} />
     </div>
   )
 }
