@@ -9,7 +9,8 @@
     "build": "next build",
     "start": "next start",
     "lint": "next lint",
-    "postinstall": "cd api && pip install -r requirements.txt"
+    "postinstall": "cd api && pip install -r requirements.txt",
+    "run-workflow": "ts-node scripts/run-workflow.ts"
   },
   "dependencies": {
     "@hookform/resolvers": "^3.3.2",
@@ -66,6 +67,7 @@
     "eslint-config-next": "15.0.3",
     "postcss": "^8.4.31",
     "tailwindcss": "^3.3.5",
-    "typescript": "^5.2.2"
+    "typescript": "^5.2.2",
+    "ts-node": "^10.9.2"
   }
 }

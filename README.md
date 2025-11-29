@@ -234,6 +234,40 @@ Invoke-RestMethod -Uri "http://127.0.0.1:8000/run" `
   -Body $body
 ```
 
+### 3.1 Helper CLI: `scripts/run-workflow.ts` (by workflow ID)
+
+Instead of managing workflow JSON files, you can run workflows directly **by ID** stored in the DB.
+
+We provide `scripts/run-workflow.ts`, which:
+
+- Calls the Next.js tRPC `getWorkflow` endpoint to load the workflow by ID.
+- Sends the `workflow.data` payload to the FastAPI `/run` endpoint.
+
+Prerequisites:
+
+- Servers running:
+  - Next.js: `npm run start` (after `npm run build`)
+  - FastAPI: `cd api && uvicorn main:app --host 127.0.0.1 --port 8000`
+- Install dev deps (including `ts-node`):
+
+```bash
+npm install
+```
+
+Usage:
+
+```bash
+# Default: Next.js at http://127.0.0.1:3000, FastAPI at http://127.0.0.1:8000
+npm run run-workflow -- 42
+
+# Optional overrides
+WORKFLOW_WEB_URL="http://my-host:3000" \
+WORKFLOW_API_URL="http://my-host:8000" \
+  npm run run-workflow -- 42
+```
+
+You can schedule this command directly in cron / launchd / Task Scheduler instead of the JSON-based scripts if you prefer.
+
 ### 4. Scheduling on macOS, Linux, and Windows
 
 Below are **two patterns** per OS:
