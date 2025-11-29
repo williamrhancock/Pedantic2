@@ -140,7 +140,7 @@ export function DbMaintenanceModal({ isOpen, onClose }: DbMaintenanceModalProps)
                       </th>
                       <th className="px-2 py-2 text-left">Name</th>
                       <th className="px-2 py-2 text-left">Type</th>
-                      <th className="px-2 py-2 text-left">Updated</th>
+                      <th className="px-2 py-2 text-left">Last Saved</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -165,8 +165,8 @@ export function DbMaintenanceModal({ isOpen, onClose }: DbMaintenanceModalProps)
                         </td>
                         <td className="px-2 py-1 text-muted-foreground whitespace-nowrap">
                           {w.updated_at
-                            ? new Date(w.updated_at).toLocaleDateString()
-                            : ''}
+                            ? new Date(w.updated_at).toLocaleString()
+                            : 'unknown'}
                         </td>
                       </tr>
                     ))}

@@ -172,9 +172,12 @@ function WorkflowBrowser({ isOpen, onClose, onSelect }: WorkflowBrowserProps) {
                       </span>
                     ))}
                   </div>
-                    <div className="text-xs text-muted-foreground">
-                    Updated: {new Date(workflow.updated_at).toLocaleDateString()}
-                  </div>
+            <div className="text-xs text-muted-foreground">
+              Updated:{' '}
+              {workflow.updated_at
+                ? new Date(workflow.updated_at).toLocaleString()
+                : 'unknown'}
+            </div>
                 </div>
               ))}
             </div>
@@ -1134,7 +1137,11 @@ export function SimpleWorkflowBuilder() {
       {/* Save As Dialog */}
       <SaveAsDialog
         isOpen={showSaveAsDialog}
-        currentName={workflowMetadata.name}
+        currentName={
+          workflowMetadata.name === 'Untitled Workflow' || workflowMetadata.name === 'Untitled'
+            ? ''
+            : workflowMetadata.name
+        }
         currentId={workflowMetadata.id}
         onClose={() => setShowSaveAsDialog(false)}
         onSave={handleSaveAs}
