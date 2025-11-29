@@ -6,13 +6,21 @@ import Editor from '@monaco-editor/react'
 import { useTheme } from '@/contexts/ThemeContext'
 import { normalizeLlmConfig, type LlmConfig, createDefaultLlmConfig } from '@/lib/llm'
 
+const COMMON_PROVIDERS = [
+  { label: 'OpenRouter (multi-provider router)', value: 'openrouter' },
+  { label: 'OpenAI', value: 'openai' },
+  { label: 'Anthropic', value: 'anthropic' },
+  { label: 'Google Gemini', value: 'gemini' },
+  { label: 'Groq', value: 'groq' },
+]
+
 const COMMON_MODELS = [
-  { label: 'OpenAI – gpt-4o', value: 'gpt-4o' },
-  { label: 'OpenAI – gpt-4o-mini', value: 'gpt-4o-mini' },
-  { label: 'Anthropic – Claude 3.5 Sonnet', value: 'anthropic/claude-3.5-sonnet' },
-  { label: 'Gemini – 1.5 Pro', value: 'google/gemini-1.5-pro' },
-  { label: 'Groq – llama-3.1-70b', value: 'groq/llama-3.1-70b' },
-  { label: 'OpenRouter – meta-llama/Meta-Llama-3.1-70B-Instruct', value: 'meta-llama/Meta-Llama-3.1-70B-Instruct' },
+  { label: 'OpenRouter – meta-llama/Meta-Llama-3.1-70B-Instruct', value: 'meta-llama/Meta-Llama-3.1-70B-Instruct', provider: 'openrouter' },
+  { label: 'OpenAI – gpt-4o', value: 'gpt-4o', provider: 'openai' },
+  { label: 'OpenAI – gpt-4o-mini', value: 'gpt-4o-mini', provider: 'openai' },
+  { label: 'Anthropic – Claude 3.5 Sonnet', value: 'claude-3.5-sonnet', provider: 'anthropic' },
+  { label: 'Gemini – 1.5 Pro', value: 'gemini-1.5-pro', provider: 'gemini' },
+  { label: 'Groq – llama-3.1-70b', value: 'llama-3.1-70b', provider: 'groq' },
 ]
 
 type TabId = 'form' | 'json'
@@ -47,6 +55,9 @@ export function LlmNodeDialog({
   const [jsonText, setJsonText] = useState<string>(JSON.stringify(initialConfig, null, 2))
   const [jsonError, setJsonError] = useState<string | null>(null)
   const [formError, setFormError] = useState<string | null>(null)
+  const [models, setModels] = useState<{ label: string; value: string }[]>([])
+  const [modelsLoading, setModelsLoading] = useState(false)
+  const [modelsError, setModelsError] = useState<string | null>(null)
 
   useEffect(() => {
     if (isOpen) {
@@ -68,6 +79,7 @@ export function LlmNodeDialog({
       return next
     })
     setFormError(null)
+    setModelsError(null)
   }
 
   const handleSave = () => {
@@ -105,9 +117,68 @@ export function LlmNodeDialog({
   }
 
   const saveDisabled = isLocked || !!jsonError
+  const currentProvider = config.provider || 'openrouter'
 
-  const currentModelInList = COMMON_MODELS.some(m => m.value === config.model)
+  const providerModels =
+    models.length > 0
+      ? models
+      : COMMON_MODELS.filter((m) => m.provider === currentProvider)
+
+  const currentModelInList = providerModels.some((m) => m.value === config.model)
   const selectModelValue = currentModelInList ? config.model : 'custom'
+
+  const loadModelsForProvider = async (provider: string) => {
+    setModelsError(null)
+    setModels([])
+
+    // Require an API key override before attempting dynamic fetch.
+    if (!config.api_key || !config.api_key.trim()) {
+      setModelsError(
+        'Enter an API key override for this node before fetching models. The backend can still use env/global keys for execution.'
+      )
+      return
+    }
+
+    // For now we implement dynamic listing only for OpenRouter; others fall back to static presets.
+    if (provider !== 'openrouter') {
+      setModelsError(
+        'Dynamic model listing is currently implemented for OpenRouter only. You can still type a custom model name.'
+      )
+      return
+    }
+
+    try {
+      setModelsLoading(true)
+      const res = await fetch('https://openrouter.ai/api/v1/models', {
+        headers: {
+          Authorization: `Bearer ${config.api_key}`,
+        },
+      })
+      if (!res.ok) {
+        throw new Error(`HTTP ${res.status}`)
+      }
+      const data: any = await res.json()
+      const fetched: { label: string; value: string }[] =
+        Array.isArray(data?.data) || Array.isArray(data?.models)
+          ? (data.data || data.models).map((m: any) => ({
+              label: m.name || m.id,
+              value: m.id || m.name,
+            }))
+          : []
+      if (fetched.length === 0) {
+        setModelsError('No models were returned for this provider.')
+      } else {
+        setModels(fetched)
+      }
+    } catch (e) {
+      console.error('Failed to fetch models:', e)
+      setModelsError(
+        'Failed to fetch models from provider. Check your API key and network, or type a custom model name.'
+      )
+    } finally {
+      setModelsLoading(false)
+    }
+  }
 
   return (
     <>
@@ -173,12 +244,83 @@ export function LlmNodeDialog({
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div>
                     <label className="text-sm font-semibold text-foreground mb-1 block">
+                      API key override (optional)
+                    </label>
+                    <input
+                      type="password"
+                      className="w-full px-3 py-2 rounded-lg bg-white/5 border border-white/10 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-purple-500"
+                      value={config.api_key ?? ''}
+                      disabled={isLocked}
+                      onChange={(e) =>
+                        handleFieldChange({
+                          api_key: e.target.value || undefined,
+                        })
+                      }
+                    />
+                    <p className="text-[11px] text-muted-foreground mt-1">
+                      If empty, the backend uses environment-based configuration
+                      (e.g. OPENROUTER_API_KEY). This field overrides it for
+                      this node only.
+                    </p>
+                  </div>
+                  <div>
+                    <label className="text-sm font-semibold text-foreground mb-1 block">
+                      Provider / router
+                    </label>
+                    <select
+                      className="w-full px-3 py-2 rounded-lg bg-white/5 border border-white/10 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-purple-500 mb-2"
+                      value={currentProvider}
+                      disabled={isLocked}
+                      onChange={async (e) => {
+                        const value = e.target.value
+                        handleFieldChange({ provider: value as any })
+                        await loadModelsForProvider(value)
+                      }}
+                    >
+                      {COMMON_PROVIDERS.map((p) => (
+                        <option key={p.value} value={p.value}>
+                          {p.label}
+                        </option>
+                      ))}
+                    </select>
+                    <label className="text-sm font-semibold text-foreground mb-1 block">
+                      API key env var name (legacy)
+                    </label>
+                    <input
+                      type="text"
+                      className="w-full px-3 py-2 rounded-lg bg-white/5 border border-white/10 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-purple-500"
+                      value={config.api_key_name ?? ''}
+                      disabled={isLocked}
+                      onChange={(e) =>
+                        handleFieldChange({
+                          api_key_name: e.target.value || undefined,
+                        })
+                      }
+                    />
+                    <p className="text-[11px] text-muted-foreground mt-1">
+                      Used by some providers/routers (e.g. OPENROUTER_API_KEY).
+                    </p>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div>
+                    <label className="text-sm font-semibold text-foreground mb-1 block">
                       Model
                     </label>
                     <select
                       className="w-full px-3 py-2 rounded-lg bg-white/5 border border-white/10 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-purple-500"
                       value={selectModelValue}
                       disabled={isLocked}
+                      onClick={(e) => {
+                        if (!config.api_key || !config.api_key.trim()) {
+                          // Soft gate: remind user they should configure a key before
+                          // attempting dynamic model loads.
+                          setModelsError(
+                            'Enter an API key override to fetch provider models, or choose a custom model name.'
+                          )
+                        }
+                      }}
                       onChange={(e) => {
                         const value = e.target.value
                         if (value === 'custom') {
@@ -188,7 +330,7 @@ export function LlmNodeDialog({
                         }
                       }}
                     >
-                      {COMMON_MODELS.map((m) => (
+                      {providerModels.map((m) => (
                         <option key={m.value} value={m.value}>
                           {m.label}
                         </option>
@@ -206,6 +348,16 @@ export function LlmNodeDialog({
                           handleFieldChange({ model: e.target.value })
                         }
                       />
+                    )}
+                    {modelsLoading && (
+                      <p className="text-[11px] text-muted-foreground mt-1">
+                        Loading models from provider…
+                      </p>
+                    )}
+                    {modelsError && (
+                      <p className="text-[11px] text-red-400 mt-1">
+                        {modelsError}
+                      </p>
                     )}
                   </div>
                   <div className="grid grid-cols-2 gap-3">
@@ -245,49 +397,6 @@ export function LlmNodeDialog({
                         }
                       />
                     </div>
-                  </div>
-                </div>
-
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <div>
-                    <label className="text-sm font-semibold text-foreground mb-1 block">
-                      API key override (optional)
-                    </label>
-                    <input
-                      type="password"
-                      className="w-full px-3 py-2 rounded-lg bg-white/5 border border-white/10 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-purple-500"
-                      value={config.api_key ?? ''}
-                      disabled={isLocked}
-                      onChange={(e) =>
-                        handleFieldChange({
-                          api_key: e.target.value || undefined,
-                        })
-                      }
-                    />
-                    <p className="text-[11px] text-muted-foreground mt-1">
-                      If empty, the backend uses environment-based configuration
-                      (e.g. OPENROUTER_API_KEY). This field overrides it for
-                      this node only.
-                    </p>
-                  </div>
-                  <div>
-                    <label className="text-sm font-semibold text-foreground mb-1 block">
-                      API key env var name (legacy)
-                    </label>
-                    <input
-                      type="text"
-                      className="w-full px-3 py-2 rounded-lg bg-white/5 border border-white/10 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-purple-500"
-                      value={config.api_key_name ?? ''}
-                      disabled={isLocked}
-                      onChange={(e) =>
-                        handleFieldChange({
-                          api_key_name: e.target.value || undefined,
-                        })
-                      }
-                    />
-                    <p className="text-[11px] text-muted-foreground mt-1">
-                      Used by some providers/routers (e.g. OPENROUTER_API_KEY).
-                    </p>
                   </div>
                 </div>
 

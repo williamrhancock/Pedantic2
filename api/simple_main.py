@@ -717,7 +717,7 @@ async def execute_llm_request(config: Dict[str, Any], input_data: Any) -> Dict[s
                 upstream_str = str(input_data)
         
         if upstream_str:
-            processed_user = f\"{user_prompt}\\n{upstream_str}\"
+            processed_user = f"{user_prompt}\n{upstream_str}"
         else:
             processed_user = user_prompt
         
@@ -776,7 +776,7 @@ async def execute_llm_request(config: Dict[str, Any], input_data: Any) -> Dict[s
                             'content': content,
                             'model': model,
                             'provider': 'openrouter',
-                            'prompt': processed_prompt[:200] + '...' if len(processed_prompt) > 200 else processed_prompt,
+                            'prompt': processed_user[:200] + '...' if len(processed_user) > 200 else processed_user,
                             'tokens_used': response_data.get('usage', {}).get('total_tokens', 0),
                             'finish_reason': response_data['choices'][0].get('finish_reason', 'unknown')
                         },
