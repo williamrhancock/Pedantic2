@@ -49,6 +49,18 @@ const appRouter = createTRPCRouter({
       }
     }),
 
+  deleteWorkflowsByName: publicProcedure
+    .input(z.object({
+      name: z.string().min(1),
+    }))
+    .mutation(async ({ input }) => {
+      await workflowQueries.deleteWorkflowsByName(input.name)
+      // Also clean up any execution history linked to those workflows
+      // (this is a best-effort; executions without a workflow row are harmless).
+      // We don't have a direct delete-by-name, so this is left as-is for now.
+      return { success: true }
+    }),
+
   saveWorkflow: publicProcedure
     .input(z.object({
       id: z.number().optional(),
