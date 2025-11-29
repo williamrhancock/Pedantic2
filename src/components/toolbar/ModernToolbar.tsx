@@ -15,7 +15,7 @@ import {
 } from 'lucide-react'
 import type { CustomNodeTemplate } from '@/lib/custom-nodes'
 
-export type NodeType = 'python' | 'typescript' | 'http' | 'file' | 'condition' | 'database' | 'llm'
+export type NodeType = 'python' | 'typescript' | 'http' | 'file' | 'condition' | 'database' | 'llm' | 'foreach'
 
 interface ModernToolbarProps {
   activeNodeType?: NodeType | null
@@ -45,6 +45,7 @@ const nodeTypes: { type: NodeType; label: string; color: string }[] = [
   { type: 'condition', label: 'Condition', color: 'from-orange-500 to-orange-600' },
   { type: 'database', label: 'Database', color: 'from-green-600 to-emerald-700' },
   { type: 'llm', label: 'LLM AI', color: 'from-pink-500 to-rose-600' },
+  { type: 'foreach', label: 'For Each', color: 'from-indigo-500 to-indigo-600' },
 ]
 
 export function ModernToolbar({

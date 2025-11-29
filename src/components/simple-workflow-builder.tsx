@@ -17,7 +17,7 @@ import { createDefaultLlmConfig, normalizeLlmConfig, type LlmConfig } from '@/li
 
 interface WorkflowNode {
   id: string
-  type: 'start' | 'end' | 'python' | 'typescript' | 'http' | 'file' | 'condition' | 'database' | 'llm'
+  type: 'start' | 'end' | 'python' | 'typescript' | 'http' | 'file' | 'condition' | 'database' | 'llm' | 'foreach'
   title: string
   description?: string
   code?: string
@@ -601,43 +601,304 @@ export function SimpleWorkflowBuilder() {
         }, {} as any)
       }
 
+      // Clear previous execution timeline
+      const workflowStartTime = Date.now()
+      setTimelineEntries([])
+
       const result = await executeWorkflowMutation.mutateAsync({
         workflow: workflowData
       })
 
-      // Convert to timeline entries
-      const entries: TimelineEntry[] = []
+      // Process results sequentially to show real-time status
       let allSuccess = true
+      let cumulativeExecutionTime = 0 // Track cumulative execution time in seconds
 
-      result.nodes.forEach((nodeResult: any, index: number) => {
-        const status: 'success' | 'error' | 'running' = nodeResult.error ? 'error' : 'success'
+      for (let index = 0; index < result.nodes.length; index++) {
+        const nodeResult = result.nodes[index]
+        const status: 'success' | 'error' | 'done' = nodeResult.error ? 'error' : 'done'
         if (nodeResult.error) allSuccess = false
 
-        entries.push({
-          id: `entry-${nodeResult.id}-${Date.now()}`,
+        const node = nodes.find(n => n.id === nodeResult.id)
+        const nodeTitle = node?.title || nodeResult.id
+        const nodeType = node?.type || ''
+        const isForEachNode = node?.type === 'foreach'
+        
+        // Skip Start and End nodes - they're control nodes, not executable
+        if (nodeType === 'start' || nodeType === 'end') {
+          // Still update node outputs for data flow, but don't show in timeline
+          continue
+        }
+
+        // Mark node as running
+        setNodes(prev => prev.map(n => 
+          n.id === nodeResult.id
+            ? { ...n, isExecuting: true, executionStatus: 'running' }
+            : { ...n, isExecuting: false }
+        ))
+
+        // Create timeline entry showing this node as running
+        const runningTimestamp = new Date(workflowStartTime + (cumulativeExecutionTime * 1000))
+        const runningEntry: TimelineEntry = {
+          id: `running-${nodeResult.id}-${Date.now()}`,
           nodeId: nodeResult.id,
-          nodeTitle: nodes.find(n => n.id === nodeResult.id)?.title || nodeResult.id,
-          status,
-          output: nodeResult.output,
-          error: nodeResult.error,
-          stdout: nodeResult.stdout,
-          stderr: nodeResult.stderr,
-          executionTime: nodeResult.execution_time,
-          timestamp: new Date(),
+          nodeTitle: nodeTitle,
+          status: 'running',
+          timestamp: runningTimestamp,
+        }
+        setTimelineEntries(prev => {
+          // Remove any existing entry for this node and add running entry
+          const withoutThis = prev.filter(e => e.nodeId !== nodeResult.id || e.isForEachResult)
+          return [...withoutThis, runningEntry]
         })
 
-        // Update node execution status
-        setNodes(prev => prev.map(node => 
-          node.id === nodeResult.id
-            ? { ...node, isExecuting: false, executionStatus: status }
-            : node
-        ))
-      })
+        // Delay to show running state - longer delay so user can see progression
+        await new Promise(resolve => setTimeout(resolve, 300))
 
-      setTimelineEntries(entries)
+        // Check if this is a for-each node with results
+        if (isForEachNode && nodeResult.output && nodeResult.output.results && Array.isArray(nodeResult.output.results)) {
+          // Update main for-each entry from running to done
+          const finalStatus: 'success' | 'error' | 'running' | 'waiting' | 'done' = status === 'error' ? 'error' : 'done'
+          const forEachEndTimestamp = new Date(workflowStartTime + (cumulativeExecutionTime + (nodeResult.execution_time || 0)) * 1000)
+          setTimelineEntries(prev => prev.map(entry => 
+            entry.nodeId === nodeResult.id && !entry.isForEachResult
+              ? {
+                  ...entry,
+                  status: finalStatus,
+                  nodeTitle: `${nodeTitle} (${nodeResult.output.total} iterations)`,
+                  output: nodeResult.output,
+                  error: nodeResult.error,
+                  stdout: nodeResult.stdout,
+                  stderr: nodeResult.stderr,
+                  executionTime: nodeResult.execution_time,
+                  timestamp: forEachEndTimestamp,
+                }
+              : entry
+          ))
+
+          // Process iterations sequentially in real-time
+          // Calculate when for-each started (after previous nodes)
+          const forEachStartTime = workflowStartTime + (cumulativeExecutionTime * 1000)
+          let iterationCumulativeTime = 0 // Time within the for-each loop
+
+          for (let iterIndex = 0; iterIndex < nodeResult.output.results.length; iterIndex++) {
+            const iterationResult = nodeResult.output.results[iterIndex]
+            const iterStatus: 'success' | 'error' = iterationResult.status === 'success' ? 'success' : 'error'
+            if (iterStatus === 'error') allSuccess = false
+
+            // Calculate timestamp based on execution order within the for-each
+            const iterationTimestamp = new Date(forEachStartTime + iterationCumulativeTime)
+
+            // Add entry for the iteration itself
+            const iterationEntry: TimelineEntry = {
+              id: `entry-${nodeResult.id}-iter-${iterIndex}-${Date.now()}`,
+              nodeId: nodeResult.id,
+              nodeTitle: `${nodeTitle} → Iteration ${iterIndex + 1}`,
+              status: iterStatus,
+              output: iterationResult.output,
+              error: iterationResult.error || undefined,
+              stdout: undefined,
+              stderr: undefined,
+              executionTime: undefined,
+              timestamp: iterationTimestamp,
+              isForEachResult: true,
+              forEachIteration: iterIndex,
+              forEachItem: iterationResult.item,
+            }
+
+            // Add iteration entry immediately
+            setTimelineEntries(prev => {
+              const withoutIter = prev.filter(e => 
+                !(e.isForEachResult && e.forEachIteration === iterIndex && e.nodeId === nodeResult.id && e.nodeTitle.includes('→ Iteration'))
+              )
+              return [...withoutIter, iterationEntry]
+            })
+
+            // Process nodes within this iteration sequentially
+            if (iterationResult.node_executions && Array.isArray(iterationResult.node_executions)) {
+              for (let nodeIndex = 0; nodeIndex < iterationResult.node_executions.length; nodeIndex++) {
+                const nodeExec = iterationResult.node_executions[nodeIndex]
+                const nodeExecStatus: 'success' | 'error' = nodeExec.status === 'success' ? 'success' : 'error'
+                if (nodeExecStatus === 'error') allSuccess = false
+
+                // Calculate timestamp for this node within the iteration
+                const nodeExecTime = nodeExec.execution_time || 0
+                const nodeTimestamp = new Date(forEachStartTime + iterationCumulativeTime)
+
+                // Show node as running first
+                const runningNodeEntry: TimelineEntry = {
+                  id: `entry-${nodeResult.id}-iter-${iterIndex}-node-${nodeExec.node_id}-running-${Date.now()}`,
+                  nodeId: nodeExec.node_id,
+                  nodeTitle: `${nodeExec.node_title || nodeExec.node_id} [Iteration ${iterIndex + 1}]`,
+                  status: 'running',
+                  output: undefined,
+                  error: undefined,
+                  stdout: undefined,
+                  stderr: undefined,
+                  executionTime: undefined,
+                  timestamp: nodeTimestamp,
+                  isForEachResult: true,
+                  forEachIteration: iterIndex,
+                  forEachItem: iterationResult.item,
+                }
+
+                setTimelineEntries(prev => {
+                  const withoutThisNode = prev.filter(e => 
+                    !(e.isForEachResult && e.forEachIteration === iterIndex && e.nodeId === nodeExec.node_id)
+                  )
+                  return [...withoutThisNode, runningNodeEntry]
+                })
+
+                // Wait a bit to show running state
+                await new Promise(resolve => setTimeout(resolve, 100))
+
+                // Update to done/error with actual results
+                const finalNodeEntry: TimelineEntry = {
+                  id: `entry-${nodeResult.id}-iter-${iterIndex}-node-${nodeExec.node_id}-${Date.now()}`,
+                  nodeId: nodeExec.node_id,
+                  nodeTitle: `${nodeExec.node_title || nodeExec.node_id} [Iteration ${iterIndex + 1}]`,
+                  status: nodeExecStatus,
+                  output: nodeExec.output,
+                  error: nodeExec.error || undefined,
+                  stdout: nodeExec.stdout || undefined,
+                  stderr: nodeExec.stderr || undefined,
+                  executionTime: nodeExecTime,
+                  timestamp: nodeTimestamp,
+                  isForEachResult: true,
+                  forEachIteration: iterIndex,
+                  forEachItem: iterationResult.item,
+                }
+
+                setTimelineEntries(prev => {
+                  const withoutThisNode = prev.filter(e => 
+                    !(e.isForEachResult && e.forEachIteration === iterIndex && e.nodeId === nodeExec.node_id)
+                  )
+                  return [...withoutThisNode, finalNodeEntry]
+                })
+
+                // Add this node's execution time to iteration cumulative (in milliseconds)
+                iterationCumulativeTime += nodeExecTime * 1000
+              }
+            }
+
+            // Small delay between iterations to show progression (but use actual execution time for timestamp)
+            await new Promise(resolve => setTimeout(resolve, 200))
+          }
+
+          // Add the for-each total execution time to cumulative
+          cumulativeExecutionTime += nodeResult.execution_time || 0
+
+          // Find and mark downstream nodes as done (they executed inside the foreach)
+          const findDownstreamNodes = (foreachNodeId: string): string[] => {
+            const downstream: string[] = []
+            const visited = new Set<string>()
+            const queue = [foreachNodeId]
+            
+            while (queue.length > 0) {
+              const currentId = queue.shift()!
+              if (visited.has(currentId)) continue
+              visited.add(currentId)
+              
+              // Find all nodes connected from this node
+              connections.forEach(conn => {
+                if (conn.from === currentId) {
+                  const targetId = conn.to
+                  if (targetId && !visited.has(targetId)) {
+                    const targetNode = nodes.find(n => n.id === targetId)
+                    const targetType = targetNode?.type || ''
+                    
+                    // Stop at 'end' or another 'foreach' node
+                    if (targetType === 'end' || targetType === 'foreach') {
+                      return
+                    }
+                    
+                    downstream.push(targetId)
+                    queue.push(targetId)
+                  }
+                }
+              })
+            }
+            
+            return downstream
+          }
+
+          const downstreamNodeIds = findDownstreamNodes(nodeResult.id)
+          
+          // Mark downstream nodes as done in canvas
+          setNodes(prev => prev.map(n => 
+            downstreamNodeIds.includes(n.id)
+              ? { ...n, isExecuting: false, executionStatus: 'success' }
+              : n
+          ))
+
+          // Create timeline entries for downstream nodes showing "Done" (they executed inside foreach)
+          const forEachEndTime = forEachStartTime + (nodeResult.execution_time || 0) * 1000
+          const downstreamEntries: TimelineEntry[] = downstreamNodeIds.map(nodeId => {
+            const downstreamNode = nodes.find(n => n.id === nodeId)
+            return {
+              id: `downstream-${nodeId}-${Date.now()}`,
+              nodeId: nodeId,
+              nodeTitle: downstreamNode?.title || nodeId,
+              status: 'done' as const,
+              timestamp: new Date(forEachEndTime),
+            }
+          })
+          setTimelineEntries(prev => {
+            // Remove any existing entries for downstream nodes and add done entries
+            const withoutDownstream = prev.filter(e => !downstreamNodeIds.includes(e.nodeId) || e.isForEachResult)
+            return [...withoutDownstream, ...downstreamEntries]
+          })
+        } else {
+          // Regular node entry - update from running to done
+          const finalStatus: 'success' | 'error' | 'running' | 'waiting' | 'done' = status === 'error' ? 'error' : 'done'
+          const nodeEndTimestamp = new Date(workflowStartTime + (cumulativeExecutionTime + (nodeResult.execution_time || 0)) * 1000)
+          
+          setTimelineEntries(prev => prev.map(entry => 
+            entry.nodeId === nodeResult.id && !entry.isForEachResult
+              ? {
+                  ...entry,
+                  status: finalStatus,
+                  output: nodeResult.output,
+                  error: nodeResult.error,
+                  stdout: nodeResult.stdout,
+                  stderr: nodeResult.stderr,
+                  executionTime: nodeResult.execution_time,
+                  timestamp: nodeEndTimestamp,
+                }
+              : entry
+          ))
+
+          // Add this node's execution time to cumulative
+          cumulativeExecutionTime += nodeResult.execution_time || 0
+        }
+
+        // Update node execution status to done
+        setNodes(prev => prev.map(n => 
+          n.id === nodeResult.id
+            ? { ...n, isExecuting: false, executionStatus: status === 'error' ? 'error' : 'success' }
+            : n
+        ))
+
+        // Additional delay after completion to make it visible
+        await new Promise(resolve => setTimeout(resolve, 200))
+      }
+
+      // Add summary entry at the end (only if there are results)
+      if (result.nodes && result.nodes.length > 0) {
+        const totalTime = result.nodes.reduce((sum: number, node: any) => sum + (node.execution_time || 0), 0)
+        const summaryEntry: TimelineEntry = {
+          id: `summary-${Date.now()}`,
+          nodeId: 'summary',
+          nodeTitle: `Execution Complete - Total Time: ${totalTime.toFixed(2)}s`,
+          status: allSuccess ? 'done' : 'error',
+          timestamp: new Date(workflowStartTime + (totalTime * 1000)),
+          executionTime: totalTime,
+        }
+        
+        setTimelineEntries(prev => [...prev, summaryEntry])
+      }
 
       // Confetti on success
-      if (allSuccess && entries.length > 0) {
+      if (allSuccess) {
         // Dynamically import confetti to avoid SSR issues
         import('canvas-confetti').then((confettiModule) => {
           const confetti = confettiModule.default
@@ -724,6 +985,13 @@ export function SimpleWorkflowBuilder() {
       }
     } else if (type === 'llm') {
       newNode.config = createDefaultLlmConfig()
+    } else if (type === 'foreach') {
+      newNode.config = {
+        items: [],
+        execution_mode: 'serial',
+        max_concurrency: 5,
+        items_key: 'items'
+      }
     }
 
     const newNodes = [...nodes, newNode]
@@ -740,6 +1008,7 @@ export function SimpleWorkflowBuilder() {
       case 'condition': return 'Conditional Logic'
       case 'database': return 'Database Query'
       case 'llm': return 'LLM AI Assistant'
+      case 'foreach': return 'For Each Loop'
       default: return 'Unknown Node'
     }
   }

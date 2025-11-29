@@ -537,6 +537,38 @@ const handleCancelEdgeMenu = useCallback(() => {
           reactFlowInstance={reactFlowInstance.current}
           isLocked={isLocked}
           onToggleLock={onToggleLock || (() => {})}
+          nodes={initialNodes}
+          connections={initialConnections}
+          onNodesUpdate={(updates) => {
+            // Update node positions
+            const updatedNodes = initialNodes.map(node => {
+              const update = updates.find(u => u.id === node.id)
+              if (update) {
+                return { ...node, position: update.position }
+              }
+              return node
+            })
+            // Trigger nodes change to update positions
+            if (externalOnNodesChange) {
+              const reactFlowNodes = updatedNodes.map(node => ({
+                id: node.id,
+                type: 'workflowNode' as const,
+                position: node.position,
+                data: {
+                  type: node.type,
+                  title: node.title,
+                  description: (node as any).description,
+                  code: node.code,
+                  config: node.config,
+                  isExecuting: node.isExecuting || isExecuting,
+                  executionStatus: node.executionStatus,
+                },
+                hidden: false,
+                draggable: nodesDraggable,
+              }))
+              externalOnNodesChange(reactFlowNodes)
+            }
+          }}
         />
         <MiniMap
           className={`${isDark ? 'bg-gray-800/50' : 'bg-white/50'} backdrop-blur-sm border border-white/20 rounded-lg`}

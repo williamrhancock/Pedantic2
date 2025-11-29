@@ -5,7 +5,7 @@ import Editor from '@monaco-editor/react'
 import { X, Trash2 } from 'lucide-react'
 import { useTheme } from '@/contexts/ThemeContext'
 
-export type NodeType = 'start' | 'end' | 'python' | 'typescript' | 'http' | 'file' | 'condition' | 'database' | 'llm'
+export type NodeType = 'start' | 'end' | 'python' | 'typescript' | 'http' | 'file' | 'condition' | 'database' | 'llm' | 'foreach'
 
 interface NodeEditorModalProps {
   isOpen: boolean
@@ -239,6 +239,7 @@ export function NodeEditorModal({
                   {nodeType === 'condition' && 'Configure conditional logic rules'}
                   {nodeType === 'database' && 'Configure database query parameters'}
                   {nodeType === 'llm' && 'Configure LLM provider and prompt settings'}
+                  {nodeType === 'foreach' && 'Configure loop settings: items array (if not from upstream), execution mode (serial/parallel), max concurrency, and items_key to extract array from upstream input. If upstream input contains an array or has the specified key, it will be used. Otherwise, use the items array in config.'}
                 </p>
               </div>
             )}

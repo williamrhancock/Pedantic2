@@ -369,9 +369,7 @@ powershell.exe -ExecutionPolicy Bypass -Command ^
 
 ### Getting Started
 - **[Main README](README.md)** - Installation, setup, and basic usage
-- **[Python Node Guide](HOW_TO_CODE_NODES.md)** - How to write Python code nodes
-- **[TypeScript Node Guide](HOW_TO_CODE_TYPESCRIPT_NODES.md)** - How to write TypeScript code nodes
-- **[Configuration Node Guide](HOW_TO_CONFIGURE_NODES.md)** - How to configure HTTP, File, Condition, and Database nodes
+- **[Complete Workflow Nodes Guide](docs/WORKFLOW_NODES_GUIDE.md)** - Comprehensive guide covering all node types, examples, and best practices
 
 ## Usage
 

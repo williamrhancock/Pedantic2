@@ -886,6 +886,310 @@ async def execute_llm_request(config: Dict[str, Any], input_data: Any) -> Dict[s
             'stderr': str(e)
         }
 
+def find_downstream_nodes(foreach_node_id: str, nodes_data: dict, connections_data: dict) -> List[str]:
+    """Find all nodes downstream from a foreach node until next 'end' or 'foreach' node"""
+    downstream = []
+    visited = set()
+    queue = [foreach_node_id]
+    
+    while queue:
+        current_id = queue.pop(0)
+        if current_id in visited:
+            continue
+        visited.add(current_id)
+        
+        # Find all nodes connected from this node
+        for conn_id, conn_data in connections_data.items():
+            if conn_data.get('source') == current_id:
+                target_id = conn_data.get('target')
+                if target_id and target_id not in visited:
+                    target_node = nodes_data.get(target_id, {})
+                    target_type = target_node.get('type', '')
+                    
+                    # Stop at 'end' or another 'foreach' node
+                    if target_type in ('end', 'foreach'):
+                        continue
+                    
+                    downstream.append(target_id)
+                    queue.append(target_id)
+    
+    return downstream
+
+
+async def execute_sub_workflow(
+    node_ids: List[str],
+    nodes_data: dict,
+    connections_data: dict,
+    starting_input: Any,
+    node_outputs_ref: dict
+) -> Dict[str, Any]:
+    """Execute a sub-workflow (list of nodes) with given input"""
+    local_outputs = {}
+    current_input = starting_input
+    node_executions = []  # Track execution details for each node
+    
+    # Execute nodes in order
+    for node_id in node_ids:
+        node_data = nodes_data.get(node_id, {})
+        node_type = node_data.get('type', 'unknown')
+        node_title = node_data.get('title', node_id)
+        
+        # Find input for this node (from local outputs or starting input)
+        input_data = current_input
+        for conn_id, conn_data in connections_data.items():
+            if conn_data.get('target') == node_id:
+                source_id = conn_data.get('source')
+                if source_id in local_outputs:
+                    input_data = local_outputs[source_id]
+                    break
+        
+        # Execute the node
+        node_start_time = time.time()
+        try:
+            if node_type == 'python':
+                code = node_data.get('code', 'def run(input):\n    return input')
+                result = execute_python_code(code, input_data)
+            elif node_type == 'typescript':
+                code = node_data.get('code', 'async function run(input: any): Promise<any> {\n    return input;\n}')
+                result = await execute_typescript_code(code, input_data)
+            elif node_type == 'http':
+                config = node_data.get('config', {})
+                result = await execute_http_request(config, input_data)
+            elif node_type == 'file':
+                config = node_data.get('config', {})
+                result = await execute_file_operation(config, input_data)
+            elif node_type == 'condition':
+                config = node_data.get('config', {})
+                result = await execute_conditional_logic(config, input_data)
+            elif node_type == 'database':
+                config = node_data.get('config', {})
+                result = await execute_database_query(config, input_data)
+            elif node_type == 'llm':
+                config = node_data.get('config', {})
+                result = await execute_llm_request(config, input_data)
+            else:
+                result = {
+                    'status': 'error',
+                    'error': f'Unknown node type in sub-workflow: {node_type}',
+                    'output': None
+                }
+            
+            node_execution_time = time.time() - node_start_time
+            
+            # Track this node's execution
+            node_executions.append({
+                'node_id': node_id,
+                'node_title': node_title,
+                'node_type': node_type,
+                'status': result.get('status', 'success'),
+                'output': result.get('output'),
+                'error': result.get('error'),
+                'stdout': result.get('stdout', ''),
+                'stderr': result.get('stderr', ''),
+                'execution_time': node_execution_time
+            })
+            
+            if result['status'] == 'error':
+                return {
+                    'status': 'error',
+                    'output': None,
+                    'error': result.get('error'),
+                    'node_executions': node_executions
+                }
+            
+            local_outputs[node_id] = result['output']
+            current_input = result['output']
+            
+        except Exception as e:
+            node_execution_time = time.time() - node_start_time
+            node_executions.append({
+                'node_id': node_id,
+                'node_title': node_title,
+                'node_type': node_type,
+                'status': 'error',
+                'output': None,
+                'error': str(e),
+                'stdout': '',
+                'stderr': str(e),
+                'execution_time': node_execution_time
+            })
+            return {
+                'status': 'error',
+                'error': f'Error executing node {node_id}: {str(e)}',
+                'output': None,
+                'node_executions': node_executions
+            }
+    
+    # Return output from last node with execution details
+    if node_ids:
+        last_node_id = node_ids[-1]
+        return {
+            'status': 'success',
+            'output': local_outputs.get(last_node_id, current_input),
+            'stdout': '',
+            'stderr': '',
+            'execution_time': sum(exec.get('execution_time', 0) for exec in node_executions),
+            'node_executions': node_executions
+        }
+    else:
+        return {
+            'status': 'success',
+            'output': starting_input,
+            'stdout': '',
+            'stderr': '',
+            'execution_time': 0.0,
+            'node_executions': []
+        }
+
+
+async def execute_foreach_loop(
+    config: Dict[str, Any],
+    input_data: Any,
+    foreach_node_id: str,
+    nodes_data: dict,
+    connections_data: dict
+) -> Dict[str, Any]:
+    """Execute a foreach loop node"""
+    start_time = time.time()
+    
+    # Extract array to iterate over
+    items = []
+    items_key = config.get('items_key', 'items')
+    
+    # Check if input_data is an array
+    if isinstance(input_data, list):
+        items = input_data
+    # Check if input_data has the specified key
+    elif isinstance(input_data, dict) and items_key in input_data:
+        items_value = input_data[items_key]
+        if isinstance(items_value, list):
+            items = items_value
+    # Fall back to config items
+    if not items:
+        items = config.get('items', [])
+    
+    if not isinstance(items, list):
+        return {
+            'status': 'error',
+            'error': f'ForEach node requires an array. Got: {type(items).__name__}',
+            'output': None,
+            'stdout': '',
+            'stderr': '',
+            'execution_time': time.time() - start_time
+        }
+    
+    if not items:
+        return {
+            'status': 'success',
+            'output': {
+                'results': [],
+                'total': 0,
+                'successful': 0,
+                'failed': 0
+            },
+            'stdout': 'ForEach loop executed with empty array',
+            'stderr': '',
+            'execution_time': time.time() - start_time
+        }
+    
+    # Find downstream nodes
+    downstream_node_ids = find_downstream_nodes(foreach_node_id, nodes_data, connections_data)
+    
+    if not downstream_node_ids:
+        return {
+            'status': 'success',
+            'output': {
+                'results': [{'item': item, 'output': item, 'status': 'success', 'error': None} for item in items],
+                'total': len(items),
+                'successful': len(items),
+                'failed': 0
+            },
+            'stdout': 'ForEach loop executed with no downstream nodes',
+            'stderr': '',
+            'execution_time': time.time() - start_time
+        }
+    
+    # Execute iterations
+    execution_mode = config.get('execution_mode', 'serial')
+    results = []
+    
+    async def execute_iteration(item: Any, index: int) -> Dict[str, Any]:
+        """Execute one iteration of the loop"""
+        try:
+            # Execute sub-workflow with item as input
+            result = await execute_sub_workflow(
+                downstream_node_ids,
+                nodes_data,
+                connections_data,
+                item,  # Replace input_data entirely with current item
+                {}
+            )
+            
+            return {
+                'item': item,
+                'output': result.get('output'),
+                'status': result.get('status', 'success'),
+                'error': result.get('error'),
+                'node_executions': result.get('node_executions', [])  # Include execution details for each node
+            }
+        except Exception as e:
+            return {
+                'item': item,
+                'output': None,
+                'status': 'error',
+                'error': str(e)
+            }
+    
+    if execution_mode == 'parallel':
+        # Parallel execution with concurrency limit
+        max_concurrency = config.get('max_concurrency', 5)
+        semaphore = asyncio.Semaphore(max_concurrency)
+        
+        async def execute_with_semaphore(item: Any, index: int):
+            async with semaphore:
+                return await execute_iteration(item, index)
+        
+        # Execute all iterations in parallel (with concurrency limit)
+        iteration_tasks = [execute_with_semaphore(item, i) for i, item in enumerate(items)]
+        results = await asyncio.gather(*iteration_tasks, return_exceptions=True)
+        
+        # Handle exceptions
+        processed_results = []
+        for i, result in enumerate(results):
+            if isinstance(result, Exception):
+                processed_results.append({
+                    'item': items[i],
+                    'output': None,
+                    'status': 'error',
+                    'error': str(result)
+                })
+            else:
+                processed_results.append(result)
+        results = processed_results
+    else:
+        # Serial execution
+        for i, item in enumerate(items):
+            result = await execute_iteration(item, i)
+            results.append(result)
+    
+    # Count successes and failures
+    successful = sum(1 for r in results if r.get('status') == 'success')
+    failed = len(results) - successful
+    
+    return {
+        'status': 'success',
+        'output': {
+            'results': results,
+            'total': len(results),
+            'successful': successful,
+            'failed': failed
+        },
+        'stdout': f'ForEach loop executed {len(results)} iterations ({successful} successful, {failed} failed)',
+        'stderr': '',
+        'execution_time': time.time() - start_time
+    }
+
+
 @app.post("/run")
 async def run_workflow(request: dict):
     """Execute a workflow"""
@@ -903,8 +1207,21 @@ async def run_workflow(request: dict):
         node_results = []
         node_outputs = {}
         
+        # Track nodes that are downstream from foreach nodes (they execute inside the foreach)
+        nodes_to_skip = set()
+        for node_id, node_data in nodes_data.items():
+            if node_data.get('type') == 'foreach':
+                downstream = find_downstream_nodes(node_id, nodes_data, connections_data)
+                nodes_to_skip.update(downstream)
+                print(f"ForEach node {node_id} has downstream nodes: {downstream}")
+        
         # Execute nodes in the order they appear
         for node_id, node_data in nodes_data.items():
+            # Skip nodes that are downstream from foreach (they execute inside the foreach)
+            if node_id in nodes_to_skip:
+                print(f"Skipping node {node_id} (executes inside foreach loop)")
+                continue
+                
             print(f"\n--- Executing node {node_id} ---")
             node_type = node_data.get('type', 'unknown')
             print(f"Node type: {node_type}")
@@ -971,6 +1288,10 @@ async def run_workflow(request: dict):
             elif node_type == 'llm':
                 config = node_data.get('config', {})
                 result = await execute_llm_request(config, input_data)
+                
+            elif node_type == 'foreach':
+                config = node_data.get('config', {})
+                result = await execute_foreach_loop(config, input_data, node_id, nodes_data, connections_data)
                 
             else:
                 result = {
