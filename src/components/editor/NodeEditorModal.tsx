@@ -365,13 +365,13 @@ export function NodeEditorModal({
             )}
           </div>
 
-          {/* Right: Cancel and Save buttons */}
+          {/* Right: Close and Save buttons */}
           <div className="flex items-center gap-3">
             <button
               onClick={onClose}
               className="px-4 py-2 rounded-lg bg-white/5 hover:bg-white/10 transition-all hover:scale-105 active:scale-95"
             >
-              Cancel
+              Close
             </button>
             <button
               onClick={handleSave}
