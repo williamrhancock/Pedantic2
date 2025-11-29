@@ -188,15 +188,21 @@
         "sourceOutput": "output",
         "targetInput": "input"
       },
+      "typescript_enhancer_foreach_processor": {
+        "source": "typescript_enhancer",
+        "target": "foreach_processor",
+        "sourceOutput": "output",
+        "targetInput": "input"
+      },
       "typescript_enhancer_http_fetch_external": {
         "source": "typescript_enhancer",
         "target": "http_fetch_external",
         "sourceOutput": "output",
         "targetInput": "input"
       },
-      "http_fetch_external_foreach_processor": {
+      "http_fetch_external_condition_router": {
         "source": "http_fetch_external",
-        "target": "foreach_processor",
+        "target": "condition_router",
         "sourceOutput": "output",
         "targetInput": "input"
       },
@@ -214,12 +220,6 @@
       },
       "file_save_analysis_condition_router": {
         "source": "file_save_analysis",
-        "target": "condition_router",
-        "sourceOutput": "output",
-        "targetInput": "input"
-      },
-      "typescript_enhancer_condition_router": {
-        "source": "typescript_enhancer",
         "target": "condition_router",
         "sourceOutput": "output",
         "targetInput": "input"
