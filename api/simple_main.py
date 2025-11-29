@@ -1154,14 +1154,19 @@ async def execute_sub_workflow(
                     'node_executions': node_executions
                 }
             
-            # Preserve _workflow_context through all nodes
+            # Preserve _workflow_context and route/action/priority through all nodes
             output = result['output']
-            if isinstance(output, dict) and isinstance(input_data, dict) and '_workflow_context' in input_data:
-                # Merge _workflow_context into output so it's available to downstream nodes
-                output = {
-                    **output,
-                    '_workflow_context': input_data['_workflow_context']
-                }
+            if isinstance(output, dict) and isinstance(input_data, dict):
+                # Preserve workflow context
+                if '_workflow_context' in input_data:
+                    output = {
+                        **output,
+                        '_workflow_context': input_data['_workflow_context']
+                    }
+                # Preserve route/action/priority from condition router (workflow-level metadata)
+                for key in ['route', 'action', 'priority']:
+                    if key in input_data and key not in output:
+                        output[key] = input_data[key]
             
             local_outputs[node_id] = output
             current_input = output
