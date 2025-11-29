@@ -1265,12 +1265,22 @@ async def execute_foreach_loop(
     async def execute_iteration(item: Any, index: int) -> Dict[str, Any]:
         """Execute one iteration of the loop"""
         try:
-            # Execute sub-workflow with item as input
+            # Prepare input: item as primary data, but preserve original context
+            # This allows downstream nodes to access both the item and original workflow data
+            iteration_input = item
+            if isinstance(item, dict) and isinstance(input_data, dict):
+                # Merge original context into item so downstream nodes can access it
+                iteration_input = {
+                    **item,
+                    '_workflow_context': input_data  # Store original context for reference
+                }
+            
+            # Execute sub-workflow with item as primary input (but context available)
             result = await execute_sub_workflow(
                 downstream_node_ids,
                 nodes_data,
                 connections_data,
-                item,  # Replace input_data entirely with current item
+                iteration_input,  # Item as primary, but context available via _workflow_context
                 {}
             )
             
