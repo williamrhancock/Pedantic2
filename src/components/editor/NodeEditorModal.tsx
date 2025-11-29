@@ -2,7 +2,7 @@
 
 import React, { useState } from 'react'
 import Editor from '@monaco-editor/react'
-import { X } from 'lucide-react'
+import { X, Trash2 } from 'lucide-react'
 import { useTheme } from '@/contexts/ThemeContext'
 
 export type NodeType = 'start' | 'end' | 'python' | 'typescript' | 'http' | 'file' | 'condition' | 'database' | 'llm'
@@ -16,6 +16,7 @@ interface NodeEditorModalProps {
   code?: string
   config?: any
   onSave: (code?: string, config?: any) => void
+  onDelete?: () => void
 }
 
 export function NodeEditorModal({
@@ -27,15 +28,18 @@ export function NodeEditorModal({
   code,
   config,
   onSave,
+  onDelete,
 }: NodeEditorModalProps) {
   const { isDark } = useTheme()
   const [editedCode, setEditedCode] = useState(code || '')
   const [editedConfig, setEditedConfig] = useState(config ? JSON.stringify(config, null, 2) : '')
   const [testInput, setTestInput] = useState('{}')
   const [liveOutput, setLiveOutput] = useState<any>(null)
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false)
 
   const isCodeNode = nodeType === 'python' || nodeType === 'typescript'
   const isConfigNode = !isCodeNode && nodeType !== 'start' && nodeType !== 'end'
+  const canDelete = nodeType !== 'start' && nodeType !== 'end'
 
   const handleSave = () => {
     if (isCodeNode) {
@@ -50,6 +54,26 @@ export function NodeEditorModal({
       }
     }
     onClose()
+  }
+
+  const handleDelete = () => {
+    if (!canDelete) {
+      alert('Start and End nodes cannot be deleted')
+      return
+    }
+    setShowDeleteConfirm(true)
+  }
+
+  const confirmDelete = () => {
+    if (onDelete) {
+      onDelete()
+      onClose()
+    }
+    setShowDeleteConfirm(false)
+  }
+
+  const cancelDelete = () => {
+    setShowDeleteConfirm(false)
   }
 
   if (!isOpen) return null
@@ -205,20 +229,76 @@ export function NodeEditorModal({
         </div>
 
         {/* Footer */}
-        <div className="flex items-center justify-end gap-3 mt-6 pt-4 border-t border-white/10">
-          <button
-            onClick={onClose}
-            className="px-4 py-2 rounded-lg bg-white/5 hover:bg-white/10 transition-all hover:scale-105 active:scale-95"
-          >
-            Cancel
-          </button>
-          <button
-            onClick={handleSave}
-            className="px-6 py-2 rounded-lg bg-gradient-to-r from-purple-500 to-purple-600 text-white font-medium shadow-lg hover:scale-105 active:scale-95 transition-all"
-          >
-            Save Changes
-          </button>
+        <div className="flex items-center justify-between gap-3 mt-6 pt-4 border-t border-white/10">
+          {/* Left: Delete button */}
+          <div>
+            {canDelete && onDelete && (
+              <button
+                onClick={handleDelete}
+                className="px-4 py-2 rounded-lg bg-red-500/20 hover:bg-red-500/30 text-red-300 transition-all hover:scale-105 active:scale-95 flex items-center gap-2"
+              >
+                <Trash2 className="w-4 h-4" />
+                Delete Node
+              </button>
+            )}
+          </div>
+
+          {/* Right: Cancel and Save buttons */}
+          <div className="flex items-center gap-3">
+            <button
+              onClick={onClose}
+              className="px-4 py-2 rounded-lg bg-white/5 hover:bg-white/10 transition-all hover:scale-105 active:scale-95"
+            >
+              Cancel
+            </button>
+            <button
+              onClick={handleSave}
+              className="px-6 py-2 rounded-lg bg-gradient-to-r from-purple-500 to-purple-600 text-white font-medium shadow-lg hover:scale-105 active:scale-95 transition-all"
+            >
+              Save Changes
+            </button>
+          </div>
         </div>
+
+        {/* Delete Confirmation Dialog */}
+        {showDeleteConfirm && (
+          <>
+            <div
+              className="fixed inset-0 z-[60] backdrop-blur-md bg-black/70"
+              onClick={cancelDelete}
+            />
+            <div
+              className="fixed inset-0 z-[60] flex items-center justify-center p-4"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <div
+                className="glass-card p-6 w-full max-w-md"
+                onClick={(e) => e.stopPropagation()}
+              >
+                <h3 className="text-xl font-semibold text-foreground mb-2">
+                  Delete Node?
+                </h3>
+                <p className="text-sm text-muted-foreground mb-6">
+                  Are you sure you want to delete &quot;{nodeTitle}&quot;? This will also remove all connections to and from this node. This action cannot be undone.
+                </p>
+                <div className="flex items-center justify-end gap-3">
+                  <button
+                    onClick={cancelDelete}
+                    className="px-4 py-2 rounded-lg bg-white/5 hover:bg-white/10 transition-all hover:scale-105 active:scale-95"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    onClick={confirmDelete}
+                    className="px-6 py-2 rounded-lg bg-gradient-to-r from-red-500 to-red-600 text-white font-medium shadow-lg hover:scale-105 active:scale-95 transition-all"
+                  >
+                    Delete
+                  </button>
+                </div>
+              </div>
+            </div>
+          </>
+        )}
       </div>
     </>
   )

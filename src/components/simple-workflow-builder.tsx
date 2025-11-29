@@ -695,6 +695,33 @@ export function SimpleWorkflowBuilder() {
     }
   }
 
+  const handleNodeDelete = () => {
+    if (!selectedNode) return
+
+    const nodeToDelete = nodes.find(n => n.id === selectedNode)
+    if (!nodeToDelete) return
+
+    // Prevent deleting start or end nodes
+    if (nodeToDelete.type === 'start' || nodeToDelete.type === 'end') {
+      alert('Start and End nodes cannot be deleted')
+      return
+    }
+
+    // Remove the node
+    const updatedNodes = nodes.filter(node => node.id !== selectedNode)
+    
+    // Remove all connections to/from this node
+    const updatedConnections = connections.filter(
+      conn => conn.from !== selectedNode && conn.to !== selectedNode
+    )
+
+    setNodes(updatedNodes)
+    setConnections(updatedConnections)
+    setSelectedNode(null)
+    setShowEditorModal(false)
+    markAsChanged()
+  }
+
   const selectedNodeData = nodes.find(n => n.id === selectedNode)
 
   return (
@@ -803,6 +830,7 @@ export function SimpleWorkflowBuilder() {
           code={selectedNodeData.code}
           config={selectedNodeData.config}
           onSave={handleNodeSave}
+          onDelete={handleNodeDelete}
         />
       )}
 
