@@ -1146,8 +1146,17 @@ async def execute_sub_workflow(
                     'node_executions': node_executions
                 }
             
-            local_outputs[node_id] = result['output']
-            current_input = result['output']
+            # Preserve _workflow_context through all nodes
+            output = result['output']
+            if isinstance(output, dict) and isinstance(input_data, dict) and '_workflow_context' in input_data:
+                # Merge _workflow_context into output so it's available to downstream nodes
+                output = {
+                    **output,
+                    '_workflow_context': input_data['_workflow_context']
+                }
+            
+            local_outputs[node_id] = output
+            current_input = output
             
         except Exception as e:
             node_execution_time = time.time() - node_start_time
