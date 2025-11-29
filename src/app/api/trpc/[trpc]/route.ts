@@ -407,7 +407,7 @@ const appRouter = createTRPCRouter({
     .input(z.object({
       id: z.number()
     }))
-    .query(async ({ input }) => {
+    .mutation(async ({ input }) => {
       const node = await customNodeQueries.getCustomNode(input.id)
       if (!node) {
         throw new Error('Custom node not found')

@@ -251,6 +251,9 @@ export function SimpleWorkflowBuilder() {
   // tRPC mutations
   const executeWorkflowMutation = trpc.executeWorkflow.useMutation()
   const saveCustomNodeMutation = trpc.saveCustomNode.useMutation()
+  const { data: customNodesRaw = [], refetch: refetchCustomNodes } = trpc.getCustomNodes.useQuery()
+  const exportCustomNodeMutation = trpc.exportCustomNode.useMutation()
+  const importCustomNodeMutation = trpc.importCustomNode.useMutation()
   const saveWorkflowMutation = trpc.saveWorkflow.useMutation({
     onMutate: () => setIsAutoSaving(true),
     onSuccess: (data, variables) => {
@@ -736,6 +739,7 @@ export function SimpleWorkflowBuilder() {
             : n
         )
       )
+      refetchCustomNodes()
       markAsChanged()
     } catch (error) {
       console.error('Failed to save custom node:', error)
@@ -763,6 +767,7 @@ export function SimpleWorkflowBuilder() {
         type: node.type,
         data,
       })
+      refetchCustomNodes()
     } catch (error) {
       console.error('Failed to update custom node:', error)
       throw error
@@ -798,6 +803,108 @@ export function SimpleWorkflowBuilder() {
 
   const selectedNodeData = nodes.find(n => n.id === selectedNode)
 
+  const customNodes = (customNodesRaw as any[]).map((node) => ({
+    id: node.id as number,
+    name: node.name as string,
+    description: (node.description ?? undefined) as string | undefined,
+    type: node.type,
+    data: node.config,
+  }))
+
+  const handleSelectCustomNode = (templateId: number) => {
+    const template = customNodes.find((n) => n.id === templateId)
+    if (!template) return
+
+    const viewportCenter = canvasRef.current?.getViewportCenter()
+    const position = viewportCenter || { x: 400, y: 300 }
+
+    const newId = `${template.type}_${Date.now()}`
+    const nodeData = {
+      type: template.data.type,
+      title: template.data.title || template.name,
+      code: template.data.code,
+      config: template.data.config,
+    }
+
+    const newNode: WorkflowNode = {
+      id: newId,
+      type: nodeData.type,
+      title: nodeData.title,
+      code: nodeData.code,
+      config: nodeData.config,
+      position,
+      customNodeId: template.id,
+      customNodeName: template.name,
+    }
+
+    const newNodes = [...nodes, newNode]
+    updateNodes(newNodes)
+  }
+
+  const handleExportCustomNodes = async () => {
+    if (customNodes.length === 0) {
+      alert('There are no custom nodes to export.')
+      return
+    }
+
+    const namesList = customNodes.map((n) => n.name).join(', ')
+    const name = window.prompt(
+      `Enter the name of the custom node to export:\n\n${namesList}`
+    )
+    if (!name) return
+
+    const template = customNodes.find((n) => n.name === name)
+    if (!template) {
+      alert(`Custom node "${name}" was not found.`)
+      return
+    }
+
+    try {
+      const result = await exportCustomNodeMutation.mutateAsync({ id: template.id })
+      const blob = new Blob([JSON.stringify(result.data, null, 2)], {
+        type: 'application/json',
+      })
+      const url = URL.createObjectURL(blob)
+      const a = document.createElement('a')
+      a.href = url
+      a.download = result.filename || `${template.name.replace(/[^a-z0-9]/gi, '_')}.json`
+      a.click()
+      URL.revokeObjectURL(url)
+    } catch (error) {
+      console.error('Failed to export custom node:', error)
+      alert('Failed to export custom node. Please try again.')
+    }
+  }
+
+  const handleImportCustomNodes = () => {
+    const input = document.createElement('input')
+    input.type = 'file'
+    input.accept = '.json'
+    input.onchange = async (e) => {
+      const file = (e.target as HTMLInputElement).files?.[0]
+      if (!file) return
+
+      try {
+        const text = await file.text()
+        const data = JSON.parse(text)
+        const result = await importCustomNodeMutation.mutateAsync({ data })
+        await refetchCustomNodes()
+
+        // Optionally add the imported node to the canvas
+        const newTemplate = customNodes.find((n) => n.id === result.id)
+        if (newTemplate) {
+          handleSelectCustomNode(newTemplate.id)
+        }
+
+        alert(`Successfully imported custom node: ${result.name}`)
+      } catch (error) {
+        console.error('Failed to import custom node:', error)
+        alert('Failed to import custom node. Please check the file format.')
+      }
+    }
+    input.click()
+  }
+
   return (
     <div className="w-full h-full flex flex-col relative">
       {/* Modern Toolbar */}
@@ -810,6 +917,10 @@ export function SimpleWorkflowBuilder() {
           }
         }}
         isLocked={isLocked}
+        customNodes={customNodes}
+        onSelectCustomNode={isLocked ? undefined : handleSelectCustomNode}
+        onExportCustomNodes={handleExportCustomNodes}
+        onImportCustomNodes={isLocked ? undefined : handleImportCustomNodes}
         onNewWorkflow={handleNewWorkflow}
         onOpenWorkflow={() => setShowWorkflowBrowser(true)}
         onSave={handleSave}

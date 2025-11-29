@@ -12,6 +12,7 @@ import {
   Upload,
   Play,
 } from 'lucide-react'
+import type { CustomNodeTemplate } from '@/lib/custom-nodes'
 
 export type NodeType = 'python' | 'typescript' | 'http' | 'file' | 'condition' | 'database' | 'llm'
 
@@ -29,6 +30,10 @@ interface ModernToolbarProps {
   hasUnsavedChanges?: boolean
   isAutoSaving?: boolean
   isLocked?: boolean
+  customNodes?: CustomNodeTemplate[]
+  onSelectCustomNode?: (templateId: number) => void
+  onExportCustomNodes?: () => void
+  onImportCustomNodes?: () => void
 }
 
 const nodeTypes: { type: NodeType; label: string; color: string }[] = [
@@ -55,6 +60,10 @@ export function ModernToolbar({
   hasUnsavedChanges = false,
   isAutoSaving = false,
   isLocked = false,
+  customNodes = [],
+  onSelectCustomNode,
+  onExportCustomNodes,
+  onImportCustomNodes,
 }: ModernToolbarProps) {
   const { isDark } = useTheme()
 
@@ -121,7 +130,7 @@ export function ModernToolbar({
       </div>
 
       {/* Center: Node type buttons */}
-      <div className="flex items-center gap-1 flex-1 justify-center">
+      <div className="flex items-center gap-3 flex-1 justify-center">
         {nodeTypes.map(({ type, label, color }) => {
           const isActive = activeNodeType === type
           return (
@@ -153,8 +162,65 @@ export function ModernToolbar({
         })}
       </div>
 
-      {/* Right: Execute and theme toggle */}
+      {/* Right: Custom nodes, Execute and theme toggle */}
       <div className="flex items-center gap-2">
+        {/* Custom nodes dropdown */}
+        {onSelectCustomNode && (
+          <select
+            className="px-3 py-2 rounded-lg bg-white/5 border border-white/10 text-sm text-foreground max-w-xs"
+            defaultValue=""
+            disabled={isLocked || customNodes.length === 0}
+            onChange={(e) => {
+              const value = e.target.value
+              if (!value) return
+              const id = Number(value)
+              if (!Number.isNaN(id)) {
+                onSelectCustomNode(id)
+              }
+              // reset selection so user can pick same item again if desired
+              e.target.value = ''
+            }}
+          >
+            <option value="" disabled>
+              {customNodes.length === 0 ? 'No custom nodes' : 'Custom Nodes'}
+            </option>
+            {customNodes.map((node) => (
+              <option key={node.id} value={node.id}>
+                {node.name}
+                {node.description ? ` — ${node.description}` : ''}
+              </option>
+            ))}
+          </select>
+        )}
+
+        {/* Separator */}
+        {(onExportCustomNodes || onImportCustomNodes) && (
+          <div className="w-px h-6 bg-white/20 mx-1" />
+        )}
+
+        {/* Custom node export/import buttons */}
+        {onExportCustomNodes && (
+          <button
+            onClick={onExportCustomNodes}
+            disabled={isLocked || customNodes.length === 0}
+            className="p-2 rounded-lg hover:bg-white/10 transition-colors hover:scale-105 active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed"
+            title={customNodes.length === 0 ? 'No custom nodes to export' : 'Export a custom node'}
+          >
+            <Download className="w-4 h-4" />
+          </button>
+        )}
+        {onImportCustomNodes && (
+          <button
+            onClick={onImportCustomNodes}
+            disabled={isLocked}
+            className="p-2 rounded-lg hover:bg-white/10 transition-colors hover:scale-105 active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed"
+            title="Import a custom node"
+          >
+            <Upload className="w-4 h-4" />
+          </button>
+        )}
+
+        {/* Execute and theme toggle */}
         <button
           onClick={onExecute}
           disabled={isExecuting}
