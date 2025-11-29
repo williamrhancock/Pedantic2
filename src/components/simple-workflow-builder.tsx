@@ -670,8 +670,11 @@ export function SimpleWorkflowBuilder() {
   }
 
   const handleNodeClick = (nodeId: string) => {
-    setSelectedNode(nodeId)
-    setShowEditorModal(true)
+    const node = nodes.find(n => n.id === nodeId)
+    if (node) {
+      setSelectedNode(nodeId)
+      setShowEditorModal(true)
+    }
   }
 
   const handleNodeSave = (code?: string, config?: any) => {
@@ -727,9 +730,9 @@ export function SimpleWorkflowBuilder() {
       )}
 
       {/* Main Content Area */}
-      <div className="flex-1 flex min-h-0 relative">
+      <div className="flex-1 flex min-h-0 relative overflow-hidden">
         {/* Canvas */}
-        <div className="flex-1 relative">
+        <div className="flex-1 relative min-w-0">
           <WorkflowCanvas
             nodes={nodes}
             connections={connections}
@@ -764,13 +767,13 @@ export function SimpleWorkflowBuilder() {
               markAsChanged()
             }}
           />
-            </div>
+        </div>
 
         {/* Execution Timeline */}
-        <div className="w-80 border-l border-white/10">
+        <div className="w-80 border-l border-white/10 flex-shrink-0 h-full flex flex-col overflow-hidden">
           <ExecutionTimeline entries={timelineEntries} />
-          </div>
         </div>
+      </div>
 
       {/* Floating Add Button */}
       <FloatingAddButton
@@ -782,7 +785,7 @@ export function SimpleWorkflowBuilder() {
       />
 
       {/* Node Editor Modal */}
-      {selectedNodeData && (
+      {showEditorModal && selectedNodeData && (
         <NodeEditorModal
           isOpen={showEditorModal}
           onClose={() => {

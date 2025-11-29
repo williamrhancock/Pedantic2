@@ -58,14 +58,14 @@ export function ExecutionTimeline({ entries }: ExecutionTimelineProps) {
   }
 
   return (
-    <div className="h-full flex flex-col glass-card p-4">
-      <h3 className="text-lg font-semibold mb-4 text-white">
+    <div className="h-full flex flex-col glass-card p-4 overflow-hidden">
+      <h3 className="text-lg font-semibold mb-4 text-white flex-shrink-0">
         Execution Timeline
       </h3>
       
       <div
         ref={scrollRef}
-        className="flex-1 overflow-y-auto custom-scrollbar space-y-3"
+        className="flex-1 overflow-y-auto custom-scrollbar space-y-3 min-h-0"
       >
         {entries.length === 0 ? (
           <div className="text-center text-gray-300 py-8">

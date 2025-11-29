@@ -163,3 +163,4 @@ The fix involved simplifying the component architecture by:
 
 These changes maintain all functionality while resolving the React Flow integration issues.
 
+

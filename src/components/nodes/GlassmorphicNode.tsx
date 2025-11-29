@@ -98,7 +98,6 @@ export const GlassmorphicNode = React.memo(function GlassmorphicNode({
 
   return (
     <div
-      onClick={onClick}
       className={`
         glass-card
         min-w-[280px] max-w-[320px]
