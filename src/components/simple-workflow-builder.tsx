@@ -1071,18 +1071,73 @@ export function SimpleWorkflowBuilder() {
           nodeId,
           nodeResult,
           executionResultsSize: executionResults.size,
+          executionResultsKeys: Array.from(executionResults.keys()),
           timelineEntriesCount: timelineEntries.length
         })
         
         // If not found in executionResults, try to find it in timeline entries (for nodes outside for-each)
         if (!nodeResult || !nodeResult.output || !nodeResult.output.content) {
-          const timelineEntry = timelineEntries
-            .filter(e => e.nodeId === nodeId && !e.isForEachResult)
+          // First try non-forEach timeline entries
+          let timelineEntry = timelineEntries
+            .filter(e => e.nodeId === nodeId && !e.isForEachResult && e.output)
             .sort((a, b) => b.timestamp.getTime() - a.timestamp.getTime())[0]
+          
+          // If still not found, check all entries (including forEach results) but prefer the latest
+          if (!timelineEntry || !timelineEntry.output || !timelineEntry.output.content) {
+            timelineEntry = timelineEntries
+              .filter(e => e.nodeId === nodeId && e.output && e.output.content)
+              .sort((a, b) => b.timestamp.getTime() - a.timestamp.getTime())[0]
+          }
+          
           console.log('Checking timeline entry:', timelineEntry)
           if (timelineEntry && timelineEntry.output && timelineEntry.output.content) {
             nodeResult = {
               output: timelineEntry.output
+            }
+          }
+        }
+        
+        // If still not found, check if we can get it from the last iteration of a for-each loop
+        if (!nodeResult || !nodeResult.output || !nodeResult.output.content) {
+          // Look for the markdown viewer in the last for-each iteration
+          const forEachResults = timelineEntries
+            .filter(e => e.isForEachResult && e.nodeId === nodeId && e.output && e.output.content)
+            .sort((a, b) => (b.forEachIteration ?? 0) - (a.forEachIteration ?? 0))
+          
+          if (forEachResults.length > 0) {
+            const lastIteration = forEachResults[0]
+            console.log('Found in for-each iteration:', lastIteration)
+            if (lastIteration.output && lastIteration.output.content) {
+              nodeResult = {
+                output: lastIteration.output
+              }
+            }
+          }
+          
+          // Also check executionResults for for-each nodes and extract from their results
+          if (!nodeResult || !nodeResult.output || !nodeResult.output.content) {
+            for (const [resultNodeId, result] of executionResults.entries()) {
+              // Check if this is a for-each node result
+              if (result.output && result.output.results && Array.isArray(result.output.results)) {
+                // Find the last successful iteration that has node_executions
+                for (let i = result.output.results.length - 1; i >= 0; i--) {
+                  const iteration = result.output.results[i]
+                  if (iteration.node_executions && Array.isArray(iteration.node_executions)) {
+                    // Find the markdown viewer in this iteration
+                    const markdownExec = iteration.node_executions.find(
+                      (exec: any) => exec.node_id === nodeId && exec.output && exec.output.content
+                    )
+                    if (markdownExec) {
+                      console.log('Found markdown in for-each iteration result:', markdownExec)
+                      nodeResult = {
+                        output: markdownExec.output
+                      }
+                      break
+                    }
+                  }
+                }
+                if (nodeResult && nodeResult.output && nodeResult.output.content) break
+              }
             }
           }
         }
