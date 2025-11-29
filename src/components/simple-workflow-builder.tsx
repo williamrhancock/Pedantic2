@@ -306,6 +306,10 @@ export function SimpleWorkflowBuilder() {
   const { data: customNodesRaw = [], refetch: refetchCustomNodes } = trpc.getCustomNodes.useQuery()
   const exportCustomNodeMutation = trpc.exportCustomNode.useMutation()
   const importCustomNodeMutation = trpc.importCustomNode.useMutation()
+  const getWorkflowByNameQuery = trpc.getWorkflowByName.useQuery(
+    { name: workflowMetadata.name },
+    { enabled: false }
+  )
   const saveWorkflowMutation = trpc.saveWorkflow.useMutation({
     onMutate: () => setIsAutoSaving(true),
     onSuccess: (data, variables) => {
@@ -356,8 +360,27 @@ export function SimpleWorkflowBuilder() {
 
   const handleSave = useCallback(async () => {
     try {
+      // Special case: for the default "Untitled" workflows with no id yet,
+      // try to reuse the most recently updated DB row with the same name
+      // instead of creating more duplicates.
+      let targetId = workflowMetadata.id
+      const isUntitled =
+        workflowMetadata.name === 'Untitled Workflow' ||
+        workflowMetadata.name === 'Untitled'
+
+      if (!targetId && isUntitled) {
+        try {
+          const existing = await getWorkflowByNameQuery.refetch()
+          if (existing.data?.id) {
+            targetId = existing.data.id
+          }
+        } catch (e) {
+          console.error('Failed to lookup existing Untitled workflow by name:', e)
+        }
+      }
+
       await saveWorkflowMutation.mutateAsync({
-        id: workflowMetadata.id,
+        id: targetId ?? workflowMetadata.id,
         name: workflowMetadata.name,
         description: workflowMetadata.description,
         tags: workflowMetadata.tags,
@@ -369,7 +392,7 @@ export function SimpleWorkflowBuilder() {
       // Surface error; SaveAsDialog / caller is responsible for UI feedback.
       throw error
     }
-  }, [workflowMetadata, saveWorkflowMutation, createWorkflowData])
+  }, [workflowMetadata, saveWorkflowMutation, createWorkflowData, getWorkflowByNameQuery])
 
   useEffect(() => {
     if (!hasUnsavedChanges || !workflowMetadata.id) return
