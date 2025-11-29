@@ -18,6 +18,10 @@ interface NodeEditorModalProps {
   onSave: (code?: string, config?: any) => void
   onDelete?: () => void
   isLocked?: boolean
+  onMakeCustom?: (options: { name: string; description: string }) => Promise<void> | void
+  onUpdateCustomFromNode?: () => Promise<void> | void
+  isCustom?: boolean
+  customName?: string
 }
 
 export function NodeEditorModal({
@@ -31,6 +35,10 @@ export function NodeEditorModal({
   onSave,
   onDelete,
   isLocked = false,
+  onMakeCustom,
+  onUpdateCustomFromNode,
+  isCustom = false,
+  customName,
 }: NodeEditorModalProps) {
   const { isDark } = useTheme()
   const [editedCode, setEditedCode] = useState(code || '')
@@ -38,13 +46,19 @@ export function NodeEditorModal({
   const [testInput, setTestInput] = useState('{}')
   const [liveOutput, setLiveOutput] = useState<any>(null)
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false)
+  const [showMakeCustomDialog, setShowMakeCustomDialog] = useState(false)
+  const [customNameInput, setCustomNameInput] = useState(customName || nodeTitle)
+  const [customDescriptionInput, setCustomDescriptionInput] = useState('')
+  const [customError, setCustomError] = useState<string | null>(null)
 
   const isCodeNode = nodeType === 'python' || nodeType === 'typescript'
   const isConfigNode = !isCodeNode && nodeType !== 'start' && nodeType !== 'end'
   const canDelete = nodeType !== 'start' && nodeType !== 'end'
+  const canMakeCustom = nodeType !== 'start' && nodeType !== 'end' && !!onMakeCustom
 
-  const handleSave = () => {
+  const handleSave = async () => {
     if (isLocked) return
+
     if (isCodeNode) {
       onSave(editedCode, undefined)
     } else if (isConfigNode) {
@@ -56,6 +70,27 @@ export function NodeEditorModal({
         return
       }
     }
+
+    // Optionally update the underlying custom node template
+    if (isCustom && onUpdateCustomFromNode) {
+      const displayName = customName || nodeTitle
+      const shouldUpdate = window.confirm(
+        `Update the custom node "${displayName}" as well as this workflow node?`
+      )
+      if (shouldUpdate) {
+        try {
+          await Promise.resolve(onUpdateCustomFromNode())
+        } catch (e) {
+          console.error('Failed to update custom node from editor:', e)
+          alert(
+            e instanceof Error
+              ? e.message
+              : 'Failed to update custom node. Please try again.'
+          )
+        }
+      }
+    }
+
     onClose()
   }
 
@@ -77,6 +112,46 @@ export function NodeEditorModal({
 
   const cancelDelete = () => {
     setShowDeleteConfirm(false)
+  }
+
+  const openMakeCustomDialog = () => {
+    if (!canMakeCustom || isLocked) return
+    setCustomNameInput(customName || nodeTitle)
+    setCustomDescriptionInput('')
+    setCustomError(null)
+    setShowMakeCustomDialog(true)
+  }
+
+  const cancelMakeCustom = () => {
+    setShowMakeCustomDialog(false)
+    setCustomError(null)
+  }
+
+  const confirmMakeCustom = async () => {
+    if (!onMakeCustom) return
+    const trimmedName = customNameInput.trim()
+    const trimmedDescription = customDescriptionInput.trim()
+
+    if (!trimmedName) {
+      setCustomError('Name is required')
+      return
+    }
+
+    try {
+      await Promise.resolve(
+        onMakeCustom({
+          name: trimmedName,
+          description: trimmedDescription,
+        })
+      )
+      setShowMakeCustomDialog(false)
+      setCustomError(null)
+    } catch (e) {
+      console.error('Failed to save custom node:', e)
+      setCustomError(
+        e instanceof Error ? e.message : 'Failed to save custom node. Please try again.'
+      )
+    }
   }
 
   if (!isOpen) return null
@@ -162,6 +237,18 @@ export function NodeEditorModal({
                   {nodeType === 'database' && 'Configure database query parameters'}
                   {nodeType === 'llm' && 'Configure LLM provider and prompt settings'}
                 </p>
+              </div>
+            )}
+
+            {/* Make Custom Node */}
+            {canMakeCustom && !isCustom && !isLocked && (
+              <div className="mt-4">
+                <button
+                  onClick={openMakeCustomDialog}
+                  className="w-full px-3 py-2 rounded-lg bg-purple-500/20 hover:bg-purple-500/30 text-purple-200 text-sm font-medium transition-all hover:scale-105 active:scale-95"
+                >
+                  Save as Custom Node
+                </button>
               </div>
             )}
           </div>
@@ -257,7 +344,9 @@ export function NodeEditorModal({
             <button
               onClick={handleSave}
               disabled={isLocked}
-              className={`px-6 py-2 rounded-lg bg-gradient-to-r from-purple-500 to-purple-600 text-white font-medium shadow-lg hover:scale-105 active:scale-95 transition-all${isLocked ? " opacity-50 cursor-not-allowed hover:scale-100" : ""}`}
+              className={`px-6 py-2 rounded-lg bg-gradient-to-r from-purple-500 to-purple-600 text-white font-medium shadow-lg hover:scale-105 active:scale-95 transition-all${
+                isLocked ? ' opacity-50 cursor-not-allowed hover:scale-100' : ''
+              }`}
             >
               Save Changes
             </button>
@@ -303,7 +392,79 @@ export function NodeEditorModal({
             </div>
           </>
         )}
+
+        {/* Make Custom Node Dialog */}
+        {showMakeCustomDialog && (
+          <>
+            <div
+              className="fixed inset-0 z-[60] backdrop-blur-md bg-black/70"
+              onClick={cancelMakeCustom}
+            />
+            <div
+              className="fixed inset-0 z-[60] flex items-center justify-center p-4"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <div
+                className="glass-card p-6 w-full max-w-md"
+                onClick={(e) => e.stopPropagation()}
+              >
+                <h3 className="text-xl font-semibold text-foreground mb-2">
+                  Save as Custom Node
+                </h3>
+                <p className="text-sm text-muted-foreground mb-4">
+                  Give this node a reusable name and brief description. It will be available in the Custom Nodes menu for all workflows.
+                </p>
+                <div className="space-y-3 mb-4">
+                  <div>
+                    <label className="text-sm font-semibold text-foreground mb-1 block">
+                      Name
+                    </label>
+                    <input
+                      type="text"
+                      value={customNameInput}
+                      onChange={(e) => setCustomNameInput(e.target.value)}
+                      className="w-full px-3 py-2 rounded-lg bg-white/5 border border-white/10 text-foreground text-sm focus:outline-none focus:ring-2 focus:ring-purple-500"
+                      placeholder="My custom node"
+                    />
+                  </div>
+                  <div>
+                    <label className="text-sm font-semibold text-foreground mb-1 block">
+                      Description
+                    </label>
+                    <textarea
+                      value={customDescriptionInput}
+                      onChange={(e) => setCustomDescriptionInput(e.target.value)}
+                      className="w-full px-3 py-2 rounded-lg bg-white/5 border border-white/10 text-foreground text-sm resize-none focus:outline-none focus:ring-2 focus:ring-purple-500"
+                      rows={3}
+                      placeholder="Short description of what this node does..."
+                    />
+                  </div>
+                  {customError && (
+                    <p className="text-sm text-red-400">
+                      {customError}
+                    </p>
+                  )}
+                </div>
+                <div className="flex items-center justify-end gap-3">
+                  <button
+                    onClick={cancelMakeCustom}
+                    className="px-4 py-2 rounded-lg bg-white/5 hover:bg-white/10 transition-all hover:scale-105 active:scale-95"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    onClick={confirmMakeCustom}
+                    className="px-6 py-2 rounded-lg bg-gradient-to-r from-purple-500 to-purple-600 text-white font-medium shadow-lg hover:scale-105 active:scale-95 transition-all"
+                  >
+                    Save Custom Node
+                  </button>
+                </div>
+              </div>
+            </div>
+          </>
+        )}
       </div>
     </>
   )
 }
+

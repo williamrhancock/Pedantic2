@@ -10,6 +10,7 @@ import { NodeEditorModal } from '@/components/editor/NodeEditorModal'
 import { SaveAsDialog } from '@/components/dialogs/SaveAsDialog'
 import { useTheme } from '@/contexts/ThemeContext'
 import type { NodeType } from '@/components/toolbar/ModernToolbar'
+import { workflowNodeToCustomData } from '@/lib/custom-nodes'
 
 interface WorkflowNode {
   id: string
@@ -20,6 +21,8 @@ interface WorkflowNode {
   position: { x: number; y: number }
   isExecuting?: boolean
   executionStatus?: 'success' | 'error' | 'running'
+  customNodeId?: number
+  customNodeName?: string
 }
 
 interface Connection {
@@ -247,6 +250,7 @@ export function SimpleWorkflowBuilder() {
 
   // tRPC mutations
   const executeWorkflowMutation = trpc.executeWorkflow.useMutation()
+  const saveCustomNodeMutation = trpc.saveCustomNode.useMutation()
   const saveWorkflowMutation = trpc.saveWorkflow.useMutation({
     onMutate: () => setIsAutoSaving(true),
     onSuccess: (data, variables) => {
@@ -273,7 +277,9 @@ export function SimpleWorkflowBuilder() {
         title: node.title,
         code: node.code,
         config: node.config,
-        position: node.position
+        position: node.position,
+        customNodeId: node.customNodeId,
+        customNodeName: node.customNodeName,
       }
       return acc
     }, {} as any),
@@ -355,7 +361,9 @@ export function SimpleWorkflowBuilder() {
         title: nodeData.title,
         code: nodeData.code,
         config: nodeData.config,
-        position: nodeData.position || { x: 100 + Math.random() * 200, y: 100 + Math.random() * 200 }
+        position: nodeData.position || { x: 100 + Math.random() * 200, y: 100 + Math.random() * 200 },
+        customNodeId: nodeData.customNodeId,
+        customNodeName: nodeData.customNodeName,
       }))
 
       // Load connections
@@ -692,6 +700,72 @@ export function SimpleWorkflowBuilder() {
       if (config !== undefined) {
         updateNodeConfig(selectedNode, config)
       }
+    }
+  }
+
+  const handleMakeCustomNode = async (options: { name: string; description: string }) => {
+    if (!selectedNode) return
+    const node = nodes.find(n => n.id === selectedNode)
+    if (!node) return
+
+    if (node.type === 'start' || node.type === 'end') {
+      alert('Start and End nodes cannot be saved as custom nodes')
+      return
+    }
+
+    try {
+      const data = workflowNodeToCustomData({
+        type: node.type,
+        title: node.title,
+        code: node.code,
+        config: node.config,
+      })
+
+      const result = await saveCustomNodeMutation.mutateAsync({
+        name: options.name,
+        description: options.description,
+        type: node.type,
+        data,
+      })
+
+      // Attach custom node metadata to this node
+      setNodes(prev =>
+        prev.map(n =>
+          n.id === node.id
+            ? { ...n, customNodeId: result.id, customNodeName: options.name }
+            : n
+        )
+      )
+      markAsChanged()
+    } catch (error) {
+      console.error('Failed to save custom node:', error)
+      throw error
+    }
+  }
+
+  const handleUpdateCustomFromNode = async () => {
+    if (!selectedNode) return
+    const node = nodes.find(n => n.id === selectedNode)
+    if (!node || !node.customNodeId) return
+
+    try {
+      const data = workflowNodeToCustomData({
+        type: node.type,
+        title: node.title,
+        code: node.code,
+        config: node.config,
+      })
+
+      await saveCustomNodeMutation.mutateAsync({
+        id: node.customNodeId,
+        name: node.customNodeName || node.title,
+        description: undefined,
+        type: node.type,
+        data,
+      })
+    } catch (error) {
+      console.error('Failed to update custom node:', error)
+      throw error
     }
   }
 
