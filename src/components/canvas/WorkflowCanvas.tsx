@@ -94,6 +94,7 @@ function WorkflowCanvasInner({
       data: {
         type: node.type,
         title: node.title,
+        description: (node as any).description,
         code: node.code,
         config: node.config,
         isExecuting: node.isExecuting || isExecuting,
@@ -179,6 +180,7 @@ function WorkflowCanvasInner({
         data: {
           type: node.type,
           title: node.title,
+          description: (node as any).description,
           code: node.code,
           config: node.config,
           isExecuting: node.isExecuting || isExecuting,

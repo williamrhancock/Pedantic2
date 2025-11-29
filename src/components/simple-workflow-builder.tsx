@@ -16,6 +16,7 @@ interface WorkflowNode {
   id: string
   type: 'start' | 'end' | 'python' | 'typescript' | 'http' | 'file' | 'condition' | 'database' | 'llm'
   title: string
+  description?: string
   code?: string
   config?: any
   position: { x: number; y: number }
@@ -278,6 +279,7 @@ export function SimpleWorkflowBuilder() {
       acc[node.id] = {
         type: node.type,
         title: node.title,
+        description: node.description,
         code: node.code,
         config: node.config,
         position: node.position,
@@ -362,6 +364,7 @@ export function SimpleWorkflowBuilder() {
         id,
         type: nodeData.type,
         title: nodeData.title,
+        description: nodeData.description,
         code: nodeData.code,
         config: nodeData.config,
         position: nodeData.position || { x: 100 + Math.random() * 200, y: 100 + Math.random() * 200 },
@@ -824,6 +827,7 @@ export function SimpleWorkflowBuilder() {
       type: template.data.type,
       // Always display the custom node name on the canvas
       title: template.name,
+      description: template.description,
       code: template.data.code,
       config: template.data.config,
       position,

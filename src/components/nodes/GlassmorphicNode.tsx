@@ -24,6 +24,7 @@ interface GlassmorphicNodeProps {
   executionStatus?: 'success' | 'error' | 'running'
   onClick?: () => void
   data?: {
+    description?: string
     code?: string
     config?: any
   }
@@ -151,7 +152,15 @@ export const GlassmorphicNode = React.memo(function GlassmorphicNode({
       </div>
 
       {/* Preview content */}
-      {data?.code && (
+      {data?.description && (
+        <div className="mt-3 p-2 rounded-md bg-black/10 dark:bg-white/5">
+          <p className="text-xs text-muted-foreground line-clamp-3">
+            {data.description}
+          </p>
+        </div>
+      )}
+
+      {!data?.description && data?.code && (
         <div className="mt-3 p-2 rounded-md bg-black/10 dark:bg-white/5">
           <code className="text-xs text-muted-foreground line-clamp-2">
             {data.code.split('\n')[0]}...
