@@ -402,16 +402,6 @@ export function SimpleWorkflowBuilder() {
     }
   }, [workflowMetadata, saveWorkflowMutation, createWorkflowData, getWorkflowByNameQuery])
 
-  useEffect(() => {
-    if (!hasUnsavedChanges || !workflowMetadata.id) return
-
-    const autoSaveTimer = setTimeout(() => {
-      handleSave()
-    }, 30000)
-
-    return () => clearTimeout(autoSaveTimer)
-  }, [hasUnsavedChanges, workflowMetadata.id, handleSave])
-
   const handleSaveAs = async (name: string) => {
     try {
       const result = await saveWorkflowMutation.mutateAsync({
