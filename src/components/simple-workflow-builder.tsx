@@ -164,7 +164,7 @@ function WorkflowBrowser({ isOpen, onClose, onSelect }: WorkflowBrowserProps) {
             <div className="text-xs text-muted-foreground">
               Updated:{' '}
               {workflow.updated_at
-                ? new Date(workflow.updated_at).toLocaleString()
+                ? new Date(`${workflow.updated_at}Z`).toLocaleString()
                 : 'unknown'}
             </div>
                 </div>

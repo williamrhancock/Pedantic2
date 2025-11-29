@@ -165,7 +165,7 @@ export function DbMaintenanceModal({ isOpen, onClose }: DbMaintenanceModalProps)
                         </td>
                         <td className="px-2 py-1 text-muted-foreground whitespace-nowrap">
                           {w.updated_at
-                            ? new Date(w.updated_at).toLocaleString()
+                            ? new Date(`${w.updated_at}Z`).toLocaleString()
                             : 'unknown'}
                         </td>
                       </tr>
