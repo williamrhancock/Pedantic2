@@ -28,6 +28,20 @@ const PROVIDER_MODEL_ENDPOINTS: Record<string, string> = {
   mistral: 'https://api.mistral.ai/v1/models',
 }
 
+// Optional client-side public env keys that can be used for model fetching
+// without revealing the value in the UI. These must be defined as
+// NEXT_PUBLIC_* vars in the Next.js runtime to be available here.
+const PROVIDER_PUBLIC_ENV_KEYS: Record<string, string> = {
+  openrouter: 'NEXT_PUBLIC_OPENROUTER_API_KEY',
+  openai: 'NEXT_PUBLIC_OPENAI_API_KEY',
+  groq: 'NEXT_PUBLIC_GROQ_API_KEY',
+  together: 'NEXT_PUBLIC_TOGETHER_API_KEY',
+  fireworks: 'NEXT_PUBLIC_FIREWORKS_API_KEY',
+  deepinfra: 'NEXT_PUBLIC_DEEPINFRA_API_KEY',
+  perplexity: 'NEXT_PUBLIC_PERPLEXITY_API_KEY',
+  mistral: 'NEXT_PUBLIC_MISTRAL_API_KEY',
+}
+
 const COMMON_MODELS = [
   {
     label: 'OpenRouter – meta-llama/Meta-Llama-3.1-70B-Instruct',
@@ -140,6 +154,13 @@ export function LlmNodeDialog({
   const saveDisabled = isLocked || !!jsonError
   const currentProvider = config.provider || 'openrouter'
 
+  const getGlobalApiKeyForProvider = (provider: string): string | undefined => {
+    const envKeyName = PROVIDER_PUBLIC_ENV_KEYS[provider]
+    if (!envKeyName) return undefined
+    // process.env is replaced at build time for NEXT_PUBLIC_* vars
+    return (process.env as Record<string, string | undefined>)[envKeyName]
+  }
+
   const providerModels =
     models.length > 0
       ? models
@@ -152,10 +173,14 @@ export function LlmNodeDialog({
     setModelsError(null)
     setModels([])
 
-    // Require an API key override before attempting dynamic fetch.
-    if (!config.api_key || !config.api_key.trim()) {
+    const overrideKey = config.api_key && config.api_key.trim()
+    const globalKey = getGlobalApiKeyForProvider(provider)?.trim()
+    const effectiveKey = overrideKey || globalKey
+
+    // Require either an override key or a public env key before attempting dynamic fetch.
+    if (!effectiveKey) {
       setModelsError(
-        'Enter an API key in the override field before fetching models. The backend can still use env/global keys for execution.'
+        'Enter an API key override or configure a NEXT_PUBLIC_* key for this provider before fetching models.'
       )
       return
     }
@@ -172,7 +197,7 @@ export function LlmNodeDialog({
       setModelsLoading(true)
       const res = await fetch(endpoint, {
         headers: {
-          Authorization: `Bearer ${config.api_key}`,
+          Authorization: `Bearer ${effectiveKey}`,
         },
       })
       if (!res.ok) {
@@ -272,9 +297,13 @@ export function LlmNodeDialog({
                       value={selectModelValue}
                       disabled={isLocked}
                       onClick={async () => {
-                        if (!config.api_key || !config.api_key.trim()) {
+                        const overrideKey = config.api_key && config.api_key.trim()
+                        const globalKey = getGlobalApiKeyForProvider(currentProvider)?.trim()
+                        const effectiveKey = overrideKey || globalKey
+
+                        if (!effectiveKey) {
                           setModelsError(
-                            'Enter an API key override (or configure env/global) before choosing a model.'
+                            'Enter an API key override or configure a NEXT_PUBLIC_* key for this provider before choosing a model.'
                           )
                           return
                         }
