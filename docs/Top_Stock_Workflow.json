@@ -1,0 +1,137 @@
+{
+    "format": "pedantic-workflow-v1",
+    "metadata": {
+      "name": "Top Under-$10 Stocks with Highest 30-Day Upside",
+      "description": "Daily scan for stocks < $10 with strongest analyst-implied 30-day upside. Appends results to CSV.",
+      "tags": ["stocks", "screener", "low-priced", "upside"],
+      "exportedAt": "2025-11-29T00:00:00.000Z",
+      "version": "1.0.0"
+    },
+    "workflow": {
+      "nodes": {
+        "start": {
+          "type": "start",
+          "title": "Start",
+          "position": { "x": 100, "y": 300 }
+        },
+  
+        "llm_get_tickers": {
+          "type": "llm",
+          "title": "Get Stocks Under $9 (LLM)",
+          "config": {
+            "provider": "openrouter",
+            "model": "x-ai/grok-4.1-fast:free",
+            "temperature": 0.3,
+            "max_tokens": 500,
+            "system": "You are a financial data assistant. Return only valid stock ticker symbols in a simple, parseable format.",
+            "user": "Can I get a list of stocks that closed under $9 on 11/28/2025, that traded over $9.25 during that week, sorted by volume traded. Return only a list of tickers, one per line, no other text.",
+            "api_key": "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"
+          },
+          "position": { "x": 400, "y": 200 }
+        },
+  
+        "python_parse_tickers": {
+          "type": "python",
+          "title": "Parse LLM Response to Ticker List",
+          "code": "import re\n\ndef run(input):\n    # Get LLM response - could be in 'content' or direct text\n    llm_response = input.get('content', '')\n    if not llm_response:\n        # Try other possible keys\n        llm_response = str(input.get('output', ''))\n    if not llm_response:\n        llm_response = str(input)\n    \n    # Extract ticker symbols (typically 1-5 uppercase letters)\n    # Look for patterns like: AAPL, MSFT, or lines with just tickers\n    tickers = []\n    \n    # Split by newlines and extract tickers\n    lines = llm_response.split('\\n')\n    for line in lines:\n        line = line.strip()\n        if not line:\n            continue\n        \n        # Remove common prefixes/suffixes\n        line = re.sub(r'^[-\\d\\.\\s]*', '', line)  # Remove leading numbers/dots\n        line = re.sub(r'[^A-Z]', '', line.upper())  # Extract only uppercase letters\n        \n        # Valid ticker: 1-5 uppercase letters\n        if 1 <= len(line) <= 5 and line.isalpha():\n            if line not in tickers:\n                tickers.append(line)\n    \n    # If no tickers found, try regex on entire response\n    if not tickers:\n        # Look for patterns like: AAPL, MSFT, etc.\n        ticker_pattern = r'\\b([A-Z]{1,5})\\b'\n        matches = re.findall(ticker_pattern, llm_response.upper())\n        tickers = list(dict.fromkeys(matches))  # Remove duplicates, preserve order\n    \n    # Convert to list of dicts for ForEach processing\n    stocks = [{'ticker': ticker} for ticker in tickers if ticker]\n    \n    return {\n        'raw_stocks': stocks,\n        'total_found': len(stocks),\n        'message': f'Parsed {len(stocks)} tickers from LLM response',\n        'raw_response': llm_response[:200]  # First 200 chars for debugging\n    }",
+          "position": { "x": 700, "y": 200 }
+        },
+  
+        "foreach": {
+          "type": "foreach",
+          "title": "For Each Stock → Get 30-Day Target",
+          "config": {
+            "items_key": "raw_stocks",
+            "execution_mode": "parallel",
+            "max_concurrency": 10
+          },
+          "position": { "x": 1000, "y": 200 }
+        },
+  
+        "http_target": {
+          "type": "http",
+          "title": "Get Stock Data (Polygon.io)",
+          "config": {
+            "method": "GET",
+            "url": "https://api.polygon.io/v2/aggs/ticker/{ticker}/range/1/day/2025-10-30/2025-11-29?adjusted=true&sort=asc&limit=100&apiKey=WTpisAX2GneFvW5MPx7q2LajKOJ9b7fY",
+            "headers": {},
+            "timeout": 15
+          },
+          "position": { "x": 1300, "y": 100 }
+        },
+  
+        "python_calc_upside": {
+          "type": "python",
+          "title": "Calculate 30-Day Upside %",
+          "code": "import json\nfrom datetime import datetime, timedelta\n\ndef run(input):\n    data = input.get('data', {})\n    ticker = input.get('ticker', 'UNKNOWN')\n    \n    try:\n        # Polygon.io aggregates endpoint response format\n        results = data.get('results', [])\n        \n        if not results or len(results) == 0:\n            return {\n                'ticker': ticker,\n                'current_price': 0,\n                'upside_pct': 0,\n                'valid_target': False,\n                'error': 'No price data available'\n            }\n        \n        # Get most recent close price (last item in results)\n        latest = results[-1]\n        current_price = latest.get('c', 0)  # 'c' = close price\n        \n        if not current_price or current_price <= 0:\n            return {\n                'ticker': ticker,\n                'current_price': 0,\n                'upside_pct': 0,\n                'valid_target': False,\n                'error': 'Invalid price data'\n            }\n        \n        # Only include stocks under $10\n        if current_price >= 10:\n            return {\n                'ticker': ticker,\n                'current_price': round(current_price, 2),\n                'upside_pct': 0,\n                'valid_target': False,\n                'reason': 'Price >= $10'\n            }\n        \n        # Calculate a simple target based on recent price trends\n        # Use average of recent highs as a proxy for target\n        if len(results) >= 5:\n            recent_highs = [r.get('h', 0) for r in results[-5:] if r.get('h', 0) > 0]\n            if recent_highs:\n                target_mean = sum(recent_highs) / len(recent_highs)\n                target_low = min(recent_highs)\n                target_high = max(recent_highs)\n            else:\n                target_mean = current_price * 1.1  # 10% default upside\n                target_low = current_price * 1.05\n                target_high = current_price * 1.15\n        else:\n            # Not enough data, use simple default\n            target_mean = current_price * 1.1  # 10% default upside\n            target_low = current_price * 1.05\n            target_high = current_price * 1.15\n        \n        # Calculate upside percentage\n        upside_pct = ((target_mean - current_price) / current_price) * 100\n        \n        # Get company name (Polygon doesn't provide this in aggregates, use ticker)\n        company_name = ticker\n        \n        return {\n            'ticker': ticker,\n            'company': company_name,\n            'current_price': round(current_price, 2),\n            'target_mean': round(target_mean, 2),\n            'upside_pct': round(upside_pct, 2),\n            'target_low': round(target_low, 2),\n            'target_high': round(target_high, 2),\n            'valid_target': current_price > 0 and current_price < 10\n        }\n    except Exception as e:\n        return {\n            'ticker': ticker,\n            'current_price': 0,\n            'upside_pct': 0,\n            'error': str(e),\n            'valid_target': False\n        }",
+          "position": { "x": 1600, "y": 100 }
+        },
+  
+        "endloop": {
+          "type": "endloop",
+          "title": "End Loop",
+          "position": { "x": 1900, "y": 100 }
+        },
+  
+        "python_filter_rank": {
+          "type": "python",
+          "title": "Rank & Filter Top Upside (Only Valid Targets)",
+          "code": "from datetime import datetime\n\ndef run(input):\n    # EndLoop provides aggregated_outputs array with all successful iteration results\n    aggregated_outputs = input.get('aggregated_outputs', [])\n    \n    # Filter to only valid targets\n    valid = [item for item in aggregated_outputs if item.get('valid_target')]\n    \n    # Sort by upside descending\n    ranked = sorted(valid, key=lambda x: x['upside_pct'], reverse=True)\n    top_20 = ranked[:20]\n    \n    timestamp = datetime.now().strftime('%Y-%m-%d %H:%M:%S')\n    \n    # Generate CSV lines\n    header = 'Run Timestamp,Ticker,Company,Current Price,Target Mean,Upside %,Target Low,Target High\\n'\n    lines = [header]\n    for item in top_20:\n        line = f'{timestamp},{item[\"ticker\"]},\"{item.get(\"company\", \"N/A\")}\",{item[\"current_price\"]},{item[\"target_mean\"]},{item[\"upside_pct\"]},{item.get(\"target_low\", \"\")},{item.get(\"target_high\", \"\")}\\n'\n        lines.append(line)\n    \n    csv_content = ''.join(lines)\n    \n    return {\n        'top_20_stocks': top_20,\n        'csv_lines': csv_content,\n        'total_processed': len(valid),\n        'run_timestamp': timestamp,\n        'summary': f'Found {len(top_20)} stocks under $10 with highest 30-day upside'\n    }",
+          "position": { "x": 2200, "y": 100 }
+        },
+  
+        "file_append_csv": {
+          "type": "file",
+          "title": "Append Results to Daily CSV",
+          "config": {
+            "operation": "append",
+            "path": "under_10_stocks_upside_report.csv",
+            "content": "{csv_lines}",
+            "encoding": "utf-8"
+          },
+          "position": { "x": 2500, "y": 100 }
+        },
+  
+        "python_final_summary": {
+          "type": "python",
+          "title": "Generate Final Markdown Report",
+          "code": "from datetime import datetime\n\ndef run(input):\n    data = input.get('top_20_stocks', [])\n    timestamp = input.get('run_timestamp', datetime.now().strftime('%Y-%m-%d %H:%M:%S'))\n    summary = input.get('summary', 'Workflow completed')\n    \n    md = f\"# Top Under-$10 Stocks with Highest 30-Day Upside\\n\\n\"\n    md += f\"**Run:** {timestamp}\\n\\n\"\n    \n    if data and len(data) > 0:\n        md += \"| Rank | Ticker | Price | Target | Upside % |\\n\"\n        md += \"|------|--------|-------|--------|----------|\\n\"\n        \n        for i, stock in enumerate(data[:15], 1):\n            ticker = stock.get('ticker', 'N/A')\n            price = stock.get('current_price', 0)\n            target = stock.get('target_mean', 0)\n            upside = stock.get('upside_pct', 0)\n            \n            # Format upside with sign\n            upside_str = f\"{upside:+.2f}%\" if upside != 0 else \"0.00%\"\n            \n            md += f\"| {i:2d}   | **{ticker}** | ${price:.2f} | ${target:.2f} | **{upside_str}** |\\n\"\n    else:\n        md += \"*No stocks found matching criteria.*\\n\"\n    \n    md += f\"\\n\\nFull results appended to `under_10_stocks_upside_report.csv`\\n\"\n    md += f\"Scanned {input.get('total_processed', 0)} stocks with valid targets.\\n\"\n    \n    return {\n        'markdown_report': md,\n        'final_summary': summary\n    }",
+          "position": { "x": 2800, "y": 100 }
+        },
+  
+        "markdown_viewer": {
+          "type": "markdown",
+          "title": "View Latest Report",
+          "config": {
+            "content_key": "markdown_report"
+          },
+          "position": { "x": 3100, "y": 100 }
+        },
+  
+        "end": {
+          "type": "end",
+          "title": "End",
+          "position": { "x": 3400, "y": 100 }
+        }
+      },
+  
+      "connections": {
+        "c1": { "source": "start", "target": "llm_get_tickers", "sourceOutput": "output", "targetInput": "input" },
+        "c2": { "source": "llm_get_tickers", "target": "python_parse_tickers", "sourceOutput": "output", "targetInput": "input" },
+        "c3": { "source": "python_parse_tickers", "target": "foreach", "sourceOutput": "output", "targetInput": "input" },
+        "c4": { "source": "foreach", "target": "http_target", "sourceOutput": "output", "targetInput": "input" },
+        "c5": { "source": "http_target", "target": "python_calc_upside", "sourceOutput": "output", "targetInput": "input" },
+        "c6": { "source": "python_calc_upside", "target": "endloop", "sourceOutput": "output", "targetInput": "input" },
+        "c7": { "source": "endloop", "target": "python_filter_rank", "sourceOutput": "output", "targetInput": "input" },
+        "c8": { "source": "python_filter_rank", "target": "file_append_csv", "sourceOutput": "output", "targetInput": "input" },
+        "c9": { "source": "python_filter_rank", "target": "python_final_summary", "sourceOutput": "output", "targetInput": "input" },
+        "c10": { "source": "python_final_summary", "target": "markdown_viewer", "sourceOutput": "output", "targetInput": "input" },
+        "c11": { "source": "markdown_viewer", "target": "end", "sourceOutput": "output", "targetInput": "input" }
+      },
+  
+      "metadata": {
+        "nodeCount": 12,
+        "lastModified": "2025-11-29T00:00:00.000Z"
+      }
+    }
+  }

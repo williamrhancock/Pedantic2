@@ -45,6 +45,7 @@ The Visual Agentic Workflow Builder supports multiple node types for building so
 - ▶️ **Start Node** - Begin workflow execution
 - ⏹️ **End Node** - Complete workflow execution
 - 🔄 **For Each Loop** - Iterate over arrays with serial or parallel execution
+- 🔁 **End Loop** - Marks the end of a ForEach loop and aggregates results
 
 ### Data Flow Between Nodes
 
@@ -1178,6 +1179,8 @@ When you click the model dropdown:
 
 The For Each Loop node iterates over an array of items, executing a sub-workflow for each item. It supports both serial and parallel execution modes.
 
+**IMPORTANT**: Every ForEach loop MUST have a corresponding EndLoop node to mark where the loop ends and aggregate results.
+
 #### Basic Configuration
 
 ```json
@@ -1204,7 +1207,8 @@ The For Each Loop node iterates over an array of items, executing a sub-workflow
    - Static `items` array in config (fallback)
 
 2. **Sub-Workflow Execution**: 
-   - All nodes connected downstream from the for-each node until an 'end' or another 'foreach' node are executed as a sub-workflow
+   - All nodes connected downstream from the for-each node until an 'endloop' node are executed as a sub-workflow
+   - The sub-workflow continues until an EndLoop node (not End or another ForEach)
    - Each item replaces the `input_data` entirely for that iteration
    - The sub-workflow receives the item as its input
 
@@ -1268,13 +1272,15 @@ def run(input):
 
 **Workflow Structure:**
 ```
-Start → Python (generate array) → For Each Loop → LLM (process each item) → File (append each result) → End
+Start → Python (generate array) → For Each Loop → LLM (process each item) → File (append each result) → EndLoop → Final Processing → End
 ```
 
 In this example:
 - The Python node generates an array of years
 - The For Each Loop extracts the array using `items_key: "items"`
 - For each year, the LLM node processes it and the File node appends the result
+- The EndLoop node aggregates all iteration results
+- The Final Processing node receives all aggregated results
 - All three iterations execute sequentially
 
 #### Example: Parallel Processing
@@ -1300,6 +1306,126 @@ This will process up to 3 items concurrently, improving performance for I/O-boun
 2. **Use Parallel for Independent Operations**: If iterations are independent, use `parallel` mode with appropriate `max_concurrency`
 3. **Handle Errors Gracefully**: The for-each node continues processing even if some iterations fail
 4. **Monitor Execution Time**: Parallel execution can be faster but may hit rate limits or resource constraints
+5. **Always Use EndLoop**: Every ForEach loop MUST have a corresponding EndLoop node to aggregate results
+
+---
+
+### End Loop Node
+
+The End Loop node marks the end of a ForEach loop's sub-workflow. It aggregates all iteration results and provides them in a structured format to the next node.
+
+#### Basic Structure
+
+```json
+{
+  "type": "endloop",
+  "title": "End Loop",
+  "position": { "x": 100, "y": 100 }
+}
+```
+
+#### Purpose
+
+The EndLoop node is a marker node that:
+- Defines where a ForEach loop's sub-workflow ends
+- Aggregates all iteration results from the ForEach loop
+- Provides structured output for downstream processing
+- Ensures no data is lost between iterations
+
+#### Input
+
+- **Source**: Automatically receives aggregated results from the ForEach loop
+- **Structure**: Contains all iteration outputs from the ForEach sub-workflow
+
+#### Output Structure
+
+```json
+{
+  "results": [
+    {
+      "item": { /* original item */ },
+      "output": { /* iteration output */ },
+      "status": "success",
+      "error": null
+    }
+  ],
+  "aggregated_outputs": [
+    { /* successful iteration output 1 */ },
+    { /* successful iteration output 2 */ }
+  ],
+  "items": [ /* original items array */ ],
+  "total": 3,
+  "successful": 2,
+  "failed": 1
+}
+```
+
+#### Key Fields
+
+- **`aggregated_outputs`**: Array of all successful iteration outputs (use this for processing all results)
+- **`results`**: Full results array with status and error information
+- **`items`**: Original items that were processed
+- **`total`**: Total number of iterations
+- **`successful`**: Number of successful iterations
+- **`failed`**: Number of failed iterations
+
+#### Usage Pattern
+
+**Correct Pattern:**
+```
+ForEach → Node A → Node B → EndLoop → Final Processing Node
+```
+
+**Incorrect Pattern (missing EndLoop):**
+```
+ForEach → Node A → Node B → Final Processing Node  ❌
+```
+
+#### Example: Processing Aggregated Results
+
+After EndLoop, a Python node can process all results:
+
+```python
+def run(input):
+    # Get all successful iteration outputs
+    all_results = input.get('aggregated_outputs', [])
+    
+    # Process all results together
+    total = sum(item.get('value', 0) for item in all_results)
+    average = total / len(all_results) if all_results else 0
+    
+    return {
+        'processed_items': all_results,
+        'total': total,
+        'average': average,
+        'count': len(all_results)
+    }
+```
+
+#### Nested Loops
+
+ForEach loops can be nested. Each ForEach must have its own EndLoop:
+
+```
+Outer ForEach → Node A → Inner ForEach → Node B → Inner EndLoop → Node C → Outer EndLoop → Final Node
+```
+
+Each EndLoop aggregates only its own ForEach's results.
+
+#### What EndLoop Nodes CAN Do
+
+✅ Aggregate all ForEach iteration results  
+✅ Provide structured output for downstream processing  
+✅ Support nested ForEach loops (each ForEach has its own EndLoop)  
+✅ Pass complete dataset to next node  
+✅ Preserve all iteration data without loss
+
+#### What EndLoop Nodes CANNOT Do
+
+❌ Work without a corresponding ForEach node  
+❌ Be used outside of a ForEach loop context  
+❌ Have configuration (it's a marker node)  
+❌ Process data (it only aggregates and passes through)
 
 ---
 

@@ -92,6 +92,7 @@ Connections define data flow:
 | `database` | Config | Any | Query result | Yes |
 | `llm` | Config | Any | LLM response | Yes |
 | `foreach` | Control | Array or dict | Loop results | Yes |
+| `endloop` | Control | ForEach results | Aggregated results | No |
 | `markdown` | Config | Any | Markdown content | Optional |
 | `html` | Config | Any | HTML content | Optional |
 
@@ -855,7 +856,8 @@ Analyze this product: Laptop
 - **Downstream nodes** from ForEach are executed for EACH item
 - Each iteration receives the **item itself** as input (replaces entire input)
 - Original workflow context is preserved in `_workflow_context` key
-- Sub-workflow continues until another ForEach or End node
+- **Sub-workflow continues until an EndLoop node** (not End or another ForEach)
+- **CRITICAL**: Every ForEach loop MUST have a corresponding EndLoop node to mark where the loop ends
 
 #### What For Each Nodes CAN Do
 ✅ Iterate over arrays from input  
@@ -866,10 +868,10 @@ Analyze this product: Laptop
 ✅ Preserve workflow context via `_workflow_context`  
 
 #### What For Each Nodes CANNOT Do
-❌ Nest ForEach loops (not supported)  
 ❌ Access items from other iterations directly  
 ❌ Modify the original array  
 ❌ Break/continue loops (always processes all items)  
+❌ Work without an EndLoop node (EndLoop is required to mark loop end)  
 
 #### Context Preservation
 When inside a ForEach loop, nodes receive:
@@ -915,6 +917,108 @@ ForEach config:
   "max_concurrency": 1
 }
 ```
+
+**IMPORTANT**: After the ForEach loop, you MUST add an EndLoop node. The EndLoop aggregates all iteration results and passes them to the next node.
+
+---
+
+### End Loop Node
+
+#### Structure
+```json
+{
+  "type": "endloop",
+  "title": "End Loop",
+  "position": { "x": 100, "y": 100 }
+}
+```
+
+#### Purpose
+The EndLoop node marks the end of a ForEach loop's sub-workflow. It aggregates all iteration results and provides them in a structured format to the next node.
+
+#### Input
+- **Source**: Automatically receives aggregated results from the ForEach loop
+- **Structure**: Contains all iteration outputs from the ForEach sub-workflow
+
+#### Output Structure
+```json
+{
+  "results": [
+    {
+      "item": { /* original item */ },
+      "output": { /* iteration output */ },
+      "status": "success",
+      "error": null
+    }
+  ],
+  "aggregated_outputs": [
+    { /* successful iteration output 1 */ },
+    { /* successful iteration output 2 */ }
+  ],
+  "items": [ /* original items array */ ],
+  "total": 3,
+  "successful": 2,
+  "failed": 1
+}
+```
+
+#### Key Fields
+- **`aggregated_outputs`**: Array of all successful iteration outputs (use this for processing all results)
+- **`results`**: Full results array with status and error information
+- **`items`**: Original items that were processed
+- **`total`**: Total number of iterations
+- **`successful`**: Number of successful iterations
+- **`failed`**: Number of failed iterations
+
+#### What EndLoop Nodes CAN Do
+✅ Aggregate all ForEach iteration results  
+✅ Provide structured output for downstream processing  
+✅ Support nested ForEach loops (each ForEach has its own EndLoop)  
+✅ Pass complete dataset to next node  
+
+#### What EndLoop Nodes CANNOT Do
+❌ Work without a corresponding ForEach node  
+❌ Be used outside of a ForEach loop context  
+❌ Have configuration (it's a marker node)  
+
+#### Usage Pattern
+**Correct Pattern:**
+```
+ForEach → Node A → Node B → EndLoop → Final Processing Node
+```
+
+**Incorrect Pattern (missing EndLoop):**
+```
+ForEach → Node A → Node B → Final Processing Node  ❌
+```
+
+#### Example: Processing Aggregated Results
+After EndLoop, a Python node can process all results:
+```python
+def run(input):
+    # Get all successful iteration outputs
+    all_results = input.get('aggregated_outputs', [])
+    
+    # Process all results together
+    total = sum(item.get('value', 0) for item in all_results)
+    average = total / len(all_results) if all_results else 0
+    
+    return {
+        'processed_items': all_results,
+        'total': total,
+        'average': average,
+        'count': len(all_results)
+    }
+```
+
+#### Nested Loops
+ForEach loops can be nested. Each ForEach must have its own EndLoop:
+
+```
+Outer ForEach → Node A → Inner ForEach → Node B → Inner EndLoop → Node C → Outer EndLoop → Final Node
+```
+
+Each EndLoop aggregates only its own ForEach's results.
 
 ---
 
@@ -1257,6 +1361,8 @@ Then template can use: `"url": "https://api.com/users/{user_id}"` ✅
 - ✅ Use `items_key` to specify array location
 - ✅ Remember: each iteration receives the item, not the full context
 - ✅ Access workflow context via `_workflow_context` if needed
+- ✅ **CRITICAL**: Always add an EndLoop node after ForEach sub-workflow
+- ✅ Use `aggregated_outputs` from EndLoop to process all results together
 
 ### 6. Error Prevention
 - ✅ Check field existence before accessing: `input.get('field', default)`
@@ -1285,7 +1391,7 @@ Start → HTTP (fetch) → Python (transform) → Condition (route) → [Branch 
 
 ### Pattern 3: Loop Processing
 ```
-Start → Python (generate array) → ForEach → [Process each] → Python (aggregate) → End
+Start → Python (generate array) → ForEach → [Process each] → EndLoop → Python (aggregate) → End
 ```
 
 ### Pattern 4: LLM Analysis Chain
@@ -1313,6 +1419,7 @@ Before generating a workflow, ensure:
 - [ ] All connections reference valid node IDs
 - [ ] Connection path exists from start to end
 - [ ] ForEach nodes have valid `items_key` or receive array input
+- [ ] Every ForEach loop has a corresponding EndLoop node
 - [ ] Template placeholders reference existing fields
 - [ ] Python code has `def run(input):` function
 - [ ] TypeScript code has `async function run(input: any): Promise<any>` function
@@ -1327,9 +1434,10 @@ This guide provides complete specifications for generating Pedantic2 workflows. 
 1. **Data flows one-way**: Each node receives the previous node's output as `input`
 2. **Template placeholders**: Use `{field_name}` in config nodes to inject values
 3. **Code nodes**: Must define `run(input)` function and return data
-4. **ForEach loops**: Execute downstream nodes for each array item
-5. **Context preservation**: Use `_workflow_context` in ForEach sub-workflows
-6. **Security restrictions**: Files limited to `/tmp/workflow_files/`, databases to `/tmp/workflow_dbs/`
+4. **ForEach loops**: Execute downstream nodes for each array item, MUST end with EndLoop node
+5. **EndLoop nodes**: Aggregate ForEach results and provide `aggregated_outputs` array
+6. **Context preservation**: Use `_workflow_context` in ForEach sub-workflows
+7. **Security restrictions**: Files limited to `/tmp/workflow_files/`, databases to `/tmp/workflow_dbs/`
 
 Use this guide to generate valid, executable workflows that follow Pedantic2's architecture and constraints.
 

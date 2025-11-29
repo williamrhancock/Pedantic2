@@ -16,12 +16,26 @@ import ipaddress
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from contextlib import asynccontextmanager
 from RestrictedPython import compile_restricted, safe_globals
 
 # Load environment variables
 load_dotenv()
 
-app = FastAPI()
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    """Handle application lifespan events"""
+    # Startup
+    yield
+    # Shutdown - gracefully handle cancellation
+    try:
+        # Give pending tasks a moment to complete
+        await asyncio.sleep(0.1)
+    except asyncio.CancelledError:
+        # This is expected during shutdown, ignore it
+        pass
+
+app = FastAPI(lifespan=lifespan)
 
 app.add_middleware(
     CORSMiddleware,
@@ -85,9 +99,37 @@ def execute_python_code(code: str, input_data: Any) -> Dict[str, Any]:
         restricted_globals['__import__'] = safe_import
         restricted_globals['_print_'] = PrintCollector
         restricted_globals['_getattr_'] = getattr
-        restricted_globals['_getitem_'] = lambda obj, index: obj[index]
+        # _getitem_ handles item access like obj[index]
+        def _getitem_handler(obj, index, *args):
+            """Handle item access for RestrictedPython"""
+            return obj[index]
+        restricted_globals['_getitem_'] = _getitem_handler
         restricted_globals['_getiter_'] = iter
-        restricted_globals['_iter_unpack_sequence_'] = lambda seq, spec=2: seq
+        # _iter_unpack_sequence_ handles sequence unpacking
+        def _iter_unpack_handler(seq, *args):
+            """Handle sequence unpacking for RestrictedPython"""
+            return seq
+        restricted_globals['_iter_unpack_sequence_'] = _iter_unpack_handler
+        # Required for augmented assignments and complex expressions in f-strings
+        # _inplacevar_ handles in-place operations (like +=, -=, etc.)
+        # RestrictedPython calls it with (operation, variable_name, value)
+        def _inplacevar_handler(*args, **kwargs):
+            """Handle in-place operations for RestrictedPython"""
+            # RestrictedPython transforms in-place ops like x += y into _inplacevar_('+', 'x', y)
+            # We just need to return the value - the actual operation is handled by RestrictedPython
+            if len(args) >= 3:
+                return args[2]  # Return the value (third argument)
+            elif len(args) >= 1:
+                return args[-1]  # Fallback: return last argument
+            return None
+        restricted_globals['_inplacevar_'] = _inplacevar_handler
+        # _write_ handles write operations to variables (list of (name, value) tuples)
+        def _write_handler(*args, **kwargs):
+            """Handle write operations for RestrictedPython"""
+            # RestrictedPython uses this to track variable writes
+            # We don't need to do anything special here
+            pass
+        restricted_globals['_write_'] = _write_handler
         
         # Add essential built-in types and functions
         restricted_globals['dict'] = dict
@@ -396,15 +438,24 @@ async def execute_http_request(config: Dict[str, Any], input_data: Any) -> Dict[
                 
                 execution_time = time.time() - start_time
                 
+                # Merge original input data with response so downstream nodes can access both
+                output_data = {
+                    'status_code': response.status,
+                    'headers': dict(response.headers),
+                    'data': response_data,
+                    'url': str(response.url),
+                    'method': method
+                }
+                
+                # Preserve original input data (like 'ticker') for downstream nodes
+                if isinstance(input_data, dict):
+                    for key, value in input_data.items():
+                        if key not in output_data:  # Don't overwrite response fields
+                            output_data[key] = value
+                
                 return {
                     'status': 'success',
-                    'output': {
-                        'status_code': response.status,
-                        'headers': dict(response.headers),
-                        'data': response_data,
-                        'url': str(response.url),
-                        'method': method
-                    },
+                    'output': output_data,
                     'stdout': f"HTTP {method} {processed_url} -> {response.status}",
                     'stderr': '',
                     'execution_time': execution_time
@@ -1181,10 +1232,11 @@ async def execute_llm_request(config: Dict[str, Any], input_data: Any) -> Dict[s
         }
 
 def find_downstream_nodes(foreach_node_id: str, nodes_data: dict, connections_data: dict) -> List[str]:
-    """Find all nodes downstream from a foreach node until next 'end' or 'foreach' node"""
+    """Find all nodes downstream from a foreach node until 'endloop' node (supports nested loops)"""
     downstream = []
     visited = set()
     queue = [foreach_node_id]
+    endloop_node_id = None
     
     while queue:
         current_id = queue.pop(0)
@@ -1200,12 +1252,25 @@ def find_downstream_nodes(foreach_node_id: str, nodes_data: dict, connections_da
                     target_node = nodes_data.get(target_id, {})
                     target_type = target_node.get('type', '')
                     
-                    # Stop at 'end' or another 'foreach' node
-                    if target_type in ('end', 'foreach'):
+                    # Stop at 'endloop' node (marks end of this foreach loop)
+                    if target_type == 'endloop':
+                        endloop_node_id = target_id
+                        continue
+                    
+                    # Stop at 'end' node (workflow termination)
+                    if target_type == 'end':
+                        continue
+                    
+                    # For nested loops: stop at another 'foreach' node (it will have its own endloop)
+                    if target_type == 'foreach':
                         continue
                     
                     downstream.append(target_id)
                     queue.append(target_id)
+    
+    # Include the endloop node in the downstream list if found
+    if endloop_node_id:
+        downstream.append(endloop_node_id)
     
     return downstream
 
@@ -1267,6 +1332,16 @@ async def execute_sub_workflow(
             elif node_type == 'html':
                 config = node_data.get('config', {})
                 result = await execute_html_viewer(config, input_data)
+            elif node_type == 'endloop':
+                # EndLoop node: just passes through the input (aggregation happens in ForEach)
+                # This node exists to mark the end of a ForEach sub-workflow
+                result = {
+                    'status': 'success',
+                    'output': input_data,  # Pass through input (will be replaced by ForEach aggregation)
+                    'stdout': 'EndLoop node reached',
+                    'stderr': '',
+                    'execution_time': 0.0
+                }
             else:
                 result = {
                     'status': 'error',
@@ -1420,8 +1495,18 @@ async def execute_foreach_loop(
             'execution_time': time.time() - start_time
         }
     
-    # Find downstream nodes
+    # Find downstream nodes (includes EndLoop if present)
     downstream_node_ids = find_downstream_nodes(foreach_node_id, nodes_data, connections_data)
+    
+    # Find the EndLoop node in downstream nodes
+    endloop_node_id = None
+    sub_workflow_node_ids = []
+    for node_id in downstream_node_ids:
+        node_data = nodes_data.get(node_id, {})
+        if node_data.get('type') == 'endloop':
+            endloop_node_id = node_id
+        else:
+            sub_workflow_node_ids.append(node_id)
     
     if not downstream_node_ids:
         return {
@@ -1436,6 +1521,10 @@ async def execute_foreach_loop(
             'stderr': '',
             'execution_time': time.time() - start_time
         }
+    
+    # Warn if no EndLoop found
+    if not endloop_node_id:
+        print(f"WARNING: ForEach node {foreach_node_id} has no EndLoop node. Results will be aggregated but may not flow correctly.")
     
     # Execute iterations
     execution_mode = config.get('execution_mode', 'serial')
@@ -1454,18 +1543,24 @@ async def execute_foreach_loop(
                     '_workflow_context': input_data  # Store original context for reference
                 }
             
-            # Execute sub-workflow with item as primary input (but context available)
+            # Execute sub-workflow (nodes before EndLoop) with item as primary input
+            # If there's an EndLoop, execute only the nodes before it
+            nodes_to_execute = sub_workflow_node_ids if endloop_node_id else downstream_node_ids
+            
             result = await execute_sub_workflow(
-                downstream_node_ids,
+                nodes_to_execute,
                 nodes_data,
                 connections_data,
                 iteration_input,  # Item as primary, but context available via _workflow_context
                 {}
             )
             
+            # Get the final output from the last node in the sub-workflow (before EndLoop)
+            iteration_output = result.get('output')
+            
             return {
                 'item': item,
-                'output': result.get('output'),
+                'output': iteration_output,
                 'status': result.get('status', 'success'),
                 'error': result.get('error'),
                 'node_executions': result.get('node_executions', [])  # Include execution details for each node
@@ -1514,18 +1609,86 @@ async def execute_foreach_loop(
     successful = sum(1 for r in results if r.get('status') == 'success')
     failed = len(results) - successful
     
-    return {
-        'status': 'success',
-        'output': {
+    # Aggregate all iteration outputs for EndLoop
+    aggregated_outputs = []
+    for r in results:
+        if r.get('status') == 'success' and r.get('output') is not None:
+            aggregated_outputs.append(r.get('output'))
+    
+    # If EndLoop exists, the ForEach output should be the aggregated data structure
+    # that EndLoop will process and pass to the next node
+    if endloop_node_id:
+        # EndLoop will receive this aggregated structure and output it
+        foreach_output = {
+            'results': results,
+            'total': len(results),
+            'successful': successful,
+            'failed': failed,
+            'aggregated_outputs': aggregated_outputs,  # All successful iteration outputs
+            'items': items  # Original items for reference
+        }
+    else:
+        # No EndLoop: return results structure (backward compatibility)
+        foreach_output = {
             'results': results,
             'total': len(results),
             'successful': successful,
             'failed': failed
-        },
+        }
+    
+    return {
+        'status': 'success',
+        'output': foreach_output,
         'stdout': f'ForEach loop executed {len(results)} iterations ({successful} successful, {failed} failed)',
         'stderr': '',
-        'execution_time': time.time() - start_time
+        'execution_time': time.time() - start_time,
+        'endloop_node_id': endloop_node_id  # Pass EndLoop ID for main execution flow
     }
+
+
+async def execute_endloop_node(input_data: Any) -> Dict[str, Any]:
+    """Execute EndLoop node - aggregates ForEach iteration results"""
+    try:
+        # Input should be the ForEach output structure
+        if isinstance(input_data, dict):
+            aggregated_outputs = input_data.get('aggregated_outputs', [])
+            results = input_data.get('results', [])
+            items = input_data.get('items', [])
+            
+            # EndLoop outputs the aggregated results in a format the next node can use
+            # The aggregated_outputs array contains all successful iteration outputs
+            return {
+                'status': 'success',
+                'output': {
+                    'results': results,  # Full results with status, errors, etc.
+                    'aggregated_outputs': aggregated_outputs,  # Just the successful outputs
+                    'items': items,  # Original items
+                    'total': len(results),
+                    'successful': len(aggregated_outputs),
+                    'failed': len(results) - len(aggregated_outputs)
+                },
+                'stdout': f'EndLoop aggregated {len(aggregated_outputs)} successful results from {len(results)} iterations',
+                'stderr': '',
+                'execution_time': 0.0
+            }
+        else:
+            # If input is not a dict (shouldn't happen), return as-is
+            return {
+                'status': 'success',
+                'output': input_data,
+                'stdout': 'EndLoop passed through input',
+                'stderr': '',
+                'execution_time': 0.0
+            }
+    except Exception as e:
+        return {
+            'status': 'error',
+            'error': f'EndLoop execution failed: {str(e)}',
+            'output': None,
+            'stdout': '',
+            'stderr': str(e),
+            'execution_time': 0.0
+        }
 
 
 @app.post("/run")
@@ -1658,6 +1821,48 @@ async def run_workflow(request: dict):
             elif node_type == 'foreach':
                 config = node_data.get('config', {})
                 result = await execute_foreach_loop(config, input_data, node_id, nodes_data, connections_data)
+                
+                # If ForEach has an EndLoop node, execute it with aggregated results
+                endloop_node_id = result.get('endloop_node_id')
+                if endloop_node_id and endloop_node_id in nodes_data:
+                    # Execute EndLoop with aggregated data
+                    endloop_input = result['output']  # Contains aggregated_outputs, results, etc.
+                    print(f"DEBUG: ForEach {node_id} executing EndLoop {endloop_node_id} with input keys: {list(endloop_input.keys()) if isinstance(endloop_input, dict) else 'N/A'}")
+                    endloop_result = await execute_endloop_node(endloop_input)
+                    
+                    # Store EndLoop result in node_outputs so next node can access it
+                    node_outputs[endloop_node_id] = endloop_result['output']
+                    print(f"DEBUG: EndLoop {endloop_node_id} output stored. Keys: {list(endloop_result['output'].keys()) if isinstance(endloop_result['output'], dict) else 'N/A'}")
+                    print(f"DEBUG: EndLoop aggregated_outputs count: {len(endloop_result['output'].get('aggregated_outputs', []))}")
+                    
+                    # Update result to use EndLoop output
+                    result['output'] = endloop_result['output']
+                    result['stdout'] += f" | EndLoop aggregated {len(endloop_input.get('aggregated_outputs', []))} results"
+                
+            elif node_type == 'endloop':
+                # EndLoop nodes are handled automatically after ForEach execution
+                # Check if it was already executed (stored in node_outputs)
+                if node_id in node_outputs:
+                    # Use the already-executed result
+                    stored_output = node_outputs[node_id]
+                    print(f"DEBUG: EndLoop {node_id} using stored output. Keys: {list(stored_output.keys()) if isinstance(stored_output, dict) else 'N/A'}")
+                    result = {
+                        'status': 'success',
+                        'output': stored_output,
+                        'stdout': 'EndLoop already executed by ForEach',
+                        'stderr': '',
+                        'execution_time': 0.0
+                    }
+                else:
+                    # If we reach here, EndLoop is not connected to a ForEach (error case)
+                    result = {
+                        'status': 'error',
+                        'error': 'EndLoop node must be connected from a ForEach loop',
+                        'output': None,
+                        'stdout': '',
+                        'stderr': 'EndLoop node executed outside of ForEach context',
+                        'execution_time': 0.0
+                    }
                 
             elif node_type == 'markdown':
                 config = node_data.get('config', {})

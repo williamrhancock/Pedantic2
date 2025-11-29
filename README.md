@@ -11,6 +11,15 @@ Why "Pedantic2"? Because the first one was *too* forgiving. This version nags yo
 
 **TL;DR**: Visual drag-and-drop for agents, code for the masochists, all offline. Deploy? Pfft, as if.
 
+**New in Latest Version**:
+- EndLoop nodes for proper ForEach loop termination and data aggregation
+- Auto-arrange with aggressive zigzag layout for better connection visibility
+- Help icon opens documentation viewer
+- Database maintenance panel for workflow/node management
+- Custom nodes with export/import support
+- Improved execution timeline with real-time status
+- Case-insensitive workflow name matching
+
 ## 🎨 What Makes It Tick (Without Needing a Watch)
 
 - **Visual Node Shenanigans**: Drag, drop, connect – React Flow canvas with glassmorphic flair. Nodes glow like they're judging your life choices (green: success; red: "fix your crap").
@@ -18,11 +27,23 @@ Why "Pedantic2"? Because the first one was *too* forgiving. This version nags yo
   - **Python**: Sandboxed via RestrictedPython. Write `def run(input): return input + " but snarkier"`. Timeouts? We got 'em, because infinite loops are for amateurs.
   - **TypeScript**: Async via Bun subprocess. `async function run(input): Promise<any> { return input; /* Add your async regret here */ }`. Monaco Editor included – because Notepad++ called, it wants its dignity back.
 - **Config Nodes for the Lazy Genius**:
-  - HTTP calls with templating: `{user_id}`? Boom, dynamic AF.
-  - File ops (read/write/delete) in `/tmp/workflow_files/` – because your root dir isn't a playground.
-  - Conditionals: Branch if `data.salty > 10` (spoiler: it always is).
-  - SQLite queries: Parameterized, because SQL injection is so 2010.
-- **Fancy Bits**: Auto-save to SQLite (throttled, obvs), real-time execution logs (stdout/stderr/errors – the full therapy session), import/export JSON like you're sharing breakup playlists.
+- HTTP calls with templating: `{user_id}`? Boom, dynamic AF.
+- File ops (read/write/delete) in `/tmp/workflow_files/` – because your root dir isn't a playground.
+- Conditionals: Branch if `data.salty > 10` (spoiler: it always is).
+- SQLite queries: Parameterized, because SQL injection is so 2010.
+- LLM AI Assistant: Full dialog with provider/model selection, dynamic model fetching, API key management.
+- Markdown Viewer: Auto-detect and render markdown with anchor support.
+- HTML Viewer: Auto-detect and render HTML content.
+- **Fancy Bits**: 
+  - Auto-arrange nodes with intelligent zigzag layout (staggered for visibility)
+  - Real-time execution logs (stdout/stderr/errors – the full therapy session)
+  - Import/export JSON like you're sharing breakup playlists
+  - Help icon opens documentation in markdown viewer
+  - Database maintenance panel for cleanup and optimization
+  - Custom nodes: Save, reuse, export, and import node templates
+  - Lock functionality to prevent accidental edits during execution
+  - Save As with overwrite confirmation (case-insensitive workflow names)
+  - Execution timeline shows real-time status with timestamps
 - **Headless Mode**: Run via API or CLI. Schedule with cron/launchd/Task Scheduler. Because who needs a UI for 3 AM regrets?
 - **Security? We Pretend**: Timeouts, memory caps, localhost-only. Your secrets stay secret... unless you `print(password)` in a Python node. Rookie.
 

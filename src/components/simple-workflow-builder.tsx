@@ -19,7 +19,7 @@ import { createDefaultLlmConfig, normalizeLlmConfig, type LlmConfig } from '@/li
 
 interface WorkflowNode {
   id: string
-  type: 'start' | 'end' | 'python' | 'typescript' | 'http' | 'file' | 'condition' | 'database' | 'llm' | 'foreach' | 'markdown' | 'html'
+  type: 'start' | 'end' | 'python' | 'typescript' | 'http' | 'file' | 'condition' | 'database' | 'llm' | 'foreach' | 'endloop' | 'markdown' | 'html'
   title: string
   description?: string
   code?: string
@@ -1035,6 +1035,7 @@ export function SimpleWorkflowBuilder() {
       case 'database': return 'Database Query'
       case 'llm': return 'LLM AI Assistant'
       case 'foreach': return 'For Each Loop'
+      case 'endloop': return 'End Loop'
       case 'markdown': return 'Markdown Viewer'
       case 'html': return 'HTML Viewer'
       default: return 'Unknown Node'

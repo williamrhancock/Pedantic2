@@ -12,11 +12,12 @@ import {
   Play,
   Square,
   Repeat,
+  RotateCcw,
   BookOpen,
   FileCode
 } from 'lucide-react'
 
-export type NodeType = 'start' | 'end' | 'python' | 'typescript' | 'http' | 'file' | 'condition' | 'database' | 'llm' | 'foreach' | 'markdown' | 'html'
+export type NodeType = 'start' | 'end' | 'python' | 'typescript' | 'http' | 'file' | 'condition' | 'database' | 'llm' | 'foreach' | 'endloop' | 'markdown' | 'html'
 
 interface GlassmorphicNodeProps {
   id: string
@@ -44,6 +45,7 @@ const nodeIcons = {
   database: Database,
   llm: Sparkles,
   foreach: Repeat,
+  endloop: RotateCcw,
   markdown: BookOpen,
   html: FileCode,
 }
@@ -59,6 +61,7 @@ const nodeColors = {
   database: 'from-green-600 to-emerald-700',
   llm: 'from-pink-500 to-rose-600',
   foreach: 'from-indigo-500 to-indigo-600',
+  endloop: 'from-red-500 to-red-600',
   markdown: 'from-violet-500 to-violet-600',
   html: 'from-teal-500 to-teal-600',
 }

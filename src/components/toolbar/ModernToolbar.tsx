@@ -22,7 +22,7 @@ import {
 } from 'lucide-react'
 import type { CustomNodeTemplate } from '@/lib/custom-nodes'
 
-export type NodeType = 'python' | 'typescript' | 'http' | 'file' | 'condition' | 'database' | 'llm' | 'foreach' | 'markdown' | 'html'
+export type NodeType = 'python' | 'typescript' | 'http' | 'file' | 'condition' | 'database' | 'llm' | 'foreach' | 'endloop' | 'markdown' | 'html'
 
 interface ModernToolbarProps {
   activeNodeType?: NodeType | null
@@ -54,6 +54,7 @@ const nodeTypes: { type: NodeType; label: string; color: string }[] = [
   { type: 'database', label: 'Database', color: 'from-green-600 to-emerald-700' },
   { type: 'llm', label: 'LLM AI', color: 'from-pink-500 to-rose-600' },
   { type: 'foreach', label: 'For Each', color: 'from-indigo-500 to-indigo-600' },
+  { type: 'endloop', label: 'End Loop', color: 'from-red-500 to-red-600' },
   { type: 'markdown', label: 'Markdown', color: 'from-violet-500 to-violet-600' },
   { type: 'html', label: 'HTML', color: 'from-teal-500 to-teal-600' },
 ]
@@ -89,6 +90,7 @@ const nodeGroups = [
     items: [
       { type: 'condition' as NodeType, label: 'Condition' },
       { type: 'foreach' as NodeType, label: 'For Each' },
+      { type: 'endloop' as NodeType, label: 'End Loop' },
     ],
   },
   {

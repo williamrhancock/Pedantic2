@@ -7,7 +7,7 @@ import type { ReactFlowInstance } from 'reactflow'
 
 interface WorkflowNode {
   id: string
-  type: 'start' | 'end' | 'python' | 'typescript' | 'http' | 'file' | 'condition' | 'database' | 'llm' | 'foreach' | 'markdown' | 'html'
+  type: 'start' | 'end' | 'python' | 'typescript' | 'http' | 'file' | 'condition' | 'database' | 'llm' | 'foreach' | 'endloop' | 'markdown' | 'html'
   position: { x: number; y: number }
 }
 
@@ -114,21 +114,32 @@ export function CustomControls({
       nodesByLevel.get(level)!.push(node)
     })
 
-    // Calculate positions
-    const HORIZONTAL_SPACING = 300
-    const VERTICAL_SPACING = 150
+    // Calculate positions with aggressive zigzag staggered layout
+    const HORIZONTAL_SPACING = 400
+    const VERTICAL_SPACING = 200
+    const STAGGER_OFFSET = 150  // Aggressive horizontal offset for clear zigzag
+    const VERTICAL_STAGGER = 120  // Vertical offset for above/below pattern
     const START_X = 100
     const START_Y = 100
 
     const updates: Array<{ id: string; position: { x: number; y: number } }> = []
     
     nodesByLevel.forEach((levelNodes, level) => {
-      const x = START_X + (level * HORIZONTAL_SPACING)
+      const baseX = START_X + (level * HORIZONTAL_SPACING)
       const totalHeight = (levelNodes.length - 1) * VERTICAL_SPACING
       const startY = START_Y - (totalHeight / 2)
       
       levelNodes.forEach((node, index) => {
-        const y = startY + (index * VERTICAL_SPACING)
+        // Aggressive zigzag: alternate nodes significantly above and below
+        const isEven = index % 2 === 0
+        const staggerX = isEven ? 0 : STAGGER_OFFSET
+        const x = baseX + staggerX
+        
+        // Create clear above/below pattern with significant vertical offset
+        const verticalOffset = isEven ? -VERTICAL_STAGGER : VERTICAL_STAGGER
+        const baseY = startY + (index * VERTICAL_SPACING)
+        const y = baseY + verticalOffset
+        
         updates.push({
           id: node.id,
           position: { x, y }

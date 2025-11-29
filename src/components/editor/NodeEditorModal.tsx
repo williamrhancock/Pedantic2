@@ -5,7 +5,7 @@ import Editor from '@monaco-editor/react'
 import { X, Trash2 } from 'lucide-react'
 import { useTheme } from '@/contexts/ThemeContext'
 
-export type NodeType = 'start' | 'end' | 'python' | 'typescript' | 'http' | 'file' | 'condition' | 'database' | 'llm' | 'foreach' | 'markdown' | 'html'
+export type NodeType = 'start' | 'end' | 'python' | 'typescript' | 'http' | 'file' | 'condition' | 'database' | 'llm' | 'foreach' | 'endloop' | 'markdown' | 'html'
 
 interface NodeEditorModalProps {
   isOpen: boolean
@@ -60,7 +60,7 @@ export function NodeEditorModal({
   )
 
   const isCodeNode = nodeType === 'python' || nodeType === 'typescript'
-  const isConfigNode = !isCodeNode && nodeType !== 'start' && nodeType !== 'end'
+  const isConfigNode = !isCodeNode && nodeType !== 'start' && nodeType !== 'end' && nodeType !== 'endloop'
   const canDelete = nodeType !== 'start' && nodeType !== 'end'
   const isCustomInstance = isCustom || !!customName
   const canMakeCustom = nodeType !== 'start' && nodeType !== 'end' && !!onMakeCustom
@@ -242,6 +242,17 @@ export function NodeEditorModal({
                   {nodeType === 'foreach' && 'Configure loop settings: items array (if not from upstream), execution mode (serial/parallel), max concurrency, and items_key to extract array from upstream input. If upstream input contains an array or has the specified key, it will be used. Otherwise, use the items array in config.'}
                   {nodeType === 'markdown' && 'The markdown node automatically detects markdown content in any variable passed from upstream. It scans all variables and displays the first one containing markdown patterns (headers, lists, links, code blocks, etc.). Optionally specify a content_key to prioritize a specific variable.'}
                   {nodeType === 'html' && 'The HTML node automatically detects HTML content in any variable passed from upstream. It scans all variables and displays the first one containing HTML tags. Optionally specify a content_key to prioritize a specific variable.'}
+                </p>
+              </div>
+            )}
+
+            {nodeType === 'endloop' && (
+              <div>
+                <label className="text-sm font-semibold text-foreground mb-2 block">
+                  Description
+                </label>
+                <p className="text-xs text-muted-foreground">
+                  End Loop node marks the end of a ForEach loop. It aggregates all iteration results and passes the complete dataset to the next node. No configuration needed.
                 </p>
               </div>
             )}
