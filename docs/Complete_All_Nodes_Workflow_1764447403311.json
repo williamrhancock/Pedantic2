@@ -222,12 +222,32 @@
           "y": -43
         }
       },
+      "python_markdown_to_html": {
+        "type": "python",
+        "title": "Python Markdown to HTML",
+        "code": "def run(input):\n    # Convert markdown report to HTML\n    markdown_content = input.get('markdown_report', '')\n    \n    # Use markdown_to_html helper function if available\n    try:\n        html_content = markdown_to_html(markdown_content)\n    except:\n        # Fallback: simple HTML conversion\n        import re\n        html = markdown_content\n        # Convert headers\n        html = re.sub(r'^# (.+)$', r'<h1>\\1</h1>', html, flags=re.MULTILINE)\n        html = re.sub(r'^## (.+)$', r'<h2>\\1</h2>', html, flags=re.MULTILINE)\n        html = re.sub(r'^### (.+)$', r'<h3>\\1</h3>', html, flags=re.MULTILINE)\n        # Convert bold and italic\n        html = re.sub(r'\\*\\*(.+?)\\*\\*', r'<strong>\\1</strong>', html)\n        html = re.sub(r'\\*(.+?)\\*', r'<em>\\1</em>', html)\n        # Convert lists\n        html = re.sub(r'^- (.+)$', r'<li>\\1</li>', html, flags=re.MULTILINE)\n        html = re.sub(r'^\\d+\\. (.+)$', r'<li>\\1</li>', html, flags=re.MULTILINE)\n        # Convert line breaks\n        html = re.sub(r'\\n', '<br>\\n', html)\n        html_content = f'<div>{html}</div>'\n    \n    return {\n        **input,\n        'html_report': html_content\n    }",
+        "position": {
+          "x": 2900,
+          "y": 100
+        }
+      },
+      "html_viewer": {
+        "type": "html",
+        "title": "HTML Viewer",
+        "config": {
+          "content_key": "html_report"
+        },
+        "position": {
+          "x": 3100,
+          "y": 100
+        }
+      },
       "end": {
         "type": "end",
         "title": "End",
         "position": {
-          "x": 3018,
-          "y": -9
+          "x": 3300,
+          "y": 100
         }
       }
     },
@@ -322,6 +342,24 @@
         "sourceOutput": "output",
         "targetInput": "input"
       },
+      "typescript_formatter_python_markdown_to_html": {
+        "source": "typescript_formatter",
+        "target": "python_markdown_to_html",
+        "sourceOutput": "output",
+        "targetInput": "input"
+      },
+      "python_markdown_to_html_html_viewer": {
+        "source": "python_markdown_to_html",
+        "target": "html_viewer",
+        "sourceOutput": "output",
+        "targetInput": "input"
+      },
+      "html_viewer_end": {
+        "source": "html_viewer",
+        "target": "end",
+        "sourceOutput": "output",
+        "targetInput": "input"
+      },
       "file_save_report_end": {
         "source": "file_save_report",
         "target": "end",
@@ -330,7 +368,7 @@
       }
     },
     "metadata": {
-      "nodeCount": 15,
+      "nodeCount": 17,
       "lastModified": "2025-11-29T20:16:43.311Z"
     }
   }

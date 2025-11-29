@@ -69,7 +69,8 @@ def execute_python_code(code: str, input_data: Any) -> Dict[str, Any]:
             'calendar', 'copy', 'heapq', 'bisect', 'array', 'enum',
             'dataclasses', 'typing', 'zoneinfo', 'urllib.parse', 'html',
             'csv', 'codecs', 'textwrap', 'difflib', 'pprint', 'numpy',
-            'pandas', 'requests', 'urllib', 'urllib.request', 'urllib.error'
+            'pandas', 'requests', 'urllib', 'urllib.request', 'urllib.error',
+            'markdown'  # For markdown to HTML conversion
         }
         
         def safe_import(name, globals=None, locals=None, fromlist=(), level=0):
@@ -109,6 +110,33 @@ def execute_python_code(code: str, input_data: Any) -> Dict[str, Any]:
         restricted_globals['type'] = type
         restricted_globals['hasattr'] = hasattr
         restricted_globals['sorted'] = sorted
+        
+        # Add markdown to HTML conversion helper
+        try:
+            import markdown
+            def markdown_to_html(md_text: str) -> str:
+                """Convert markdown text to HTML"""
+                if not isinstance(md_text, str):
+                    return str(md_text)
+                return markdown.markdown(md_text, extensions=['fenced_code', 'tables', 'toc'])
+            restricted_globals['markdown_to_html'] = markdown_to_html
+        except ImportError:
+            # If markdown library not available, provide a simple fallback
+            def markdown_to_html(md_text: str) -> str:
+                """Simple markdown to HTML conversion (fallback)"""
+                if not isinstance(md_text, str):
+                    return str(md_text)
+                # Basic conversions
+                import re
+                html = md_text
+                html = re.sub(r'^# (.+)$', r'<h1>\1</h1>', html, flags=re.MULTILINE)
+                html = re.sub(r'^## (.+)$', r'<h2>\1</h2>', html, flags=re.MULTILINE)
+                html = re.sub(r'^### (.+)$', r'<h3>\1</h3>', html, flags=re.MULTILINE)
+                html = re.sub(r'\*\*(.+?)\*\*', r'<strong>\1</strong>', html)
+                html = re.sub(r'\*(.+?)\*', r'<em>\1</em>', html)
+                html = re.sub(r'\n', '<br>\n', html)
+                return f'<div>{html}</div>'
+            restricted_globals['markdown_to_html'] = markdown_to_html
         
         restricted_globals['__builtins__'] = restricted_globals.get('__builtins__', {})
         if isinstance(restricted_globals['__builtins__'], dict):
@@ -829,6 +857,120 @@ async def execute_markdown_viewer(config: Dict[str, Any], input_data: Any) -> Di
         return {
             'status': 'error',
             'error': f'Markdown viewer failed: {str(e)}',
+            'output': None,
+            'stdout': '',
+            'stderr': str(e)
+        }
+
+def detect_html(text: str) -> bool:
+    """Detect if a string contains HTML content"""
+    if not isinstance(text, str) or len(text.strip()) == 0:
+        return False
+    
+    # Common HTML patterns
+    html_patterns = [
+        r'<html[^>]*>',
+        r'<body[^>]*>',
+        r'<div[^>]*>',
+        r'<p[^>]*>',
+        r'<h[1-6][^>]*>',
+        r'<span[^>]*>',
+        r'<a[^>]*href',
+        r'<img[^>]*src',
+        r'<table[^>]*>',
+        r'<ul[^>]*>',
+        r'<ol[^>]*>',
+        r'<li[^>]*>',
+        r'<br\s*/?>',
+        r'</[^>]+>',  # Closing tags
+    ]
+    
+    import re
+    html_score = 0
+    
+    for pattern in html_patterns:
+        if re.search(pattern, text, re.IGNORECASE):
+            html_score += 1
+    
+    # If we find multiple HTML patterns, it's likely HTML
+    return html_score >= 2
+
+async def execute_html_viewer(config: Dict[str, Any], input_data: Any) -> Dict[str, Any]:
+    """Execute HTML viewer node - automatically detects HTML in any variable"""
+    try:
+        content_key = config.get('content_key', 'content')
+        html_content = ''
+        detected_key = None
+        
+        # First, try the specified content_key if provided
+        # If content_key is explicitly set (not default 'content'), trust it and use it even without HTML detection
+        if isinstance(input_data, dict):
+            if content_key in input_data:
+                candidate = input_data[content_key]
+                if isinstance(candidate, str):
+                    # If content_key was explicitly provided (not default), use it without HTML detection
+                    # Otherwise, check for HTML patterns
+                    if config.get('content_key') and config.get('content_key') != 'content':
+                        html_content = candidate
+                        detected_key = content_key
+                    elif detect_html(candidate):
+                        html_content = candidate
+                        detected_key = content_key
+        
+        # If no HTML found in specified key, scan all variables
+        if not html_content and isinstance(input_data, dict):
+            for key, value in input_data.items():
+                if isinstance(value, str) and detect_html(value):
+                    html_content = value
+                    detected_key = key
+                    break
+        
+        # If still no HTML found, try common key names
+        if not html_content and isinstance(input_data, dict):
+            common_keys = ['content', 'html', 'html_content', 'body', 'message', 'output', 'result']
+            for key in common_keys:
+                if key in input_data:
+                    candidate = input_data[key]
+                    if isinstance(candidate, str):
+                        html_content = candidate
+                        detected_key = key
+                        break
+        
+        # If input_data is a string, check if it's HTML
+        if not html_content and isinstance(input_data, str):
+            if detect_html(input_data):
+                html_content = input_data
+                detected_key = 'input'
+        
+        # Final fallback: convert to string
+        if not html_content:
+            if isinstance(input_data, dict):
+                # Try to find any string value
+                for key, value in input_data.items():
+                    if isinstance(value, str) and len(value.strip()) > 0:
+                        html_content = value
+                        detected_key = key
+                        break
+            else:
+                html_content = str(input_data)
+                detected_key = 'input'
+        
+        return {
+            'status': 'success',
+            'output': {
+                'content': html_content,
+                'detected_key': detected_key,
+                'content_key': content_key,
+                'source': input_data
+            },
+            'stdout': f'HTML viewer detected content from key: {detected_key}',
+            'stderr': '',
+            'execution_time': 0.0
+        }
+    except Exception as e:
+        return {
+            'status': 'error',
+            'error': f'HTML viewer failed: {str(e)}',
             'output': None,
             'stdout': '',
             'stderr': str(e)
