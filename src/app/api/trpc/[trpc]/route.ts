@@ -36,6 +36,19 @@ const appRouter = createTRPCRouter({
       }
     }),
 
+  getWorkflowByName: publicProcedure
+    .input(z.object({
+      name: z.string().min(1),
+    }))
+    .query(async ({ input }) => {
+      const workflow = await workflowQueries.getWorkflowByName(input.name)
+      if (!workflow) return null
+      return {
+        id: workflow.id,
+        name: workflow.name,
+      }
+    }),
+
   saveWorkflow: publicProcedure
     .input(z.object({
       id: z.number().optional(),

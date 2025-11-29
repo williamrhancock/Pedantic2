@@ -40,6 +40,16 @@ export function SaveAsDialog({
     }
   )
 
+  // Lookup workflow by exact name when we need to overwrite
+  const getWorkflowByNameQuery = trpc.getWorkflowByName.useQuery(
+    { name: workflowName.trim() },
+    {
+      enabled: false,
+    }
+  )
+
+  const deleteWorkflowMutation = trpc.deleteWorkflow.useMutation()
+
   // Reset state when dialog opens/closes
   useEffect(() => {
     if (isOpen) {
@@ -80,6 +90,15 @@ export function SaveAsDialog({
     // Save the workflow
     setIsSaving(true)
     try {
+      // If we are in overwrite-confirmation mode, delete the existing workflow first
+      if (nameExists && showOverwriteConfirm) {
+        const existing = await getWorkflowByNameQuery.refetch()
+        const existingId = existing.data?.id
+        if (existingId) {
+          await deleteWorkflowMutation.mutateAsync({ id: existingId })
+        }
+      }
+
       await onSave(trimmedName)
       onClose()
     } catch (error) {
