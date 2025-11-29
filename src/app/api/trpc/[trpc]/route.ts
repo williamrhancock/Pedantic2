@@ -113,6 +113,16 @@ const appRouter = createTRPCRouter({
       return { success: true }
     }),
 
+  checkWorkflowName: publicProcedure
+    .input(z.object({
+      name: z.string().min(1),
+      excludeId: z.number().optional()
+    }))
+    .query(async ({ input }) => {
+      const exists = await workflowQueries.checkWorkflowName(input.name, input.excludeId)
+      return { exists }
+    }),
+
   // === IMPORT/EXPORT ===
   exportWorkflow: publicProcedure
     .input(z.object({

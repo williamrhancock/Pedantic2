@@ -7,6 +7,7 @@ import { ModernToolbar } from '@/components/toolbar/ModernToolbar'
 import { ExecutionTimeline, TimelineEntry } from '@/components/timeline/ExecutionTimeline'
 import { NodeEditorModal } from '@/components/editor/NodeEditorModal'
 import { FloatingAddButton } from '@/components/ui/FloatingAddButton'
+import { SaveAsDialog } from '@/components/dialogs/SaveAsDialog'
 import { useTheme } from '@/contexts/ThemeContext'
 import type { NodeType } from '@/components/toolbar/ModernToolbar'
 
@@ -315,19 +316,19 @@ export function SimpleWorkflowBuilder() {
     return () => clearTimeout(autoSaveTimer)
   }, [hasUnsavedChanges, workflowMetadata.id, handleSave])
 
-  const handleSaveAs = async (newMetadata: Partial<WorkflowMetadata>) => {
+  const handleSaveAs = async (name: string) => {
     try {
       const result = await saveWorkflowMutation.mutateAsync({
-        name: newMetadata.name || workflowMetadata.name,
-        description: newMetadata.description || workflowMetadata.description,
-        tags: newMetadata.tags || workflowMetadata.tags,
+        name: name,
+        description: workflowMetadata.description,
+        tags: workflowMetadata.tags,
         data: createWorkflowData(),
-        isTemplate: newMetadata.isTemplate || false
+        isTemplate: workflowMetadata.isTemplate
       })
       
       setWorkflowMetadata(prev => ({
         ...prev,
-        ...newMetadata,
+        name: name,
         id: result.id,
         lastSaved: new Date()
       }))
@@ -335,7 +336,7 @@ export function SimpleWorkflowBuilder() {
       setShowSaveAsDialog(false)
     } catch (error) {
       console.error('Failed to save workflow:', error)
-      alert('Failed to save workflow. Please try again.')
+      throw error // Re-throw so dialog can handle it
     }
   }
 
@@ -806,6 +807,15 @@ export function SimpleWorkflowBuilder() {
         isOpen={showWorkflowBrowser}
         onClose={() => setShowWorkflowBrowser(false)}
         onSelect={handleLoadWorkflow}
+      />
+
+      {/* Save As Dialog */}
+      <SaveAsDialog
+        isOpen={showSaveAsDialog}
+        currentName={workflowMetadata.name}
+        currentId={workflowMetadata.id}
+        onClose={() => setShowSaveAsDialog(false)}
+        onSave={handleSaveAs}
       />
     </div>
   )
