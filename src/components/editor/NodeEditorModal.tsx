@@ -18,7 +18,7 @@ interface NodeEditorModalProps {
   onSave: (code?: string, config?: any) => void
   onDelete?: () => void
   isLocked?: boolean
-  onMakeCustom?: (options: { name: string; description: string }) => Promise<void> | void
+  onMakeCustom?: (options: { name: string; description: string; code?: string; config?: any }) => Promise<void> | void
   onUpdateCustomFromNode?: () => Promise<void> | void
   isCustom?: boolean
   customName?: string
@@ -137,11 +137,24 @@ export function NodeEditorModal({
       return
     }
 
+    let configForCustom: any | undefined
+
+    if (isConfigNode) {
+      try {
+        configForCustom = JSON.parse(editedConfig)
+      } catch (e) {
+        setCustomError('Invalid JSON configuration')
+        return
+      }
+    }
+
     try {
       await Promise.resolve(
         onMakeCustom({
           name: trimmedName,
           description: trimmedDescription,
+          code: isCodeNode ? editedCode : undefined,
+          config: isConfigNode ? configForCustom : undefined,
         })
       )
       setShowMakeCustomDialog(false)
