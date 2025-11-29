@@ -1,0 +1,276 @@
+{
+  "format": "pedantic-workflow-v1",
+  "metadata": {
+    "name": "Complete All Nodes Workflow",
+    "description": "Comprehensive workflow demonstrating all node types: Start, End, Python (2x), TypeScript (2x), HTTP API, File Operations (2x), Markdown Viewer, Conditional Logic, Database Query, LLM AI Assistant, and For Each Loop",
+    "tags": ["comprehensive", "all-nodes", "demo", "tutorial"],
+    "exportedAt": "2025-01-27T00:00:00.000Z",
+    "version": "1.0.0"
+  },
+  "workflow": {
+    "nodes": {
+      "start": {
+        "type": "start",
+        "title": "Start",
+        "position": { "x": 100, "y": 100 }
+      },
+      "python_data_generator": {
+        "type": "python",
+        "title": "Python Data Generator",
+        "code": "import json\nfrom datetime import datetime\nimport random\n\ndef run(input):\n    # Generate sample data for processing\n    products = [\n        {'id': 1, 'name': 'Laptop', 'category': 'Electronics', 'price': 999.99},\n        {'id': 2, 'name': 'Mouse', 'category': 'Accessories', 'price': 29.99},\n        {'id': 3, 'name': 'Keyboard', 'category': 'Accessories', 'price': 79.99},\n        {'id': 4, 'name': 'Monitor', 'category': 'Electronics', 'price': 299.99},\n        {'id': 5, 'name': 'Headphones', 'category': 'Audio', 'price': 149.99}\n    ]\n    \n    return {\n        'items': products,\n        'total_items': len(products),\n        'workflow_id': f'WF-{random.randint(1000, 9999)}',\n        'timestamp': datetime.now().isoformat(),\n        'status': 'processing',\n        'user_id': random.randint(100, 999)\n    }",
+        "position": { "x": 300, "y": 100 }
+      },
+      "typescript_enhancer": {
+        "type": "typescript",
+        "title": "TypeScript Data Enhancer",
+        "code": "async function run(input: any): Promise<any> {\n  // Enhance data with additional processing\n  const enhanced = {\n    ...input,\n    processedBy: 'TypeScript',\n    processedAt: new Date().toISOString(),\n    metadata: {\n      totalValue: input.items?.reduce((sum: number, item: any) => sum + (item.price || 0), 0) || 0,\n      categories: [...new Set(input.items?.map((item: any) => item.category) || [])],\n      averagePrice: input.items?.length > 0 \n        ? (input.items.reduce((sum: number, item: any) => sum + (item.price || 0), 0) / input.items.length).toFixed(2)\n        : 0\n    },\n    summary: `Processing ${input.total_items} items for workflow ${input.workflow_id}`\n  };\n  \n  return enhanced;\n}",
+        "position": { "x": 500, "y": 100 }
+      },
+      "http_fetch_external": {
+        "type": "http",
+        "title": "HTTP External Data",
+        "config": {
+          "method": "GET",
+          "url": "https://jsonplaceholder.typicode.com/posts/1",
+          "headers": {
+            "Accept": "application/json"
+          },
+          "params": {},
+          "body": {},
+          "timeout": 30
+        },
+        "position": { "x": 700, "y": 100 }
+      },
+      "foreach_processor": {
+        "type": "foreach",
+        "title": "For Each Loop",
+        "config": {
+          "items": [],
+          "execution_mode": "serial",
+          "max_concurrency": 5,
+          "items_key": "items"
+        },
+        "position": { "x": 900, "y": 100 }
+      },
+      "llm_analyzer": {
+        "type": "llm",
+        "title": "LLM Product Analyzer",
+        "config": {
+          "provider": "openrouter",
+          "model": "openai/gpt-4o-mini",
+          "temperature": 0.3,
+          "max_tokens": 200,
+          "system": "You are a product analysis assistant. Provide brief, concise analysis.",
+          "user": "Analyze this product: {name} in category {category} priced at ${price}. Provide a one-sentence analysis.",
+          "base_url": "https://openrouter.ai/api/v1"
+        },
+        "position": { "x": 1100, "y": 200 }
+      },
+      "file_save_analysis": {
+        "type": "file",
+        "title": "File Save Analysis",
+        "config": {
+          "operation": "append",
+          "path": "product_analyses.txt",
+          "content": "Product: {name}\nAnalysis: {content}\n---\n",
+          "encoding": "utf-8"
+        },
+        "position": { "x": 1300, "y": 200 }
+      },
+      "condition_router": {
+        "type": "condition",
+        "title": "Condition Router",
+        "config": {
+          "type": "if",
+          "conditions": [
+            {
+              "condition": {
+                "field": "metadata.totalValue",
+                "operator": ">=",
+                "value": 1000
+              },
+              "output": {
+                "route": "high_value",
+                "action": "premium_processing",
+                "priority": "high"
+              }
+            },
+            {
+              "condition": {
+                "field": "metadata.totalValue",
+                "operator": ">=",
+                "value": 500
+              },
+              "output": {
+                "route": "medium_value",
+                "action": "standard_processing",
+                "priority": "medium"
+              }
+            }
+          ],
+          "default": {
+            "route": "low_value",
+            "action": "basic_processing",
+            "priority": "low"
+          }
+        },
+        "position": { "x": 1500, "y": 100 }
+      },
+      "database_logger": {
+        "type": "database",
+        "title": "Database Logger",
+        "config": {
+          "operation": "create",
+          "database": "workflow_logs.db",
+          "query": "CREATE TABLE IF NOT EXISTS workflow_logs (id INTEGER PRIMARY KEY AUTOINCREMENT, workflow_id TEXT, status TEXT, total_value REAL, created_at TEXT)",
+          "params": []
+        },
+        "position": { "x": 1700, "y": 100 }
+      },
+      "database_insert": {
+        "type": "database",
+        "title": "Database Insert",
+        "config": {
+          "operation": "insert",
+          "database": "workflow_logs.db",
+          "query": "INSERT INTO workflow_logs (workflow_id, status, total_value, created_at) VALUES (?, ?, ?, ?)",
+          "params": ["{workflow_id}", "{route}", "{metadata.totalValue}", "{processedAt}"]
+        },
+        "position": { "x": 1900, "y": 100 }
+      },
+      "python_final_processor": {
+        "type": "python",
+        "title": "Python Final Processor",
+        "code": "from datetime import datetime\nimport json\n\ndef run(input):\n    # Final processing and summary generation\n    summary = {\n        'workflow_completed': True,\n        'workflow_id': input.get('workflow_id', 'unknown'),\n        'completed_at': datetime.now().isoformat(),\n        'route_taken': input.get('route', 'unknown'),\n        'action': input.get('action', 'unknown'),\n        'priority': input.get('priority', 'unknown'),\n        'total_value': input.get('metadata', {}).get('totalValue', 0),\n        'items_processed': input.get('total_items', 0),\n        'external_data_fetched': 'http' in str(input).lower(),\n        'status': 'success'\n    }\n    \n    return summary",
+        "position": { "x": 2100, "y": 100 }
+      },
+      "typescript_formatter": {
+        "type": "typescript",
+        "title": "TypeScript Formatter",
+        "code": "async function run(input: any): Promise<any> {\n  // Format final output as markdown report\n  const markdown = `# Workflow Execution Report\n\n## Summary\n\n- **Workflow ID**: ${input.workflow_id || 'N/A'}\n- **Status**: ${input.status || 'Unknown'}\n- **Completed At**: ${input.completed_at || 'N/A'}\n- **Route**: ${input.route_taken || 'N/A'}\n- **Action**: ${input.action || 'N/A'}\n- **Priority**: ${input.priority || 'N/A'}\n\n## Statistics\n\n- **Total Value**: $${input.total_value?.toFixed(2) || '0.00'}\n- **Items Processed**: ${input.items_processed || 0}\n- **External Data**: ${input.external_data_fetched ? 'Yes' : 'No'}\n\n## Details\n\nThis workflow demonstrates all node types:\n\n1. ✅ **Start Node** - Workflow initiation\n2. ✅ **Python Node** (2x) - Data generation and final processing\n3. ✅ **TypeScript Node** (2x) - Data enhancement and formatting\n4. ✅ **HTTP Node** - External API data fetching\n5. ✅ **For Each Loop** - Iterative processing\n6. ✅ **LLM Node** - AI-powered analysis\n7. ✅ **File Node** (2x) - Data persistence\n8. ✅ **Condition Node** - Logic routing\n9. ✅ **Database Node** (2x) - Data storage\n10. ✅ **Markdown Viewer** - Report display\n11. ✅ **End Node** - Workflow completion\n\n---\n\n*Generated by Visual Agentic Workflow Builder*`;\n  \n  return {\n    ...input,\n    markdown_report: markdown,\n    formatted_at: new Date().toISOString()\n  };\n}",
+        "position": { "x": 2300, "y": 100 }
+      },
+      "file_save_report": {
+        "type": "file",
+        "title": "File Save Report",
+        "config": {
+          "operation": "write",
+          "path": "workflow_report.md",
+          "content": "{markdown_report}",
+          "encoding": "utf-8"
+        },
+        "position": { "x": 2500, "y": 100 }
+      },
+      "markdown_viewer": {
+        "type": "markdown",
+        "title": "Markdown Viewer",
+        "config": {
+          "content_key": "markdown_report"
+        },
+        "position": { "x": 2700, "y": 100 }
+      },
+      "end": {
+        "type": "end",
+        "title": "End",
+        "position": { "x": 2900, "y": 100 }
+      }
+    },
+    "connections": {
+      "start_python_data_generator": {
+        "source": "start",
+        "target": "python_data_generator",
+        "sourceOutput": "output",
+        "targetInput": "input"
+      },
+      "python_data_generator_typescript_enhancer": {
+        "source": "python_data_generator",
+        "target": "typescript_enhancer",
+        "sourceOutput": "output",
+        "targetInput": "input"
+      },
+      "typescript_enhancer_http_fetch_external": {
+        "source": "typescript_enhancer",
+        "target": "http_fetch_external",
+        "sourceOutput": "output",
+        "targetInput": "input"
+      },
+      "http_fetch_external_foreach_processor": {
+        "source": "http_fetch_external",
+        "target": "foreach_processor",
+        "sourceOutput": "output",
+        "targetInput": "input"
+      },
+      "foreach_processor_llm_analyzer": {
+        "source": "foreach_processor",
+        "target": "llm_analyzer",
+        "sourceOutput": "output",
+        "targetInput": "input"
+      },
+      "llm_analyzer_file_save_analysis": {
+        "source": "llm_analyzer",
+        "target": "file_save_analysis",
+        "sourceOutput": "output",
+        "targetInput": "input"
+      },
+      "file_save_analysis_condition_router": {
+        "source": "file_save_analysis",
+        "target": "condition_router",
+        "sourceOutput": "output",
+        "targetInput": "input"
+      },
+      "typescript_enhancer_condition_router": {
+        "source": "typescript_enhancer",
+        "target": "condition_router",
+        "sourceOutput": "output",
+        "targetInput": "input"
+      },
+      "condition_router_database_logger": {
+        "source": "condition_router",
+        "target": "database_logger",
+        "sourceOutput": "output",
+        "targetInput": "input"
+      },
+      "database_logger_database_insert": {
+        "source": "database_logger",
+        "target": "database_insert",
+        "sourceOutput": "output",
+        "targetInput": "input"
+      },
+      "database_insert_python_final_processor": {
+        "source": "database_insert",
+        "target": "python_final_processor",
+        "sourceOutput": "output",
+        "targetInput": "input"
+      },
+      "python_final_processor_typescript_formatter": {
+        "source": "python_final_processor",
+        "target": "typescript_formatter",
+        "sourceOutput": "output",
+        "targetInput": "input"
+      },
+      "typescript_formatter_file_save_report": {
+        "source": "typescript_formatter",
+        "target": "file_save_report",
+        "sourceOutput": "output",
+        "targetInput": "input"
+      },
+      "file_save_report_markdown_viewer": {
+        "source": "file_save_report",
+        "target": "markdown_viewer",
+        "sourceOutput": "output",
+        "targetInput": "input"
+      },
+      "markdown_viewer_end": {
+        "source": "markdown_viewer",
+        "target": "end",
+        "sourceOutput": "output",
+        "targetInput": "input"
+      }
+    },
+    "metadata": {
+      "nodeCount": 16,
+      "lastModified": "2025-01-27T00:00:00.000Z"
+    }
+  }
+}
+
