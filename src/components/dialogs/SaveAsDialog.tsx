@@ -10,7 +10,7 @@ interface SaveAsDialogProps {
   currentName: string
   currentId?: number
   onClose: () => void
-  onSave: (name: string) => Promise<void>
+  onSave: (name: string, shouldUpdateCurrent: boolean) => Promise<void>
 }
 
 export function SaveAsDialog({
@@ -28,10 +28,11 @@ export function SaveAsDialog({
   const [nameError, setNameError] = useState<string | null>(null)
 
   // Check if name exists when user types
+  // Don't exclude currentId so we can detect same-name conflicts
   const checkNameMutation = trpc.checkWorkflowName.useQuery(
     {
       name: workflowName.trim(),
-      excludeId: currentId,
+      excludeId: undefined, // Always check all workflows to detect same-name conflicts
     },
     {
       enabled: false, // We'll manually trigger refetch
@@ -76,6 +77,9 @@ export function SaveAsDialog({
       return
     }
 
+    // Check if we're saving with the same name as the current workflow (case-insensitive)
+    const isSameName = trimmedName.toLowerCase() === currentName.toLowerCase() && currentId !== undefined
+
     // If name exists and we haven't confirmed overwrite, show confirmation
     if (nameExists && !showOverwriteConfirm) {
       setShowOverwriteConfirm(true)
@@ -85,12 +89,13 @@ export function SaveAsDialog({
     // Save the workflow
     setIsSaving(true)
     try {
-      // If we are in overwrite-confirmation mode, delete all existing workflows with this name first
-      if (nameExists && showOverwriteConfirm) {
+      // If we're overwriting a different workflow (not the current one), delete it first
+      if (nameExists && showOverwriteConfirm && !isSameName) {
         await deleteByNameMutation.mutateAsync({ name: trimmedName })
       }
 
-      await onSave(trimmedName)
+      // Pass whether we should update the current workflow (same name) or create/update differently
+      await onSave(trimmedName, isSameName)
       onClose()
     } catch (error) {
       console.error('Failed to save workflow:', error)

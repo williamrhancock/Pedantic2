@@ -391,9 +391,16 @@ export function SimpleWorkflowBuilder() {
     }
   }, [workflowMetadata, saveWorkflowMutation, createWorkflowData, getWorkflowByNameQuery])
 
-  const handleSaveAs = async (name: string) => {
+  const handleSaveAs = async (name: string, shouldUpdateCurrent: boolean) => {
     try {
+      // Determine if we should update the current workflow or create a new one:
+      // - If same name (shouldUpdateCurrent), always update current workflow
+      // - If different name but current workflow has ID, update current workflow with new name
+      // - If different name and no current ID, create new workflow
+      const workflowId = (shouldUpdateCurrent || workflowMetadata.id) ? workflowMetadata.id : undefined
+      
       const result = await saveWorkflowMutation.mutateAsync({
+        id: workflowId,
         name: name,
         description: workflowMetadata.description,
         tags: workflowMetadata.tags,

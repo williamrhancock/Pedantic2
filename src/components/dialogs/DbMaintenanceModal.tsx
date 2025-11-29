@@ -139,6 +139,7 @@ export function DbMaintenanceModal({ isOpen, onClose }: DbMaintenanceModalProps)
                           }}
                         />
                       </th>
+                      <th className="px-2 py-2 text-left">ID</th>
                       <th className="px-2 py-2 text-left">Name</th>
                       <th className="px-2 py-2 text-left">Type</th>
                       <th className="px-2 py-2 text-left">Last Saved</th>
@@ -159,6 +160,9 @@ export function DbMaintenanceModal({ isOpen, onClose }: DbMaintenanceModalProps)
                             onChange={() => toggleWorkflowSelection(w.id)}
                             onClick={(e) => e.stopPropagation()}
                           />
+                        </td>
+                        <td className="px-2 py-1 text-muted-foreground font-mono text-[10px]">
+                          {w.id}
                         </td>
                         <td className="px-2 py-1 truncate max-w-[140px]">{w.name}</td>
                         <td className="px-2 py-1 text-muted-foreground">
