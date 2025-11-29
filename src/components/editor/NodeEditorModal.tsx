@@ -5,7 +5,7 @@ import Editor from '@monaco-editor/react'
 import { X, Trash2 } from 'lucide-react'
 import { useTheme } from '@/contexts/ThemeContext'
 
-export type NodeType = 'start' | 'end' | 'python' | 'typescript' | 'http' | 'file' | 'condition' | 'database' | 'llm' | 'foreach' | 'markdown'
+export type NodeType = 'start' | 'end' | 'python' | 'typescript' | 'http' | 'file' | 'condition' | 'database' | 'llm' | 'foreach' | 'markdown' | 'html'
 
 interface NodeEditorModalProps {
   isOpen: boolean
@@ -241,6 +241,7 @@ export function NodeEditorModal({
                   {nodeType === 'llm' && 'Configure LLM provider and prompt settings'}
                   {nodeType === 'foreach' && 'Configure loop settings: items array (if not from upstream), execution mode (serial/parallel), max concurrency, and items_key to extract array from upstream input. If upstream input contains an array or has the specified key, it will be used. Otherwise, use the items array in config.'}
                   {nodeType === 'markdown' && 'The markdown node automatically detects markdown content in any variable passed from upstream. It scans all variables and displays the first one containing markdown patterns (headers, lists, links, code blocks, etc.). Optionally specify a content_key to prioritize a specific variable.'}
+                  {nodeType === 'html' && 'The HTML node automatically detects HTML content in any variable passed from upstream. It scans all variables and displays the first one containing HTML tags. Optionally specify a content_key to prioritize a specific variable.'}
                 </p>
               </div>
             )}

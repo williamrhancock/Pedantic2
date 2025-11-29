@@ -12,10 +12,11 @@ import {
   Play,
   Square,
   Repeat,
-  BookOpen
+  BookOpen,
+  FileCode
 } from 'lucide-react'
 
-export type NodeType = 'start' | 'end' | 'python' | 'typescript' | 'http' | 'file' | 'condition' | 'database' | 'llm' | 'foreach' | 'markdown'
+export type NodeType = 'start' | 'end' | 'python' | 'typescript' | 'http' | 'file' | 'condition' | 'database' | 'llm' | 'foreach' | 'markdown' | 'html'
 
 interface GlassmorphicNodeProps {
   id: string
@@ -44,6 +45,7 @@ const nodeIcons = {
   llm: Sparkles,
   foreach: Repeat,
   markdown: BookOpen,
+  html: FileCode,
 }
 
 const nodeColors = {
@@ -58,6 +60,7 @@ const nodeColors = {
   llm: 'from-pink-500 to-rose-600',
   foreach: 'from-indigo-500 to-indigo-600',
   markdown: 'from-violet-500 to-violet-600',
+  html: 'from-teal-500 to-teal-600',
 }
 
 export const GlassmorphicNode = React.memo(function GlassmorphicNode({

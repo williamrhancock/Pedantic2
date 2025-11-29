@@ -11,6 +11,7 @@ import { SaveAsDialog } from '@/components/dialogs/SaveAsDialog'
 import { DbMaintenanceModal } from '@/components/dialogs/DbMaintenanceModal'
 import { LlmNodeDialog } from '@/components/dialogs/LlmNodeDialog'
 import { MarkdownViewerModal } from '@/components/dialogs/MarkdownViewerModal'
+import { HtmlViewerModal } from '@/components/dialogs/HtmlViewerModal'
 import { useTheme } from '@/contexts/ThemeContext'
 import type { NodeType } from '@/components/toolbar/ModernToolbar'
 import { workflowNodeToCustomData } from '@/lib/custom-nodes'
@@ -18,7 +19,7 @@ import { createDefaultLlmConfig, normalizeLlmConfig, type LlmConfig } from '@/li
 
 interface WorkflowNode {
   id: string
-  type: 'start' | 'end' | 'python' | 'typescript' | 'http' | 'file' | 'condition' | 'database' | 'llm' | 'foreach' | 'markdown'
+  type: 'start' | 'end' | 'python' | 'typescript' | 'http' | 'file' | 'condition' | 'database' | 'llm' | 'foreach' | 'markdown' | 'html'
   title: string
   description?: string
   code?: string
@@ -294,6 +295,9 @@ export function SimpleWorkflowBuilder() {
   const [showMarkdownViewer, setShowMarkdownViewer] = useState(false)
   const [markdownContent, setMarkdownContent] = useState('')
   const [markdownTitle, setMarkdownTitle] = useState('')
+  const [showHtmlViewer, setShowHtmlViewer] = useState(false)
+  const [htmlContent, setHtmlContent] = useState('')
+  const [htmlTitle, setHtmlTitle] = useState('')
   const [executionResults, setExecutionResults] = useState<Map<string, any>>(new Map())
   const canvasRef = useRef<WorkflowCanvasRef>(null)
 
@@ -1010,6 +1014,10 @@ export function SimpleWorkflowBuilder() {
       newNode.config = {
         content_key: 'content'
       }
+    } else if (type === 'html') {
+      newNode.config = {
+        content_key: 'content'
+      }
     }
 
     const newNodes = [...nodes, newNode]
@@ -1028,6 +1036,7 @@ export function SimpleWorkflowBuilder() {
       case 'llm': return 'LLM AI Assistant'
       case 'foreach': return 'For Each Loop'
       case 'markdown': return 'Markdown Viewer'
+      case 'html': return 'HTML Viewer'
       default: return 'Unknown Node'
     }
   }
@@ -1067,6 +1076,20 @@ export function SimpleWorkflowBuilder() {
           setMarkdownTitle(node.title)
         }
         setShowMarkdownViewer(true)
+      } else if (node.type === 'html') {
+        // Try to find HTML content from node's execution output
+        const nodeResult = executionResults.get(nodeId)
+        if (nodeResult && nodeResult.output && nodeResult.output.content) {
+          // Display the detected HTML content
+          setHtmlContent(nodeResult.output.content)
+          const detectedKey = nodeResult.output.detected_key || 'auto-detected'
+          setHtmlTitle(`${node.title} (from ${detectedKey})`)
+        } else {
+          // Show helpful message if no execution results yet
+          setHtmlContent('<!DOCTYPE html><html><head><title>HTML Viewer</title></head><body><h1>HTML Viewer</h1><p>HTML content will appear here after workflow execution.</p><p>The HTML node automatically detects HTML content in any variable passed from upstream nodes.</p><h2>How it works:</h2><ol><li>The node scans all variables from upstream</li><li>Detects HTML patterns automatically</li><li>Displays the first variable containing HTML</li></ol></body></html>')
+          setHtmlTitle(node.title)
+        }
+        setShowHtmlViewer(true)
       } else {
         setShowEditorModal(true)
       }
@@ -1661,6 +1684,13 @@ export function SimpleWorkflowBuilder() {
         onClose={() => setShowMarkdownViewer(false)}
         title={markdownTitle}
         markdown={markdownContent}
+        onLinkClick={handleMarkdownLinkClick}
+      />
+      <HtmlViewerModal
+        isOpen={showHtmlViewer}
+        onClose={() => setShowHtmlViewer(false)}
+        title={htmlTitle}
+        html={htmlContent}
         onLinkClick={handleMarkdownLinkClick}
       />
 

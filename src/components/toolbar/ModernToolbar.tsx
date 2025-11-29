@@ -18,10 +18,11 @@ import {
   Database,
   GitBranch,
   HelpCircle,
+  Eye,
 } from 'lucide-react'
 import type { CustomNodeTemplate } from '@/lib/custom-nodes'
 
-export type NodeType = 'python' | 'typescript' | 'http' | 'file' | 'condition' | 'database' | 'llm' | 'foreach' | 'markdown'
+export type NodeType = 'python' | 'typescript' | 'http' | 'file' | 'condition' | 'database' | 'llm' | 'foreach' | 'markdown' | 'html'
 
 interface ModernToolbarProps {
   activeNodeType?: NodeType | null
@@ -54,6 +55,7 @@ const nodeTypes: { type: NodeType; label: string; color: string }[] = [
   { type: 'llm', label: 'LLM AI', color: 'from-pink-500 to-rose-600' },
   { type: 'foreach', label: 'For Each', color: 'from-indigo-500 to-indigo-600' },
   { type: 'markdown', label: 'Markdown', color: 'from-violet-500 to-violet-600' },
+  { type: 'html', label: 'HTML', color: 'from-teal-500 to-teal-600' },
 ]
 
 const nodeGroups = [
@@ -71,7 +73,6 @@ const nodeGroups = [
     items: [
       { type: 'http' as NodeType, label: 'HTTP' },
       { type: 'file' as NodeType, label: 'File' },
-      { type: 'markdown' as NodeType, label: 'Markdown' },
     ],
   },
   {
@@ -88,6 +89,14 @@ const nodeGroups = [
     items: [
       { type: 'condition' as NodeType, label: 'Condition' },
       { type: 'foreach' as NodeType, label: 'For Each' },
+    ],
+  },
+  {
+    label: 'Visuals',
+    icon: Eye,
+    items: [
+      { type: 'markdown' as NodeType, label: 'Markdown Viewer' },
+      { type: 'html' as NodeType, label: 'HTML Viewer' },
     ],
   },
 ]
