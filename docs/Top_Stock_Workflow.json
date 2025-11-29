@@ -2,7 +2,7 @@
     "format": "pedantic-workflow-v1",
     "metadata": {
       "name": "Top Under-$10 Stocks with Highest 30-Day Upside",
-      "description": "Daily scan for stocks < $10 with strongest analyst-implied 30-day upside. Appends results to CSV.",
+      "description": "Daily scan for stocks < $10 with strongest analyst-implied 30-day upside. Appends results to CSV. REQUIRES: POLYGON_API_KEY and OPENROUTER_API_KEY environment variables.",
       "tags": ["stocks", "screener", "low-priced", "upside"],
       "exportedAt": "2025-11-29T00:00:00.000Z",
       "version": "1.0.0"
@@ -25,7 +25,7 @@
             "max_tokens": 500,
             "system": "You are a financial data assistant. Return only valid stock ticker symbols in a simple, parseable format.",
             "user": "Can I get a list of stocks that closed under $9 on 11/28/2025, that traded over $9.25 during that week, sorted by volume traded. Return only a list of tickers, one per line, no other text.",
-            "api_key": "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"
+            "api_key_name": "OPENROUTER_API_KEY"
           },
           "position": { "x": 400, "y": 200 }
         },
@@ -48,12 +48,19 @@
           "position": { "x": 1000, "y": 200 }
         },
   
+        "python_inject_api_key": {
+          "type": "python",
+          "title": "Inject API Key from Environment",
+          "code": "import os\n\ndef run(input):\n    # Get Polygon API key from environment variable\n    polygon_key = os.getenv('POLYGON_API_KEY', '')\n    \n    # Add API key to input for HTTP node template replacement\n    return {\n        **input,\n        'POLYGON_API_KEY': polygon_key\n    }",
+          "position": { "x": 1000, "y": 100 }
+        },
+  
         "http_target": {
           "type": "http",
           "title": "Get Stock Data (Polygon.io)",
           "config": {
             "method": "GET",
-            "url": "https://api.polygon.io/v2/aggs/ticker/{ticker}/range/1/day/2025-10-30/2025-11-29?adjusted=true&sort=asc&limit=100&apiKey=WTpisAX2GneFvW5MPx7q2LajKOJ9b7fY",
+            "url": "https://api.polygon.io/v2/aggs/ticker/{ticker}/range/1/day/2025-10-30/2025-11-29?adjusted=true&sort=asc&limit=100&apiKey={POLYGON_API_KEY}",
             "headers": {},
             "timeout": 15
           },
@@ -119,7 +126,8 @@
         "c1": { "source": "start", "target": "llm_get_tickers", "sourceOutput": "output", "targetInput": "input" },
         "c2": { "source": "llm_get_tickers", "target": "python_parse_tickers", "sourceOutput": "output", "targetInput": "input" },
         "c3": { "source": "python_parse_tickers", "target": "foreach", "sourceOutput": "output", "targetInput": "input" },
-        "c4": { "source": "foreach", "target": "http_target", "sourceOutput": "output", "targetInput": "input" },
+        "c4": { "source": "foreach", "target": "python_inject_api_key", "sourceOutput": "output", "targetInput": "input" },
+        "c4a": { "source": "python_inject_api_key", "target": "http_target", "sourceOutput": "output", "targetInput": "input" },
         "c5": { "source": "http_target", "target": "python_calc_upside", "sourceOutput": "output", "targetInput": "input" },
         "c6": { "source": "python_calc_upside", "target": "endloop", "sourceOutput": "output", "targetInput": "input" },
         "c7": { "source": "endloop", "target": "python_filter_rank", "sourceOutput": "output", "targetInput": "input" },
@@ -130,7 +138,7 @@
       },
   
       "metadata": {
-        "nodeCount": 12,
+        "nodeCount": 13,
         "lastModified": "2025-11-29T00:00:00.000Z"
       }
     }
