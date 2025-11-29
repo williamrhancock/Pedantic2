@@ -584,14 +584,22 @@ async def execute_conditional_logic(config: Dict[str, Any], input_data: Any) -> 
         
         execution_time = time.time() - start_time
         
+        # Flatten the output: merge result_output fields into the main output
+        # This ensures route/action/priority are available to downstream nodes
+        output = {
+            'result': result_output,
+            'matched_condition': matched_condition,
+            'input': input_data,
+            'condition_type': condition_type
+        }
+        
+        # If result_output is a dict, merge its fields into the output for easier access
+        if isinstance(result_output, dict):
+            output.update(result_output)
+        
         return {
             'status': 'success',
-            'output': {
-                'result': result_output,
-                'matched_condition': matched_condition,
-                'input': input_data,
-                'condition_type': condition_type
-            },
+            'output': output,
             'stdout': f"Condition evaluated: matched condition {matched_condition}" if matched_condition is not None else "No conditions matched, using default",
             'stderr': '',
             'execution_time': execution_time
