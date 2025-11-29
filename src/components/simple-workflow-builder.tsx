@@ -747,7 +747,7 @@ export function SimpleWorkflowBuilder() {
     }
   }
 
-  const handleUpdateCustomFromNode = async () => {
+  const handleUpdateCustomFromNode = async (options: { code?: string; config?: any }) => {
     if (!selectedNode) return
     const node = nodes.find(n => n.id === selectedNode)
     if (!node || !node.customNodeId) return
@@ -756,8 +756,8 @@ export function SimpleWorkflowBuilder() {
       const data = workflowNodeToCustomData({
         type: node.type,
         title: node.title,
-        code: node.code,
-        config: node.config,
+        code: options.code !== undefined ? options.code : node.code,
+        config: options.config !== undefined ? options.config : node.config,
       })
 
       await saveCustomNodeMutation.mutateAsync({

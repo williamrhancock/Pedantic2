@@ -19,7 +19,7 @@ interface NodeEditorModalProps {
   onDelete?: () => void
   isLocked?: boolean
   onMakeCustom?: (options: { name: string; description: string; code?: string; config?: any }) => Promise<void> | void
-  onUpdateCustomFromNode?: () => Promise<void> | void
+  onUpdateCustomFromNode?: (options: { code?: string; config?: any }) => Promise<void> | void
   isCustom?: boolean
   customName?: string
 }
@@ -249,7 +249,22 @@ export function NodeEditorModal({
                   <button
                     onClick={async () => {
                       try {
-                        await Promise.resolve(onUpdateCustomFromNode())
+                        let updatedConfig: any | undefined
+                        if (isConfigNode) {
+                          try {
+                            updatedConfig = JSON.parse(editedConfig)
+                          } catch (e) {
+                            alert('Invalid JSON configuration')
+                            return
+                          }
+                        }
+
+                        await Promise.resolve(
+                          onUpdateCustomFromNode({
+                            code: isCodeNode ? editedCode : undefined,
+                            config: isConfigNode ? updatedConfig : undefined,
+                          })
+                        )
                         alert('Custom node updated.')
                       } catch (e) {
                         console.error('Failed to update custom node from editor:', e)
