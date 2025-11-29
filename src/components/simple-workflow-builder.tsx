@@ -364,12 +364,17 @@ export function SimpleWorkflowBuilder() {
   const handleSave = useCallback(async () => {
     try {
       // Special case: for the default "Untitled" workflows with no id yet,
-      // try to reuse the most recently updated DB row with the same name
-      // instead of creating more duplicates.
+      // do NOT auto-save. The user must explicitly name the workflow first
+      // via Save As; this prevents cluttering the DB with unnamed entries.
       let targetId = workflowMetadata.id
       const isUntitled =
         workflowMetadata.name === 'Untitled Workflow' ||
         workflowMetadata.name === 'Untitled'
+
+      if (!targetId && isUntitled) {
+        // Skip saving entirely for unnamed workflows with no id.
+        return
+      }
 
       if (!targetId && isUntitled) {
         try {
