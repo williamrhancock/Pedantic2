@@ -11,6 +11,7 @@ This comprehensive guide covers all node types available in the Visual Agentic W
 3. [Configuration-Based Nodes](#configuration-based-nodes)
    - [HTTP API Call Node](#http-api-call-node)
    - [File Operations Node](#file-operations-node)
+   - [Markdown Viewer Node](#markdown-viewer-node)
    - [Conditional Logic Node](#conditional-logic-node)
    - [Database Query Node](#database-query-node)
    - [LLM AI Assistant Node](#llm-ai-assistant-node)
@@ -35,6 +36,7 @@ The Visual Agentic Workflow Builder supports multiple node types for building so
 **Configuration-Based Nodes** (configure via JSON):
 - 🌐 **HTTP API Calls** - Make requests to external APIs and web services
 - 📁 **File Operations** - Read, write, and manipulate files
+- 📄 **Markdown Viewer** - Display markdown content from upstream nodes
 - 🔀 **Conditional Logic** - Branch workflows based on data conditions
 - 🗄️ **Database Queries** - Execute SQLite queries and operations
 - 🤖 **LLM AI Assistant** - Integrate large language models into workflows
@@ -655,6 +657,126 @@ The file will contain: `Henry VII\n`
   "encoding": "utf-8"
 }
 ```
+
+---
+
+### Markdown Viewer Node
+
+The Markdown Viewer node automatically detects and displays markdown content from upstream nodes. It's perfect for rendering formatted text, documentation, reports, or any markdown-formatted output in a readable viewer.
+
+#### Basic Configuration
+
+```json
+{
+  "content_key": "content"
+}
+```
+
+#### Parameters
+
+- **`content_key`** (string, optional): Specific key to look for markdown content in upstream input (default: `"content"`)
+
+#### How It Works
+
+1. **Automatic Detection**: The node automatically scans all variables from the upstream node's output
+2. **Markdown Detection**: It identifies markdown patterns including:
+   - Headers (`#`, `##`, `###`)
+   - Bold (`**text**`) and italic (`*text*`)
+   - Links (`[text](url)`)
+   - Code blocks (`` ``` ``)
+   - Lists (`-`, `*`, numbered)
+   - Blockquotes (`>`)
+   - Tables
+3. **Priority Order**:
+   - First checks the specified `content_key` (if provided)
+   - Then scans all variables in the input
+   - Falls back to common key names: `content`, `markdown`, `text`, `body`, `message`, `output`, `result`
+   - If input is a string, checks if it's markdown
+   - Final fallback: converts input to string representation
+
+#### Output Format
+
+```json
+{
+  "content": "# Markdown Content\n\nThis is **bold** and this is *italic*.",
+  "detected_key": "content",
+  "source_input": {...}
+}
+```
+
+#### Features
+
+- **Anchor Support**: The viewer supports anchor links (`#section-name`) for navigation within documents
+- **Cross-Document Links**: Supports links to other markdown files (e.g., `docs/file.md#section`)
+- **Light Theme**: Always displays in light theme for optimal readability, independent of app theme
+- **Full Markdown Support**: Renders GitHub Flavored Markdown including tables, task lists, and more
+
+#### Examples
+
+**Displaying LLM Output as Markdown:**
+
+If an LLM node outputs markdown-formatted content:
+
+```json
+{
+  "content": "# Analysis Report\n\n## Summary\n\nThis workflow processed **100 items** successfully.\n\n## Details\n\n- Item 1: ✓ Complete\n- Item 2: ✓ Complete\n- Item 3: ⚠ Warning"
+}
+```
+
+**Markdown Viewer Config:**
+```json
+{
+  "content_key": "content"
+}
+```
+
+**Displaying Documentation:**
+
+If a Python node generates documentation:
+
+```python
+def run(input):
+    doc = """# User Guide
+    
+## Getting Started
+
+1. Install the application
+2. Configure settings
+3. Run the workflow
+
+## Advanced Features
+
+See [Advanced Configuration](#advanced-configuration) for details.
+"""
+    return {
+        "documentation": doc,
+        "version": "1.0.0"
+    }
+```
+
+**Markdown Viewer Config:**
+```json
+{
+  "content_key": "documentation"
+}
+```
+
+The viewer will automatically detect and display the markdown content.
+
+#### Viewing Markdown
+
+After workflow execution:
+1. Click on the Markdown Viewer node
+2. The markdown content opens in a full-size viewer modal
+3. Use anchor links to navigate within the document
+4. Click on relative markdown file links to open other documentation files
+
+#### Best Practices
+
+1. **Use Descriptive Keys**: If you know which key contains markdown, specify it in `content_key`
+2. **Format LLM Output**: When using LLM nodes, request markdown-formatted responses for better readability
+3. **Structure Content**: Use proper markdown headers and sections for better navigation with anchors
+4. **Link to Documentation**: Use relative links (e.g., `docs/guide.md#section`) to create interconnected documentation
 
 ---
 
@@ -1785,7 +1907,7 @@ def run(input):
 This guide covers all node types available in the Visual Agentic Workflow Builder:
 
 - **Code-Based Nodes**: Python and TypeScript for custom logic
-- **Configuration-Based Nodes**: HTTP, File, Condition, Database, and LLM for common operations
+- **Configuration-Based Nodes**: HTTP, File, Markdown Viewer, Condition, Database, and LLM for common operations
 - **Control Flow Nodes**: For Each Loop for iteration
 - **Custom Nodes**: Reusable node templates for sharing
 
