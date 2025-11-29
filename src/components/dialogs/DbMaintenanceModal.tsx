@@ -18,6 +18,7 @@ export function DbMaintenanceModal({ isOpen, onClose }: DbMaintenanceModalProps)
     { enabled: isOpen }
   )
   const customNodesQuery = trpc.getCustomNodes.useQuery(undefined, { enabled: isOpen })
+  const dbStatsQuery = trpc.getDbStats.useQuery(undefined, { enabled: isOpen })
 
   const deleteWorkflowMutation = trpc.deleteWorkflow.useMutation({
     onSuccess: () => workflowsQuery.refetch(),
@@ -77,6 +78,15 @@ export function DbMaintenanceModal({ isOpen, onClose }: DbMaintenanceModalProps)
               <p className="text-xs text-muted-foreground">
                 Manage stored workflows and custom nodes. Deletions are permanent.
               </p>
+              {dbStatsQuery.data && (
+                <p className="text-[11px] text-muted-foreground mt-1">
+                  {dbStatsQuery.data.workflowCount} workflow(s),{' '}
+                  {dbStatsQuery.data.customNodeCount} custom node(s),{' '}
+                  {dbStatsQuery.data.dbSizeBytes
+                    ? `${(dbStatsQuery.data.dbSizeBytes / (1024 * 1024)).toFixed(2)} MB`
+                    : 'size unknown'}
+                </p>
+              )}
             </div>
           </div>
           <button

@@ -486,8 +486,25 @@ const appRouter = createTRPCRouter({
         name,
         type,
       }
-    })
-  ,
+    }),
+
+  getDbStats: publicProcedure
+    .query(async () => {
+      const { workflows, total } = await workflowQueries.listWorkflows({ limit: 1, offset: 0 })
+      const customNodes = await customNodeQueries.listCustomNodes()
+      let sizeBytes = 0
+      try {
+        const stat = await fs.promises.stat(dbPath)
+        sizeBytes = stat.size
+      } catch (e) {
+        console.error('Failed to stat DB file for size:', e)
+      }
+      return {
+        workflowCount: total,
+        customNodeCount: customNodes.length,
+        dbSizeBytes: sizeBytes,
+      }
+    }),
 
   // === DB MAINTENANCE ===
   backupDatabase: publicProcedure
