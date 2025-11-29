@@ -75,11 +75,7 @@ Headless? POST to `/run` with workflow JSON. Or `npm run run-workflow -- 42` (ID
 
 ## 🧠 Deep Dives (For When READMEs Lie)
 
-- [HOW_TO_CODE_NODES.md](HOW_TO_CODE_NODES.md): Python node nitpicks.
-- [HOW_TO_CODE_TYPESCRIPT_NODES.md](HOW_TO_CODE_TYPESCRIPT_NODES.md): TS async angst.
-- [HOW_TO_CONFIGURE_NODES.md](HOW_TO_CONFIGURE_NODES.md): Config JSON tomfoolery.
-
-DB woes? Maintenance panel: Delete, backup, compact. Because SQLite bloat is real.
+- [How do you want to play this?] (The hows and how tos|https://github.com/williamrhancock/Pedantic2/blob/main/docs/WORKFLOW_NODES_GUIDE.md)
 
 ## 🤖 Architecture: Nerd Flex
 
