@@ -1116,7 +1116,7 @@ export function SimpleWorkflowBuilder() {
           
           // Also check executionResults for for-each nodes and extract from their results
           if (!nodeResult || !nodeResult.output || !nodeResult.output.content) {
-            for (const [resultNodeId, result] of executionResults.entries()) {
+            Array.from(executionResults.entries()).forEach(([resultNodeId, result]) => {
               // Check if this is a for-each node result
               if (result.output && result.output.results && Array.isArray(result.output.results)) {
                 // Find the last successful iteration that has node_executions
@@ -1132,13 +1132,12 @@ export function SimpleWorkflowBuilder() {
                       nodeResult = {
                         output: markdownExec.output
                       }
-                      break
+                      return
                     }
                   }
                 }
-                if (nodeResult && nodeResult.output && nodeResult.output.content) break
               }
-            }
+            })
           }
         }
         
