@@ -75,7 +75,7 @@ Headless? POST to `/run` with workflow JSON. Or `npm run run-workflow -- 42` (ID
 
 ## 🧠 Deep Dives (For When READMEs Lie)
 
-- [How do you want to play this?] (The hows and how tos|https://github.com/williamrhancock/Pedantic2/blob/main/docs/WORKFLOW_NODES_GUIDE.md)
+- [How do you want to play this?](https://github.com/williamrhancock/Pedantic2/blob/main/docs/WORKFLOW_NODES_GUIDE.md)
 
 ## 🤖 Architecture: Nerd Flex
 
