@@ -8,6 +8,7 @@ export type WorkflowNodeType = 'start' | 'end' | 'python' | 'typescript' | 'http
 export interface WorkflowNodeData {
   type: WorkflowNodeType
   title: string
+  description?: string
   code?: string
   config?: any
   isExecuting?: boolean
@@ -25,6 +26,7 @@ export function WorkflowNode({ id, data, selected }: { id: string; data: Workflo
       isExecuting={data.isExecuting}
       executionStatus={data.executionStatus}
       data={{
+        description: data.description,
         code: data.code,
         config: data.config,
       }}
