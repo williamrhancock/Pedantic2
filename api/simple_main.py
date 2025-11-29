@@ -1103,6 +1103,12 @@ async def execute_sub_workflow(
             elif node_type == 'llm':
                 config = node_data.get('config', {})
                 result = await execute_llm_request(config, input_data)
+            elif node_type == 'markdown':
+                config = node_data.get('config', {})
+                result = await execute_markdown_viewer(config, input_data)
+            elif node_type == 'html':
+                config = node_data.get('config', {})
+                result = await execute_html_viewer(config, input_data)
             else:
                 result = {
                     'status': 'error',
