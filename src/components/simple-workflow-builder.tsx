@@ -51,13 +51,12 @@ interface WorkflowBrowserProps {
 
 function WorkflowBrowser({ isOpen, onClose, onSelect }: WorkflowBrowserProps) {
   const [searchTerm, setSearchTerm] = useState('')
-  const [selectedCategory, setSelectedCategory] = useState<'all' | 'templates' | 'my-workflows' | 'public'>('all')
   const { isDark } = useTheme()
   const [workflowToDelete, setWorkflowToDelete] = useState<any | null>(null)
 
   const { data: workflowsData, isLoading, refetch } = trpc.listWorkflows.useQuery({
     search: searchTerm,
-    category: selectedCategory,
+    category: 'my-workflows',
     limit: 20,
     offset: 0
   })
@@ -86,7 +85,7 @@ function WorkflowBrowser({ isOpen, onClose, onSelect }: WorkflowBrowserProps) {
         className="glass-card p-6 w-full max-w-4xl max-h-[80vh] overflow-hidden flex flex-col"
       >
         <div className="flex justify-between items-center mb-4">
-            <h2 className="text-xl font-semibold text-foreground">Open Workflow</h2>
+          <h2 className="text-xl font-semibold text-foreground">Open Workflow</h2>
           <button
             onClick={onClose}
               className="p-2 rounded-lg hover:bg-white/10 transition-colors"
@@ -105,16 +104,6 @@ function WorkflowBrowser({ isOpen, onClose, onSelect }: WorkflowBrowserProps) {
             onChange={(e) => setSearchTerm(e.target.value)}
               className="flex-1 px-3 py-2 rounded-lg bg-white/5 border border-white/10 text-foreground focus:outline-none focus:ring-2 focus:ring-purple-500"
           />
-          <select
-            value={selectedCategory}
-            onChange={(e) => setSelectedCategory(e.target.value as any)}
-              className="px-3 py-2 rounded-lg bg-white/5 border border-white/10 text-foreground focus:outline-none focus:ring-2 focus:ring-purple-500"
-          >
-            <option value="all">All Workflows</option>
-            <option value="my-workflows">My Workflows</option>
-            <option value="templates">Templates</option>
-            <option value="public">Public</option>
-          </select>
         </div>
 
           <div className="flex-1 overflow-auto custom-scrollbar">
