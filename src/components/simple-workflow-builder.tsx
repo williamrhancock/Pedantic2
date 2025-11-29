@@ -6,7 +6,6 @@ import { WorkflowCanvas } from '@/components/canvas'
 import { ModernToolbar } from '@/components/toolbar/ModernToolbar'
 import { ExecutionTimeline, TimelineEntry } from '@/components/timeline/ExecutionTimeline'
 import { NodeEditorModal } from '@/components/editor/NodeEditorModal'
-import { FloatingAddButton } from '@/components/ui/FloatingAddButton'
 import { SaveAsDialog } from '@/components/dialogs/SaveAsDialog'
 import { useTheme } from '@/contexts/ThemeContext'
 import type { NodeType } from '@/components/toolbar/ModernToolbar'
@@ -775,15 +774,6 @@ export function SimpleWorkflowBuilder() {
           <ExecutionTimeline entries={timelineEntries} />
         </div>
       </div>
-
-      {/* Floating Add Button */}
-      <FloatingAddButton
-        onClick={() => {
-          // Show a menu or use the toolbar
-          setActiveNodeType('python')
-          addNode('python')
-        }}
-      />
 
       {/* Node Editor Modal */}
       {showEditorModal && selectedNodeData && (
