@@ -753,12 +753,19 @@ async def execute_markdown_viewer(config: Dict[str, Any], input_data: Any) -> Di
         detected_key = None
         
         # First, try the specified content_key if provided
+        # If content_key is explicitly set (not default 'content'), trust it and use it even without markdown detection
         if isinstance(input_data, dict):
             if content_key in input_data:
                 candidate = input_data[content_key]
-                if isinstance(candidate, str) and detect_markdown(candidate):
-                    markdown_content = candidate
-                    detected_key = content_key
+                if isinstance(candidate, str):
+                    # If content_key was explicitly provided (not default), use it without markdown detection
+                    # Otherwise, check for markdown patterns
+                    if config.get('content_key') and config.get('content_key') != 'content':
+                        markdown_content = candidate
+                        detected_key = content_key
+                    elif detect_markdown(candidate):
+                        markdown_content = candidate
+                        detected_key = content_key
         
         # If no markdown found in specified key, scan all variables
         if not markdown_content and isinstance(input_data, dict):
@@ -770,7 +777,7 @@ async def execute_markdown_viewer(config: Dict[str, Any], input_data: Any) -> Di
         
         # If still no markdown found, try common key names
         if not markdown_content and isinstance(input_data, dict):
-            common_keys = ['content', 'markdown', 'text', 'body', 'message', 'output', 'result']
+            common_keys = ['content', 'markdown', 'text', 'body', 'message', 'output', 'result', 'markdown_report']
             for key in common_keys:
                 if key in input_data:
                     candidate = input_data[key]
