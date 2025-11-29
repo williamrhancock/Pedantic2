@@ -839,38 +839,31 @@ export function SimpleWorkflowBuilder() {
     updateNodes(newNodes)
   }
 
-  const handleExportCustomNodes = async () => {
-    if (customNodes.length === 0) {
-      alert('There are no custom nodes to export.')
-      return
-    }
-
-    const namesList = customNodes.map((n) => n.name).join(', ')
-    const name = window.prompt(
-      `Enter the name of the custom node to export:\n\n${namesList}`
-    )
-    if (!name) return
-
-    const template = customNodes.find((n) => n.name === name)
-    if (!template) {
-      alert(`Custom node "${name}" was not found.`)
-      return
-    }
+  const handleExportSelectedCustomNode = async (options: { filename: string }) => {
+    if (!selectedNode) return
+    const node = nodes.find((n) => n.id === selectedNode)
+    if (!node || !node.customNodeId) return
 
     try {
-      const result = await exportCustomNodeMutation.mutateAsync({ id: template.id })
+      const result = await exportCustomNodeMutation.mutateAsync({ id: node.customNodeId })
       const blob = new Blob([JSON.stringify(result.data, null, 2)], {
         type: 'application/json',
       })
       const url = URL.createObjectURL(blob)
       const a = document.createElement('a')
       a.href = url
-      a.download = result.filename || `${template.name.replace(/[^a-z0-9]/gi, '_')}.json`
+
+      const safeBase =
+        options.filename.trim().replace(/\.json$/i, '') ||
+        node.customNodeName?.replace(/[^a-z0-9]/gi, '_') ||
+        'custom_node'
+
+      a.download = `${safeBase}.json`
       a.click()
       URL.revokeObjectURL(url)
     } catch (error) {
       console.error('Failed to export custom node:', error)
-      alert('Failed to export custom node. Please try again.')
+      throw error
     }
   }
 
@@ -917,7 +910,6 @@ export function SimpleWorkflowBuilder() {
         isLocked={isLocked}
         customNodes={customNodes}
         onSelectCustomNode={isLocked ? undefined : handleSelectCustomNode}
-        onExportCustomNodes={handleExportCustomNodes}
         onImportCustomNodes={isLocked ? undefined : handleImportCustomNodes}
         onNewWorkflow={handleNewWorkflow}
         onOpenWorkflow={() => setShowWorkflowBrowser(true)}
@@ -1019,6 +1011,7 @@ export function SimpleWorkflowBuilder() {
           customName={selectedNodeData.customNodeName}
           onMakeCustom={isLocked ? undefined : handleMakeCustomNode}
           onUpdateCustomFromNode={isLocked ? undefined : handleUpdateCustomFromNode}
+          onExportCustomNode={isLocked ? undefined : handleExportSelectedCustomNode}
         />
       )}
 

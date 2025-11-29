@@ -20,6 +20,7 @@ interface NodeEditorModalProps {
   isLocked?: boolean
   onMakeCustom?: (options: { name: string; description: string; code?: string; config?: any }) => Promise<void> | void
   onUpdateCustomFromNode?: (options: { code?: string; config?: any }) => Promise<void> | void
+  onExportCustomNode?: (options: { filename: string }) => Promise<void> | void
   isCustom?: boolean
   customName?: string
 }
@@ -37,6 +38,7 @@ export function NodeEditorModal({
   isLocked = false,
   onMakeCustom,
   onUpdateCustomFromNode,
+  onExportCustomNode,
   isCustom = false,
   customName,
 }: NodeEditorModalProps) {
@@ -51,6 +53,10 @@ export function NodeEditorModal({
   const [customNameInput, setCustomNameInput] = useState(customName || nodeTitle)
   const [customDescriptionInput, setCustomDescriptionInput] = useState('')
   const [customError, setCustomError] = useState<string | null>(null)
+  const [showExportDialog, setShowExportDialog] = useState(false)
+  const [exportFilenameInput, setExportFilenameInput] = useState(
+    (customName || nodeTitle || 'custom_node') + '.json'
+  )
 
   const isCodeNode = nodeType === 'python' || nodeType === 'typescript'
   const isConfigNode = !isCodeNode && nodeType !== 'start' && nodeType !== 'end'
@@ -281,6 +287,19 @@ export function NodeEditorModal({
                     Update Custom Node
                   </button>
                 )}
+            {isCustomInstance && onExportCustomNode && (
+              <button
+                onClick={() => {
+                  setExportFilenameInput(
+                    (customName || nodeTitle || 'custom_node') + '.json'
+                  )
+                  setShowExportDialog(true)
+                }}
+                className="w-full px-3 py-2 rounded-lg bg-white/5 hover:bg-white/10 text-foreground text-sm font-medium transition-all hover:scale-105 active:scale-95"
+              >
+                Export Custom Node
+              </button>
+            )}
               </div>
             )}
           </div>
@@ -523,6 +542,84 @@ export function NodeEditorModal({
                     className="px-6 py-2 rounded-lg bg-white/5 hover:bg-white/10 transition-all hover:scale-105 active:scale-95"
                   >
                     OK
+                  </button>
+                </div>
+              </div>
+            </div>
+          </>
+        )}
+
+        {/* Export Custom Node Dialog */}
+        {showExportDialog && (
+          <>
+            <div
+              className="fixed inset-0 z-[60] backdrop-blur-md bg-black/60"
+              onClick={() => setShowExportDialog(false)}
+            />
+            <div
+              className="fixed inset-0 z-[60] flex items-center justify-center p-4"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <div
+                className="glass-card p-6 w-full max-w-md"
+                onClick={(e) => e.stopPropagation()}
+              >
+                <h3 className="text-xl font-semibold text-foreground mb-2">
+                  Export Custom Node
+                </h3>
+                <p className="text-sm text-muted-foreground mb-4">
+                  Choose a filename for this custom node. It will be exported as a JSON file that can
+                  be imported into other projects.
+                </p>
+                <div className="mb-4">
+                  <label className="text-sm font-semibold text-foreground mb-1 block">
+                    File name
+                  </label>
+                  <input
+                    type="text"
+                    value={exportFilenameInput}
+                    onChange={(e) => setExportFilenameInput(e.target.value)}
+                    className="w-full px-3 py-2 rounded-lg bg-white/5 border border-white/10 text-foreground text-sm focus:outline-none focus:ring-2 focus:ring-purple-500"
+                  />
+                </div>
+                {customError && (
+                  <p className="text-sm text-red-400 mb-2">
+                    {customError}
+                  </p>
+                )}
+                <div className="flex items-center justify-end gap-3">
+                  <button
+                    onClick={() => setShowExportDialog(false)}
+                    className="px-4 py-2 rounded-lg bg-white/5 hover:bg-white/10 transition-all hover:scale-105 active:scale-95"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    onClick={async () => {
+                      if (!onExportCustomNode) return
+                      const trimmed = exportFilenameInput.trim()
+                      if (!trimmed) {
+                        setCustomError('Please enter a file name.')
+                        return
+                      }
+                      try {
+                        await Promise.resolve(
+                          onExportCustomNode({ filename: trimmed })
+                        )
+                        setShowExportDialog(false)
+                        setCustomError(null)
+                      } catch (e) {
+                        console.error('Failed to export custom node from editor:', e)
+                        setCustomError(
+                          e instanceof Error
+                            ? e.message
+                            : 'Failed to export custom node. Please try again.'
+                        )
+                      }
+                    }}
+                    className="px-6 py-2 rounded-lg bg-gradient-to-r from-purple-500 to-purple-600 text-white font-medium shadow-lg hover:scale-105 active:scale-95 transition-all"
+                  >
+                    Export
                   </button>
                 </div>
               </div>

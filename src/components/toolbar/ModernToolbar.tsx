@@ -32,7 +32,6 @@ interface ModernToolbarProps {
   isLocked?: boolean
   customNodes?: CustomNodeTemplate[]
   onSelectCustomNode?: (templateId: number) => void
-  onExportCustomNodes?: () => void
   onImportCustomNodes?: () => void
 }
 
@@ -62,7 +61,6 @@ export function ModernToolbar({
   isLocked = false,
   customNodes = [],
   onSelectCustomNode,
-  onExportCustomNodes,
   onImportCustomNodes,
 }: ModernToolbarProps) {
   const { isDark } = useTheme()
@@ -193,31 +191,19 @@ export function ModernToolbar({
           </select>
         )}
 
-        {/* Separator */}
-        {(onExportCustomNodes || onImportCustomNodes) && (
-          <div className="w-px h-6 bg-white/20 mx-1" />
-        )}
-
-        {/* Custom node export/import buttons */}
-        {onExportCustomNodes && (
-          <button
-            onClick={onExportCustomNodes}
-            disabled={isLocked || customNodes.length === 0}
-            className="p-2 rounded-lg hover:bg-white/10 transition-colors hover:scale-105 active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed"
-            title={customNodes.length === 0 ? 'No custom nodes to export' : 'Export a custom node'}
-          >
-            <Download className="w-4 h-4" />
-          </button>
-        )}
+        {/* Custom node import button */}
         {onImportCustomNodes && (
-          <button
-            onClick={onImportCustomNodes}
-            disabled={isLocked}
-            className="p-2 rounded-lg hover:bg-white/10 transition-colors hover:scale-105 active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed"
-            title="Import a custom node"
-          >
-            <Upload className="w-4 h-4" />
-          </button>
+          <>
+            <div className="w-px h-6 bg-white/20 mx-1" />
+            <button
+              onClick={onImportCustomNodes}
+              disabled={isLocked}
+              className="p-2 rounded-lg hover:bg-white/10 transition-colors hover:scale-105 active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed"
+              title="Import a custom node"
+            >
+              <Upload className="w-4 h-4" />
+            </button>
+          </>
         )}
 
         {/* Execute and theme toggle */}
