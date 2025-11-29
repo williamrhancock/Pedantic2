@@ -72,26 +72,6 @@ export function NodeEditorModal({
       }
     }
 
-    // Optionally update the underlying custom node template
-    if (isCustomInstance && onUpdateCustomFromNode) {
-      const displayName = customName || nodeTitle
-      const shouldUpdate = window.confirm(
-        `Update the custom node "${displayName}" as well as this workflow node?`
-      )
-      if (shouldUpdate) {
-        try {
-          await Promise.resolve(onUpdateCustomFromNode())
-        } catch (e) {
-          console.error('Failed to update custom node from editor:', e)
-          alert(
-            e instanceof Error
-              ? e.message
-              : 'Failed to update custom node. Please try again.'
-          )
-        }
-      }
-    }
-
     onClose()
   }
 
@@ -254,15 +234,37 @@ export function NodeEditorModal({
               </div>
             )}
 
-            {/* Make Custom Node */}
-            {canMakeCustom && !isCustomInstance && !isLocked && (
-              <div className="mt-4">
-                <button
-                  onClick={openMakeCustomDialog}
-                  className="w-full px-3 py-2 rounded-lg bg-purple-500/20 hover:bg-purple-500/30 text-purple-200 text-sm font-medium transition-all hover:scale-105 active:scale-95"
-                >
-                  Save as Custom Node
-                </button>
+            {/* Make / Update Custom Node */}
+            {!isLocked && (
+              <div className="mt-4 space-y-2">
+                {canMakeCustom && !isCustomInstance && (
+                  <button
+                    onClick={openMakeCustomDialog}
+                    className="w-full px-3 py-2 rounded-lg bg-purple-500/20 hover:bg-purple-500/30 text-purple-200 text-sm font-medium transition-all hover:scale-105 active:scale-95"
+                  >
+                    Save as Custom Node
+                  </button>
+                )}
+                {isCustomInstance && onUpdateCustomFromNode && (
+                  <button
+                    onClick={async () => {
+                      try {
+                        await Promise.resolve(onUpdateCustomFromNode())
+                        alert('Custom node updated.')
+                      } catch (e) {
+                        console.error('Failed to update custom node from editor:', e)
+                        alert(
+                          e instanceof Error
+                            ? e.message
+                            : 'Failed to update custom node. Please try again.'
+                        )
+                      }
+                    }}
+                    className="w-full px-3 py-2 rounded-lg bg-purple-500/20 hover:bg-purple-500/30 text-purple-200 text-sm font-medium transition-all hover:scale-105 active:scale-95"
+                  >
+                    Update Custom Node
+                  </button>
+                )}
               </div>
             )}
           </div>
@@ -362,7 +364,7 @@ export function NodeEditorModal({
                 isLocked ? ' opacity-50 cursor-not-allowed hover:scale-100' : ''
               }`}
             >
-              Save Changes
+              Save to Workflow
             </button>
           </div>
         </div>
