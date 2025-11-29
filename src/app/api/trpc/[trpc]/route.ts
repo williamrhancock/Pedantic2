@@ -150,6 +150,14 @@ const appRouter = createTRPCRouter({
       return { success: true }
     }),
 
+  deleteUntitledWorkflows: publicProcedure
+    .mutation(async () => {
+      // Best-effort cleanup of legacy "Untitled" entries.
+      await workflowQueries.deleteWorkflowsByName('Untitled')
+      await workflowQueries.deleteWorkflowsByName('Untitled Workflow')
+      return { success: true }
+    }),
+
   checkWorkflowName: publicProcedure
     .input(z.object({
       name: z.string().min(1),

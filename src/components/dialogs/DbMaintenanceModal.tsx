@@ -28,6 +28,7 @@ export function DbMaintenanceModal({ isOpen, onClose }: DbMaintenanceModalProps)
   })
   const backupDatabaseMutation = trpc.backupDatabase.useMutation()
   const compactDatabaseMutation = trpc.compactDatabase.useMutation()
+  const deleteUntitledWorkflowsMutation = trpc.deleteUntitledWorkflows.useMutation()
 
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false)
   const [statusMessage, setStatusMessage] = useState<string | null>(null)
@@ -268,6 +269,23 @@ export function DbMaintenanceModal({ isOpen, onClose }: DbMaintenanceModalProps)
             >
               <Trash2 className="w-4 h-4" />
               Delete Selected
+            </button>
+            <button
+              onClick={async () => {
+                setStatusMessage(null)
+                try {
+                  await deleteUntitledWorkflowsMutation.mutateAsync()
+                  await workflowsQuery.refetch()
+                  setStatusMessage('All Untitled workflows deleted.')
+                } catch (e) {
+                  console.error('Failed to delete Untitled workflows:', e)
+                  setStatusMessage('Failed to delete Untitled workflows. See console for details.')
+                }
+              }}
+              className="px-4 py-2 rounded-lg bg-red-500/10 hover:bg-red-500/20 text-red-200 text-sm font-medium transition-all hover:scale-105 active:scale-95 flex items-center gap-2"
+            >
+              <Trash2 className="w-4 h-4" />
+              Delete All Untitled
             </button>
             <button
               onClick={async () => {
