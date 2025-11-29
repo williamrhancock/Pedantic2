@@ -1064,21 +1064,58 @@ export function SimpleWorkflowBuilder() {
       // If it's a markdown node, show markdown viewer instead of editor
       if (node.type === 'markdown') {
         // Try to find markdown content from node's execution output
-        const nodeResult = executionResults.get(nodeId)
+        let nodeResult = executionResults.get(nodeId)
+        
+        // Debug logging
+        console.log('Markdown viewer clicked:', {
+          nodeId,
+          nodeResult,
+          executionResultsSize: executionResults.size,
+          timelineEntriesCount: timelineEntries.length
+        })
+        
+        // If not found in executionResults, try to find it in timeline entries (for nodes outside for-each)
+        if (!nodeResult || !nodeResult.output || !nodeResult.output.content) {
+          const timelineEntry = timelineEntries
+            .filter(e => e.nodeId === nodeId && !e.isForEachResult)
+            .sort((a, b) => b.timestamp.getTime() - a.timestamp.getTime())[0]
+          console.log('Checking timeline entry:', timelineEntry)
+          if (timelineEntry && timelineEntry.output && timelineEntry.output.content) {
+            nodeResult = {
+              output: timelineEntry.output
+            }
+          }
+        }
+        
         if (nodeResult && nodeResult.output && nodeResult.output.content) {
           // Display the detected markdown content
+          console.log('Found markdown content:', nodeResult.output.content.substring(0, 100))
           setMarkdownContent(nodeResult.output.content)
           const detectedKey = nodeResult.output.detected_key || 'auto-detected'
           setMarkdownTitle(`${node.title} (from ${detectedKey})`)
         } else {
           // Show helpful message if no execution results yet
+          console.log('No markdown content found, showing placeholder')
           setMarkdownContent('# Markdown Viewer\n\nMarkdown content will appear here after workflow execution.\n\nThe markdown node automatically detects markdown content in any variable passed from upstream nodes.\n\n**Supported markdown patterns:**\n- Headers (#, ##, ###)\n- Bold (**text**) and italic (*text*)\n- Links [text](url)\n- Code blocks (```)\n- Lists (-, *, numbered)\n- Blockquotes (>)\n- Tables\n\n**How it works:**\n1. The node scans all variables from upstream\n2. Detects markdown patterns automatically\n3. Displays the first variable containing markdown')
           setMarkdownTitle(node.title)
         }
         setShowMarkdownViewer(true)
       } else if (node.type === 'html') {
         // Try to find HTML content from node's execution output
-        const nodeResult = executionResults.get(nodeId)
+        let nodeResult = executionResults.get(nodeId)
+        
+        // If not found in executionResults, try to find it in timeline entries (for nodes outside for-each)
+        if (!nodeResult || !nodeResult.output || !nodeResult.output.content) {
+          const timelineEntry = timelineEntries
+            .filter(e => e.nodeId === nodeId && !e.isForEachResult)
+            .sort((a, b) => b.timestamp.getTime() - a.timestamp.getTime())[0]
+          if (timelineEntry && timelineEntry.output && timelineEntry.output.content) {
+            nodeResult = {
+              output: timelineEntry.output
+            }
+          }
+        }
+        
         if (nodeResult && nodeResult.output && nodeResult.output.content) {
           // Display the detected HTML content
           setHtmlContent(nodeResult.output.content)
