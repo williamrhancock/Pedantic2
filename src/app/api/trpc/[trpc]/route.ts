@@ -5,8 +5,10 @@ import {
   executionQueries,
   nodeTemplateQueries,
   customNodeQueries,
+  dbPath,
   type Workflow
 } from '@/lib/db'
+import fs from 'fs'
 import { z } from 'zod'
 
 const appRouter = createTRPCRouter({
@@ -484,6 +486,32 @@ const appRouter = createTRPCRouter({
         name,
         type,
       }
+    })
+  ,
+
+  // === DB MAINTENANCE ===
+  backupDatabase: publicProcedure
+    .mutation(async () => {
+      const buffer = await fs.promises.readFile(dbPath)
+      const base64 = buffer.toString('base64')
+      const filename = `pedantic-backup-${new Date().toISOString().replace(/[:.]/g, '-')}.db`
+      return { filename, base64 }
+    }),
+
+  compactDatabase: publicProcedure
+    .mutation(async () => {
+      // Use SQLite VACUUM to compact the DB
+      await workflowQueries.listWorkflows() // ensure DB initialized
+      await new Promise<void>((resolve, reject) => {
+        const sqlite3 = require('sqlite3') as typeof import('sqlite3')
+        const db = new sqlite3.Database(dbPath)
+        db.exec('VACUUM', (err) => {
+          db.close()
+          if (err) reject(err)
+          else resolve()
+        })
+      })
+      return { success: true }
     })
 })
 

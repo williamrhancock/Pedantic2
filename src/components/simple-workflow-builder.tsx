@@ -8,6 +8,7 @@ import { ModernToolbar } from '@/components/toolbar/ModernToolbar'
 import { ExecutionTimeline, TimelineEntry } from '@/components/timeline/ExecutionTimeline'
 import { NodeEditorModal } from '@/components/editor/NodeEditorModal'
 import { SaveAsDialog } from '@/components/dialogs/SaveAsDialog'
+import { DbMaintenanceModal } from '@/components/dialogs/DbMaintenanceModal'
 import { useTheme } from '@/contexts/ThemeContext'
 import type { NodeType } from '@/components/toolbar/ModernToolbar'
 import { workflowNodeToCustomData } from '@/lib/custom-nodes'
@@ -262,6 +263,7 @@ export function SimpleWorkflowBuilder() {
   const [showImportOverwriteDialog, setShowImportOverwriteDialog] = useState(false)
   const [showUnsavedConfirmDialog, setShowUnsavedConfirmDialog] = useState(false)
   const [workflowToDelete, setWorkflowToDelete] = useState<any | null>(null)
+  const [showDbMaintenance, setShowDbMaintenance] = useState(false)
   const [activeNodeType, setActiveNodeType] = useState<NodeType | null>(null)
 
   // Generate connections based on node order
@@ -969,6 +971,7 @@ export function SimpleWorkflowBuilder() {
         customNodes={customNodes}
         onSelectCustomNode={isLocked ? undefined : handleSelectCustomNode}
         onImportCustomNodes={isLocked ? undefined : handleImportCustomNodes}
+        onOpenDbMaintenance={() => setShowDbMaintenance(true)}
         onNewWorkflow={handleNewWorkflow}
         onOpenWorkflow={() => setShowWorkflowBrowser(true)}
         onSave={handleSave}
@@ -1220,6 +1223,12 @@ export function SimpleWorkflowBuilder() {
           </div>
         </>
       )}
+
+      {/* Database Maintenance Modal */}
+      <DbMaintenanceModal
+        isOpen={showDbMaintenance}
+        onClose={() => setShowDbMaintenance(false)}
+      />
 
       {/* Workflow Delete Confirmation Dialog */}
       {workflowToDelete && (

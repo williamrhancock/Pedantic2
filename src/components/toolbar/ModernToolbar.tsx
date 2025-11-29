@@ -11,6 +11,7 @@ import {
   Download,
   Upload,
   Play,
+  ShieldAlert,
 } from 'lucide-react'
 import type { CustomNodeTemplate } from '@/lib/custom-nodes'
 
@@ -33,6 +34,7 @@ interface ModernToolbarProps {
   customNodes?: CustomNodeTemplate[]
   onSelectCustomNode?: (templateId: number) => void
   onImportCustomNodes?: () => void
+  onOpenDbMaintenance?: () => void
 }
 
 const nodeTypes: { type: NodeType; label: string; color: string }[] = [
@@ -62,6 +64,7 @@ export function ModernToolbar({
   customNodes = [],
   onSelectCustomNode,
   onImportCustomNodes,
+  onOpenDbMaintenance,
 }: ModernToolbarProps) {
   const { isDark } = useTheme()
 
@@ -226,6 +229,15 @@ export function ModernToolbar({
           </div>
         </button>
         <ThemeToggle />
+        {onOpenDbMaintenance && (
+          <button
+            onClick={onOpenDbMaintenance}
+            className="p-2 rounded-lg hover:bg-red-500/20 transition-colors hover:scale-105 active:scale-95"
+            title="Database maintenance"
+          >
+            <ShieldAlert className="w-4 h-4 text-red-400" />
+          </button>
+        )}
       </div>
     </div>
   )
