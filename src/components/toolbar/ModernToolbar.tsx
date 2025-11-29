@@ -71,10 +71,10 @@ export function ModernToolbar({
       glass-card
       mx-4 mt-4 mb-2
       px-4 py-3
-      flex items-center justify-between gap-4
+      flex flex-wrap items-center gap-3 md:gap-4
     `}>
       {/* Left: File operations */}
-      <div className="flex items-center gap-2">
+      <div className="flex items-center gap-2 flex-wrap md:flex-nowrap w-full md:w-auto">
         <button
           onClick={onNewWorkflow}
           className="p-2 rounded-lg hover:bg-white/10 transition-colors hover:scale-105 active:scale-95"
@@ -128,7 +128,7 @@ export function ModernToolbar({
       </div>
 
       {/* Center: Node type buttons */}
-      <div className="flex items-center gap-3 flex-1 justify-center">
+      <div className="flex items-center gap-2 sm:gap-3 flex-wrap justify-center flex-1 min-w-[220px]">
         {nodeTypes.map(({ type, label, color }) => {
           const isActive = activeNodeType === type
           return (
@@ -161,7 +161,7 @@ export function ModernToolbar({
       </div>
 
       {/* Right: Custom nodes, Execute and theme toggle */}
-      <div className="flex items-center gap-2">
+      <div className="flex items-center gap-2 flex-wrap justify-end w-full md:w-auto">
         {/* Custom nodes dropdown */}
         {onSelectCustomNode && (
           <select
