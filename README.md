@@ -5,7 +5,7 @@ A complete, fully functional, local-first visual workflow builder for agentic pr
 ## 🚀 Features
 
 ### Core Platform
-- 🎨 **Visual Node Editor**: Intuitive drag-and-drop interface with color-coded nodes
+- 🎨 **Visual Node Editor**: Intuitive React Flow canvas with glassmorphic, color-coded nodes
 - 💾 **Auto-save**: Automatic workflow persistence to SQLite database
 - 🚀 **Real-time Execution**: Live feedback on node execution status
 - 🔗 **Node Connections**: Visual workflow connections with execution flow display
@@ -29,6 +29,8 @@ A complete, fully functional, local-first visual workflow builder for agentic pr
 - 🎨 **Color-Coded Nodes**: Visual distinction between different node types
 - 🔄 **Data Flow Management**: Seamless data passing between nodes
 - 🛡️ **Security Controls**: Sandboxed execution with directory restrictions
+- 🧩 **Custom Nodes**: Save frequently used node configurations as reusable templates, with import/export
+- 🗂️ **DB Maintenance Panel**: Visual database maintenance for workflows and custom nodes (bulk delete, backup, compact)
 
 ## System Requirements
 
@@ -106,9 +108,9 @@ npm run dev
 ### Frontend (Next.js 15 + TypeScript)
 - **Framework**: Next.js 15 with App Router
 - **Styling**: Tailwind CSS + shadcn/ui components
-- **Node Editor**: Rete.js v2 with React plugin
+- **Node Editor**: React Flow with custom glassmorphic node components
 - **Code Editor**: Monaco Editor (VS Code editor)
-- **Database**: SQLite with better-sqlite3
+- **Database**: SQLite via `sqlite3` Node bindings
 - **API**: tRPC for type-safe communication
 
 ### Backend (FastAPI)
@@ -119,12 +121,215 @@ npm run dev
 - **Topological Sorting**: Automatic workflow execution order
 
 ### Data Flow
-1. User creates workflow visually in Rete.js editor
+1. User creates workflow visually in the React Flow-based editor
 2. Changes auto-save to SQLite database (throttled 1000ms)
 3. Execution sends workflow JSON to FastAPI backend
 4. Backend topologically sorts nodes and executes in order
 5. Real-time status updates flow back to frontend
 6. Logs and results display in side panel
+
+## Headless Execution & Scheduling
+
+You can run workflows **headlessly** (without opening the UI) by keeping the servers running and triggering executions via HTTP from scripts or schedulers.
+
+### 1. Start the Servers (Headless-Friendly)
+
+For production / long-running headless usage:
+
+```bash
+# Build once
+npm run build
+
+# Start Next.js (frontend + tRPC) in production mode
+npm run start
+
+# In another terminal, start FastAPI backend
+cd api
+uvicorn main:app --host 127.0.0.1 --port 8000
+```
+
+Keep both processes running (e.g., via `tmux`, `screen`, a service manager, or OS services).
+
+### 2. HTTP Execution API (FastAPI)
+
+The FastAPI backend exposes:
+
+- `POST http://localhost:8000/run`
+
+Request body:
+
+```json
+{
+  "workflow": {
+    "nodes": { /* node graph, as exported from the UI */ },
+    "connections": { /* connections map */ }
+  }
+}
+```
+
+Response (simplified):
+
+```json
+{
+  "status": "success",
+  "nodes": [
+    {
+      "id": "node-id",
+      "status": "success",
+      "output": {},
+      "stdout": "",
+      "stderr": "",
+      "execution_time": 0.12
+    }
+  ],
+  "total_time": 0.5,
+  "error": null
+}
+```
+
+#### Getting the workflow JSON
+
+From the UI:
+
+1. Use **Export Workflow** in the top toolbar to download a `.json` file.
+2. The downloaded JSON contains the `workflow` object your headless scripts should send to `POST /run`.
+
+You can version and store these workflow JSON files alongside your other automation scripts.
+
+### 3. CLI Scripts that Call the HTTP API
+
+You can wrap the HTTP call in simple scripts for each platform. These scripts are what your schedulers will call.
+
+#### macOS / Linux shell script (`run-workflow.sh`)
+
+```bash
+#!/usr/bin/env bash
+set -euo pipefail
+
+WORKFLOW_FILE="${1:-/path/to/exported-workflow.json}"
+
+curl -sS -X POST \
+  -H "Content-Type: application/json" \
+  --data @"${WORKFLOW_FILE}" \
+  http://127.0.0.1:8000/run
+```
+
+Make it executable:
+
+```bash
+chmod +x run-workflow.sh
+```
+
+#### Windows PowerShell script (`run-workflow.ps1`)
+
+```powershell
+param(
+  [string]$WorkflowFile = "C:\path\to\exported-workflow.json"
+)
+
+$body = Get-Content -Raw -Path $WorkflowFile
+Invoke-RestMethod -Uri "http://127.0.0.1:8000/run" `
+  -Method Post `
+  -ContentType "application/json" `
+  -Body $body
+```
+
+### 4. Scheduling on macOS, Linux, and Windows
+
+Below are **two patterns** per OS:
+
+- **CLI-based**: scheduler calls your shell/PowerShell script.
+- **Direct HTTP-based**: scheduler calls `curl`/`Invoke-WebRequest` directly.
+
+#### 4.1 Linux (cron)
+
+Edit crontab:
+
+```bash
+crontab -e
+```
+
+Run workflow every day at 02:00 using the shell script:
+
+```cron
+0 2 * * * /usr/local/bin/run-workflow.sh /opt/workflows/nightly.json >> /var/log/workflow.log 2>&1
+```
+
+Direct `curl` example (no script):
+
+```cron
+0 3 * * * curl -sS -X POST -H "Content-Type: application/json" --data @/opt/workflows/cleanup.json http://127.0.0.1:8000/run >> /var/log/workflow.log 2>&1
+```
+
+#### 4.2 macOS (launchd)
+
+Create a plist file, e.g. `~/Library/LaunchAgents/com.example.workflow.plist`:
+
+```xml
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+  <dict>
+    <key>Label</key>
+    <string>com.example.workflow</string>
+    <key>ProgramArguments</key>
+    <array>
+      <string>/usr/local/bin/run-workflow.sh</string>
+      <string>/Users/you/workflows/nightly.json</string>
+    </array>
+    <key>StartCalendarInterval</key>
+    <dict>
+      <key>Hour</key>
+      <integer>2</integer>
+      <key>Minute</key>
+      <integer>0</integer>
+    </dict>
+    <key>StandardOutPath</key>
+    <string>/Users/you/Library/Logs/workflow.log</string>
+    <key>StandardErrorPath</key>
+    <string>/Users/you/Library/Logs/workflow.err</string>
+  </dict>
+</plist>
+```
+
+Load it:
+
+```bash
+launchctl load ~/Library/LaunchAgents/com.example.workflow.plist
+```
+
+Direct `curl` variant: set `ProgramArguments` to `["/usr/bin/curl", "-sS", "-X", "POST", "-H", "Content-Type: application/json", "--data", "@/Users/you/workflows/nightly.json", "http://127.0.0.1:8000/run"]`.
+
+#### 4.3 Windows (Task Scheduler)
+
+1. Open **Task Scheduler** → **Create Basic Task**.
+2. Choose trigger (e.g., daily at 2 AM).
+3. **Action**: *Start a program*.
+4. Program/script:
+
+   ```text
+   powershell.exe
+   ```
+
+5. Arguments:
+
+   ```text
+   -ExecutionPolicy Bypass -File "C:\path\to\run-workflow.ps1" -WorkflowFile "C:\path\to\nightly.json"
+   ```
+
+Direct HTTP example without script:
+
+```powershell
+powershell.exe -ExecutionPolicy Bypass -Command ^
+  "$body = Get-Content -Raw -Path 'C:\path\to\nightly.json'; ^
+   Invoke-RestMethod -Uri 'http://127.0.0.1:8000/run' -Method Post -ContentType 'application/json' -Body $body"
+```
+
+### 5. Operational Notes
+
+- Ensure **Next.js** and **FastAPI** servers are running before any scheduled job fires.
+- For production, consider running both servers as system services (systemd on Linux, launchd services on macOS, Services on Windows).
+- Use the in-app **DB Maintenance** panel to periodically **backup** and **compact** the SQLite database used by headless and UI-driven runs.
 
 ## 📚 Documentation
 
