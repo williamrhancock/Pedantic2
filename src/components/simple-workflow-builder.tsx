@@ -1158,11 +1158,21 @@ export function SimpleWorkflowBuilder() {
         // Try to find HTML content from node's execution output
         let nodeResult = executionResults.get(nodeId)
         
-        // If not found in executionResults, try to find it in timeline entries (for nodes outside for-each)
+        // If not found in executionResults, try to find it in timeline entries
         if (!nodeResult || !nodeResult.output || !nodeResult.output.content) {
-          const timelineEntry = timelineEntries
-            .filter(e => e.nodeId === nodeId && !e.isForEachResult)
+          // First try non-forEach timeline entries
+          let timelineEntry = timelineEntries
+            .filter(e => e.nodeId === nodeId && !e.isForEachResult && e.output)
             .sort((a, b) => b.timestamp.getTime() - a.timestamp.getTime())[0]
+          
+          // If still not found, check all entries (including forEach results) but prefer the latest
+          if (!timelineEntry || !timelineEntry.output || !timelineEntry.output.content) {
+            timelineEntry = timelineEntries
+              .filter(e => e.nodeId === nodeId && e.output && e.output.content)
+              .sort((a, b) => b.timestamp.getTime() - a.timestamp.getTime())[0]
+          }
+          
+          console.log('Checking timeline entry for HTML:', timelineEntry)
           if (timelineEntry && timelineEntry.output && timelineEntry.output.content) {
             nodeResult = {
               output: timelineEntry.output
@@ -1170,13 +1180,59 @@ export function SimpleWorkflowBuilder() {
           }
         }
         
+        // If still not found, check if we can get it from the last iteration of a for-each loop
+        if (!nodeResult || !nodeResult.output || !nodeResult.output.content) {
+          // Look for the HTML viewer in the last for-each iteration
+          const forEachResults = timelineEntries
+            .filter(e => e.isForEachResult && e.nodeId === nodeId && e.output && e.output.content)
+            .sort((a, b) => (b.forEachIteration ?? 0) - (a.forEachIteration ?? 0))
+          
+          if (forEachResults.length > 0) {
+            const lastIteration = forEachResults[0]
+            console.log('Found HTML in for-each iteration:', lastIteration)
+            if (lastIteration.output && lastIteration.output.content) {
+              nodeResult = {
+                output: lastIteration.output
+              }
+            }
+          }
+          
+          // Also check executionResults for for-each nodes and extract from their results
+          if (!nodeResult || !nodeResult.output || !nodeResult.output.content) {
+            Array.from(executionResults.entries()).forEach(([resultNodeId, result]) => {
+              // Check if this is a for-each node result
+              if (result.output && result.output.results && Array.isArray(result.output.results)) {
+                // Find the last successful iteration that has node_executions
+                for (let i = result.output.results.length - 1; i >= 0; i--) {
+                  const iteration = result.output.results[i]
+                  if (iteration.node_executions && Array.isArray(iteration.node_executions)) {
+                    // Find the HTML viewer in this iteration
+                    const htmlExec = iteration.node_executions.find(
+                      (exec: any) => exec.node_id === nodeId && exec.output && exec.output.content
+                    )
+                    if (htmlExec) {
+                      console.log('Found HTML in for-each iteration result:', htmlExec)
+                      nodeResult = {
+                        output: htmlExec.output
+                      }
+                      return
+                    }
+                  }
+                }
+              }
+            })
+          }
+        }
+        
         if (nodeResult && nodeResult.output && nodeResult.output.content) {
           // Display the detected HTML content
+          console.log('Found HTML content:', nodeResult.output.content.substring(0, 100))
           setHtmlContent(nodeResult.output.content)
           const detectedKey = nodeResult.output.detected_key || 'auto-detected'
           setHtmlTitle(`${node.title} (from ${detectedKey})`)
         } else {
           // Show helpful message if no execution results yet
+          console.log('No HTML content found, showing placeholder')
           setHtmlContent('<!DOCTYPE html><html><head><title>HTML Viewer</title></head><body><h1>HTML Viewer</h1><p>HTML content will appear here after workflow execution.</p><p>The HTML node automatically detects HTML content in any variable passed from upstream nodes.</p><h2>How it works:</h2><ol><li>The node scans all variables from upstream</li><li>Detects HTML patterns automatically</li><li>Displays the first variable containing HTML</li></ol></body></html>')
           setHtmlTitle(node.title)
         }
