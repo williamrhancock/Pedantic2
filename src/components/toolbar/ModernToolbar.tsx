@@ -93,20 +93,6 @@ export function ModernToolbar({
           <FolderOpen className="w-4 h-4" />
         </button>
         <button
-          onClick={onSave}
-          disabled={!hasUnsavedChanges || isAutoSaving}
-          className={`
-            p-2 rounded-lg transition-all
-            ${hasUnsavedChanges && !isAutoSaving
-              ? 'bg-purple-500/20 hover:bg-purple-500/30 text-purple-300 hover:scale-105 active:scale-95'
-              : 'opacity-50 cursor-not-allowed'
-            }
-          `}
-          title={isAutoSaving ? "Saving..." : hasUnsavedChanges ? "Save Workflow" : "No unsaved changes"}
-        >
-          <Save className="w-4 h-4" />
-        </button>
-        <button
           onClick={onSaveAs}
           className="p-2 rounded-lg hover:bg-white/10 transition-colors hover:scale-105 active:scale-95"
           title="Save As..."
