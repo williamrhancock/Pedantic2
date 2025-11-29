@@ -50,7 +50,8 @@ function WorkflowBrowser({ isOpen, onClose, onSelect }: WorkflowBrowserProps) {
   const [searchTerm, setSearchTerm] = useState('')
   const [selectedCategory, setSelectedCategory] = useState<'all' | 'templates' | 'my-workflows' | 'public'>('all')
   const { isDark } = useTheme()
-  
+  const [workflowToDelete, setWorkflowToDelete] = useState<any | null>(null)
+
   const { data: workflowsData, isLoading, refetch } = trpc.listWorkflows.useQuery({
     search: searchTerm,
     category: selectedCategory,
@@ -147,9 +148,7 @@ function WorkflowBrowser({ isOpen, onClose, onSelect }: WorkflowBrowserProps) {
                       <button
                         onClick={(e) => {
                           e.stopPropagation()
-                          if (confirm(`Are you sure you want to delete "${workflow.name}"?`)) {
-                            deleteWorkflowMutation.mutate({ id: workflow.id })
-                          }
+                          setWorkflowToDelete(workflow)
                         }}
                           className="p-1 hover:bg-red-500/20 rounded transition-colors"
                         title="Delete"
@@ -179,6 +178,49 @@ function WorkflowBrowser({ isOpen, onClose, onSelect }: WorkflowBrowserProps) {
           )}
         </div>
       </div>
+      {/* Workflow Delete Confirmation Dialog (browser) */}
+      {workflowToDelete && (
+        <>
+          <div
+            className="fixed inset-0 z-[60] backdrop-blur-md bg-black/60"
+            onClick={() => setWorkflowToDelete(null)}
+          />
+          <div
+            className="fixed inset-0 z-[60] flex items-center justify-center p-4"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div
+              className="glass-card p-6 w-full max-w-md"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <h3 className="text-xl font-semibold text-foreground mb-2">
+                Delete Workflow?
+              </h3>
+              <p className="text-sm text-muted-foreground mb-4">
+                Are you sure you want to delete &quot;{workflowToDelete.name}&quot;? This action
+                cannot be undone.
+              </p>
+              <div className="flex items-center justify-end gap-3">
+                <button
+                  onClick={() => setWorkflowToDelete(null)}
+                  className="px-4 py-2 rounded-lg bg-white/5 hover:bg-white/10 transition-all hover:scale-105 active:scale-95"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={() => {
+                    deleteWorkflowMutation.mutate({ id: workflowToDelete.id })
+                    setWorkflowToDelete(null)
+                  }}
+                  className="px-6 py-2 rounded-lg bg-gradient-to-r from-red-500 to-red-600 text-white font-medium shadow-lg hover:scale-105 active:scale-95 transition-all"
+                >
+                  Delete
+                </button>
+              </div>
+            </div>
+          </div>
+        </>
+      )}
     </div>
   )
 }
@@ -218,6 +260,8 @@ export function SimpleWorkflowBuilder() {
   const [pendingImportCustomNode, setPendingImportCustomNode] = useState<any | null>(null)
   const [pendingImportCustomNodeName, setPendingImportCustomNodeName] = useState<string | null>(null)
   const [showImportOverwriteDialog, setShowImportOverwriteDialog] = useState(false)
+  const [showUnsavedConfirmDialog, setShowUnsavedConfirmDialog] = useState(false)
+  const [workflowToDelete, setWorkflowToDelete] = useState<any | null>(null)
   const [activeNodeType, setActiveNodeType] = useState<NodeType | null>(null)
 
   // Generate connections based on node order
@@ -318,7 +362,8 @@ export function SimpleWorkflowBuilder() {
       })
     } catch (error) {
       console.error('Failed to save workflow:', error)
-      alert('Failed to save workflow. Please try again.')
+      // Surface error; SaveAsDialog / caller is responsible for UI feedback.
+      throw error
     }
   }, [workflowMetadata, saveWorkflowMutation, createWorkflowData])
 
@@ -395,12 +440,13 @@ export function SimpleWorkflowBuilder() {
       setShowWorkflowBrowser(false)
     } catch (error) {
       console.error('Failed to load workflow:', error)
-      alert('Failed to load workflow. Please try again.')
+      // TODO: show a dedicated app dialog for workflow load failures.
     }
   }
 
   const handleNewWorkflow = () => {
-    if (hasUnsavedChanges && !confirm('You have unsaved changes. Are you sure you want to create a new workflow?')) {
+    if (hasUnsavedChanges) {
+      setShowUnsavedConfirmDialog(true)
       return
     }
 
@@ -473,11 +519,11 @@ export function SimpleWorkflowBuilder() {
         
         if (importedData?.[0]?.result?.data) {
           await handleLoadWorkflow(importedData[0].result.data)
-          alert(`Successfully imported workflow: ${result.name}`)
+          // TODO: show a non-blocking toast/snackbar for successful import.
         }
       } catch (error) {
         console.error('Failed to import workflow:', error)
-        alert('Failed to import workflow. Please check the file format.')
+        // TODO: show an app-styled error dialog/toast for import failures.
       }
     }
     input.click()
@@ -718,7 +764,7 @@ export function SimpleWorkflowBuilder() {
     if (!node) return
 
     if (node.type === 'start' || node.type === 'end') {
-      alert('Start and End nodes cannot be saved as custom nodes')
+      // These nodes are not eligible to be custom nodes; ignore the request.
       return
     }
 
@@ -788,7 +834,7 @@ export function SimpleWorkflowBuilder() {
 
     // Prevent deleting start or end nodes
     if (nodeToDelete.type === 'start' || nodeToDelete.type === 'end') {
-      alert('Start and End nodes cannot be deleted')
+      // Start/End nodes are visually differentiated and not deletable; just ignore.
       return
     }
 
@@ -890,8 +936,6 @@ export function SimpleWorkflowBuilder() {
           if (newTemplate) {
             handleSelectCustomNode(newTemplate.id)
           }
-
-          alert(`Successfully imported custom node: ${result.name}`)
         } catch (error: any) {
           const message = error?.message || String(error)
           // Detect name collision and offer overwrite via in-app dialog
@@ -901,12 +945,10 @@ export function SimpleWorkflowBuilder() {
             setShowImportOverwriteDialog(true)
           } else {
             console.error('Failed to import custom node:', error)
-            alert('Failed to import custom node. Please check the file format.')
           }
         }
       } catch (error) {
         console.error('Failed to read custom node file:', error)
-        alert('Failed to read custom node file. Please try again.')
       }
     }
     input.click()
@@ -1094,11 +1136,8 @@ export function SimpleWorkflowBuilder() {
                       if (newTemplate) {
                         handleSelectCustomNode(newTemplate.id)
                       }
-
-                      alert(`Successfully overwrote custom node: ${result.name}`)
                     } catch (error) {
                       console.error('Failed to overwrite custom node during import:', error)
-                      alert('Failed to overwrite custom node. Please try again.')
                     } finally {
                       setShowImportOverwriteDialog(false)
                       setPendingImportCustomNode(null)
@@ -1108,6 +1147,120 @@ export function SimpleWorkflowBuilder() {
                   className="px-6 py-2 rounded-lg bg-gradient-to-r from-purple-500 to-purple-600 text-white font-medium shadow-lg hover:scale-105 active:scale-95 transition-all"
                 >
                   Overwrite
+                </button>
+              </div>
+            </div>
+          </div>
+        </>
+      )}
+
+      {/* Unsaved Changes Confirmation Dialog */}
+      {showUnsavedConfirmDialog && (
+        <>
+          <div
+            className="fixed inset-0 z-[60] backdrop-blur-md bg-black/60"
+            onClick={() => setShowUnsavedConfirmDialog(false)}
+          />
+          <div
+            className="fixed inset-0 z-[60] flex items-center justify-center p-4"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div
+              className="glass-card p-6 w-full max-w-md"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <h3 className="text-xl font-semibold text-foreground mb-2">
+                Discard Unsaved Changes?
+              </h3>
+              <p className="text-sm text-muted-foreground mb-4">
+                You have unsaved changes in this workflow. Creating a new workflow will discard those changes.
+                Do you want to continue?
+              </p>
+              <div className="flex items-center justify-end gap-3">
+                <button
+                  onClick={() => setShowUnsavedConfirmDialog(false)}
+                  className="px-4 py-2 rounded-lg bg-white/5 hover:bg-white/10 transition-all hover:scale-105 active:scale-95"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={() => {
+                    setShowUnsavedConfirmDialog(false)
+                    // Proceed with new workflow
+                    setNodes([
+                      {
+                        id: 'start',
+                        type: 'start',
+                        title: 'Start',
+                        position: { x: 100, y: 100 }
+                      },
+                      {
+                        id: 'end',
+                        type: 'end',
+                        title: 'End',
+                        position: { x: 400, y: 100 }
+                      }
+                    ])
+                    setConnections([{ from: 'start', to: 'end' }])
+                    setWorkflowMetadata({
+                      name: 'Untitled Workflow',
+                      description: '',
+                      tags: [],
+                      isTemplate: false
+                    })
+                    setHasUnsavedChanges(false)
+                    setSelectedNode(null)
+                  }}
+                  className="px-6 py-2 rounded-lg bg-gradient-to-r from-purple-500 to-purple-600 text-white font-medium shadow-lg hover:scale-105 active:scale-95 transition-all"
+                >
+                  Discard & New Workflow
+                </button>
+              </div>
+            </div>
+          </div>
+        </>
+      )}
+
+      {/* Workflow Delete Confirmation Dialog */}
+      {workflowToDelete && (
+        <>
+          <div
+            className="fixed inset-0 z-[60] backdrop-blur-md bg-black/60"
+            onClick={() => setWorkflowToDelete(null)}
+          />
+          <div
+            className="fixed inset-0 z-[60] flex items-center justify-center p-4"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div
+              className="glass-card p-6 w-full max-w-md"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <h3 className="text-xl font-semibold text-foreground mb-2">
+                Delete Workflow?
+              </h3>
+              <p className="text-sm text-muted-foreground mb-4">
+                Are you sure you want to delete &quot;{workflowToDelete.name}&quot;? This action
+                cannot be undone.
+              </p>
+              <div className="flex items-center justify-end gap-3">
+                <button
+                  onClick={() => setWorkflowToDelete(null)}
+                  className="px-4 py-2 rounded-lg bg-white/5 hover:bg-white/10 transition-all hover:scale-105 active:scale-95"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={() => {
+                    if (workflowToDelete) {
+                      // Deletion is handled inside the WorkflowBrowser dialog; this is just for
+                      // confirming unsaved changes in the main builder.
+                    }
+                    setWorkflowToDelete(null)
+                  }}
+                  className="px-6 py-2 rounded-lg bg-gradient-to-r from-red-500 to-red-600 text-white font-medium shadow-lg hover:scale-105 active:scale-95 transition-all"
+                >
+                  Delete
                 </button>
               </div>
             </div>

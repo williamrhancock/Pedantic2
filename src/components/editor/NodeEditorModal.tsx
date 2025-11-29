@@ -53,6 +53,7 @@ export function NodeEditorModal({
   const [customNameInput, setCustomNameInput] = useState(customName || nodeTitle)
   const [customDescriptionInput, setCustomDescriptionInput] = useState('')
   const [customError, setCustomError] = useState<string | null>(null)
+  const [configError, setConfigError] = useState<string | null>(null)
   const [showExportDialog, setShowExportDialog] = useState(false)
   const [exportFilenameInput, setExportFilenameInput] = useState(
     (customName || nodeTitle || 'custom_node') + '.json'
@@ -67,6 +68,8 @@ export function NodeEditorModal({
   const handleSave = async () => {
     if (isLocked) return
 
+    setConfigError(null)
+
     if (isCodeNode) {
       onSave(editedCode, undefined)
     } else if (isConfigNode) {
@@ -74,7 +77,7 @@ export function NodeEditorModal({
         const parsedConfig = JSON.parse(editedConfig)
         onSave(undefined, parsedConfig)
       } catch (e) {
-        alert('Invalid JSON configuration')
+        setConfigError('Invalid JSON configuration')
         return
       }
     }
@@ -84,7 +87,6 @@ export function NodeEditorModal({
 
   const handleDelete = () => {
     if (!canDelete) {
-      alert('Start and End nodes cannot be deleted')
       return
     }
     setShowDeleteConfirm(true)
@@ -257,11 +259,13 @@ export function NodeEditorModal({
                     onClick={async () => {
                       try {
                         let updatedConfig: any | undefined
+                        setConfigError(null)
+
                         if (isConfigNode) {
                           try {
                             updatedConfig = JSON.parse(editedConfig)
                           } catch (e) {
-                            alert('Invalid JSON configuration')
+                            setConfigError('Invalid JSON configuration')
                             return
                           }
                         }
@@ -366,6 +370,21 @@ export function NodeEditorModal({
                 </p>
               )}
             </div>
+
+            {(configError || customError) && (
+              <div className="mt-3 space-y-1">
+                {configError && (
+                  <p className="text-xs text-red-400">
+                    {configError}
+                  </p>
+                )}
+                {customError && (
+                  <p className="text-xs text-red-400">
+                    {customError}
+                  </p>
+                )}
+              </div>
+            )}
           </div>
         </div>
 

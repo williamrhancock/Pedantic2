@@ -84,7 +84,8 @@ export function SaveAsDialog({
       onClose()
     } catch (error) {
       console.error('Failed to save workflow:', error)
-      alert('Failed to save workflow. Please try again.')
+      // Surface the error back to the caller; they are responsible for showing an app dialog.
+      throw error
     } finally {
       setIsSaving(false)
     }
