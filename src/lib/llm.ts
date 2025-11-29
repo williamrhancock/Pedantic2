@@ -19,6 +19,12 @@ export interface LlmConfig {
    */
   api_key?: string
   /**
+   * Optional custom base URL for non-standard or self-hosted providers.
+   * For example: https://my-proxy.example.com
+   * This is primarily intended to be set via the Advanced JSON editor.
+   */
+  base_url?: string
+  /**
    * Optional legacy env var name (e.g. OPENROUTER_API_KEY). Kept for
    * backwards compatibility with existing configs.
    */
@@ -37,6 +43,7 @@ export function createDefaultLlmConfig(): LlmConfig {
     user: 'You are a helpful assistant. Process this data.',
     api_key: undefined,
     api_key_name: 'OPENROUTER_API_KEY',
+    base_url: undefined,
   }
 }
 
@@ -87,6 +94,11 @@ export function normalizeLlmConfig(raw: any | undefined | null): LlmConfig {
       ? raw.api_key_name
       : base.api_key_name
 
+  const base_url =
+    typeof raw.base_url === 'string' && raw.base_url.trim()
+      ? raw.base_url
+      : undefined
+
   return {
     provider,
     model,
@@ -96,6 +108,7 @@ export function normalizeLlmConfig(raw: any | undefined | null): LlmConfig {
     user,
     api_key,
     api_key_name,
+    base_url,
   }
 }
 

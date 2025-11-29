@@ -87,7 +87,7 @@ export function LlmNodeDialog({
 
   const [config, setConfig] = useState<LlmConfig>(initialConfig)
   const [tab, setTab] = useState<TabId>('form')
-  const [jsonText, setJsonText] = useState<string>(JSON.stringify(initialConfig, null, 2))
+  const [jsonText, setJsonText] = useState<string>(JSON.stringify({ ...initialConfig, api_key: undefined }, null, 2))
   const [jsonError, setJsonError] = useState<string | null>(null)
   const [formError, setFormError] = useState<string | null>(null)
   const [models, setModels] = useState<{ label: string; value: string }[]>([])
@@ -98,7 +98,9 @@ export function LlmNodeDialog({
     if (isOpen) {
       const normalized = normalizeLlmConfig(rawConfig as LlmConfig | undefined)
       setConfig(normalized)
-      setJsonText(JSON.stringify(normalized, null, 2))
+      // Do not expose api_key in the Advanced JSON view
+      const { api_key: _ignored, ...jsonSafe } = normalized
+      setJsonText(JSON.stringify(jsonSafe, null, 2))
       setJsonError(null)
       setFormError(null)
       setTab('form')
@@ -110,7 +112,9 @@ export function LlmNodeDialog({
   const handleFieldChange = (partial: Partial<LlmConfig>) => {
     setConfig((prev) => {
       const next = { ...prev, ...partial }
-      setJsonText(JSON.stringify(next, null, 2))
+      // Keep api_key out of the JSON tab; it is edited only via the masked field.
+      const { api_key: _ignored, ...jsonSafe } = next
+      setJsonText(JSON.stringify(jsonSafe, null, 2))
       return next
     })
     setFormError(null)
@@ -141,7 +145,11 @@ export function LlmNodeDialog({
     try {
       const parsed = JSON.parse(text)
       const normalized = normalizeLlmConfig(parsed)
-      setConfig(normalized)
+      // Preserve any existing api_key already held in state; JSON edits never touch it.
+      setConfig((prev) => ({
+        ...normalized,
+        api_key: prev.api_key,
+      }))
       setJsonError(null)
       setFormError(null)
     } catch (e) {
@@ -390,11 +398,11 @@ export function LlmNodeDialog({
                   </div>
                 </div>
 
-                {/* Second row: API key + Provider/env var */}
+                {/* Second row: API key + Provider */}
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div>
                     <label className="text-sm font-semibold text-foreground mb-1 block">
-                      API key override (optional)
+                      API key
                     </label>
                     <input
                       type="password"
@@ -408,9 +416,9 @@ export function LlmNodeDialog({
                       }
                     />
                     <p className="text-[11px] text-muted-foreground mt-1">
-                      If empty, the backend uses environment-based configuration
-                      (e.g. OPENROUTER_API_KEY). This field overrides it for
-                      this node only.
+                      Required to call this provider for this node. This value is
+                      stored in the workflow but never shown in the Advanced JSON
+                      view or exports.
                     </p>
                   </div>
                   <div>
@@ -435,22 +443,8 @@ export function LlmNodeDialog({
                         </option>
                       ))}
                     </select>
-                    <label className="text-sm font-semibold text-foreground mb-1 block">
-                      API key env var name (legacy)
-                    </label>
-                    <input
-                      type="text"
-                      className="w-full px-3 py-2 rounded-lg bg-white/5 border border-white/10 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-purple-500"
-                      value={config.api_key_name ?? ''}
-                      disabled={isLocked}
-                      onChange={(e) =>
-                        handleFieldChange({
-                          api_key_name: e.target.value || undefined,
-                        })
-                      }
-                    />
                     <p className="text-[11px] text-muted-foreground mt-1">
-                      Used by some providers/routers (e.g. OPENROUTER_API_KEY).
+                      Choose the upstream provider or router you are using.
                     </p>
                   </div>
                 </div>
