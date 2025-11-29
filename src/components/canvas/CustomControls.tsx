@@ -7,7 +7,7 @@ import type { ReactFlowInstance } from 'reactflow'
 
 interface WorkflowNode {
   id: string
-  type: 'start' | 'end' | 'python' | 'typescript' | 'http' | 'file' | 'condition' | 'database' | 'llm' | 'foreach'
+  type: 'start' | 'end' | 'python' | 'typescript' | 'http' | 'file' | 'condition' | 'database' | 'llm' | 'foreach' | 'markdown'
   position: { x: number; y: number }
 }
 

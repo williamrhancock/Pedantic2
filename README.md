@@ -75,9 +75,8 @@ Headless? POST to `/run` with workflow JSON. Or `npm run run-workflow -- 42` (ID
 
 ## 🧠 Deep Dives (For When READMEs Lie)
 
-- [HOW_TO_CODE_NODES.md](HOW_TO_CODE_NODES.md): Python node nitpicks.
-- [HOW_TO_CODE_TYPESCRIPT_NODES.md](HOW_TO_CODE_TYPESCRIPT_NODES.md): TS async angst.
-- [HOW_TO_CONFIGURE_NODES.md](HOW_TO_CONFIGURE_NODES.md): Config JSON tomfoolery.
+- [Do you want to do this the easy way?](docs/WORKFLOW_NODES_GUIDE.md), or the hardway (YOLO).
+
 
 DB woes? Maintenance panel: Delete, backup, compact. Because SQLite bloat is real.
 

@@ -50,6 +50,7 @@ interface WorkflowCanvasProps {
     id: string
     type: WorkflowNodeType
     title: string
+    description?: string
     code?: string
     config?: any
     position: { x: number; y: number }

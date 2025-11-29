@@ -9,6 +9,7 @@ import {
   type Workflow
 } from '@/lib/db'
 import fs from 'fs'
+import path from 'path'
 import { z } from 'zod'
 
 const appRouter = createTRPCRouter({
@@ -571,6 +572,47 @@ const appRouter = createTRPCRouter({
         })
       })
       return { success: true }
+    }),
+
+  // === MARKDOWN FILE READING ===
+  readMarkdownFile: publicProcedure
+    .input(z.object({
+      filePath: z.string().min(1),
+    }))
+    .mutation(async ({ input }) => {
+      // Resolve file path relative to project root
+      // Remove leading slash if present (e.g., /docs/file.md -> docs/file.md)
+      const normalizedPath = input.filePath.startsWith('/') 
+        ? input.filePath.slice(1) 
+        : input.filePath
+      
+      // Get project root (where package.json is located)
+      // In Next.js API routes, process.cwd() gives us the project root
+      const projectRoot = process.cwd()
+      const fullPath = path.join(projectRoot, normalizedPath)
+      
+      // Security: ensure the resolved path is within project root
+      const resolvedPath = path.resolve(fullPath)
+      const resolvedRoot = path.resolve(projectRoot)
+      
+      if (!resolvedPath.startsWith(resolvedRoot)) {
+        throw new Error('Invalid file path: path must be within project root')
+      }
+      
+      // Only allow .md files
+      if (!normalizedPath.endsWith('.md')) {
+        throw new Error('Invalid file type: only .md files are allowed')
+      }
+      
+      try {
+        const content = await fs.promises.readFile(resolvedPath, 'utf-8')
+        return { content, path: normalizedPath }
+      } catch (error) {
+        if ((error as NodeJS.ErrnoException).code === 'ENOENT') {
+          throw new Error(`File not found: ${normalizedPath}`)
+        }
+        throw new Error(`Failed to read file: ${(error as Error).message}`)
+      }
     })
 })
 

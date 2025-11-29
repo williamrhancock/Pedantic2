@@ -10,6 +10,7 @@ import { NodeEditorModal } from '@/components/editor/NodeEditorModal'
 import { SaveAsDialog } from '@/components/dialogs/SaveAsDialog'
 import { DbMaintenanceModal } from '@/components/dialogs/DbMaintenanceModal'
 import { LlmNodeDialog } from '@/components/dialogs/LlmNodeDialog'
+import { MarkdownViewerModal } from '@/components/dialogs/MarkdownViewerModal'
 import { useTheme } from '@/contexts/ThemeContext'
 import type { NodeType } from '@/components/toolbar/ModernToolbar'
 import { workflowNodeToCustomData } from '@/lib/custom-nodes'
@@ -17,7 +18,7 @@ import { createDefaultLlmConfig, normalizeLlmConfig, type LlmConfig } from '@/li
 
 interface WorkflowNode {
   id: string
-  type: 'start' | 'end' | 'python' | 'typescript' | 'http' | 'file' | 'condition' | 'database' | 'llm' | 'foreach'
+  type: 'start' | 'end' | 'python' | 'typescript' | 'http' | 'file' | 'condition' | 'database' | 'llm' | 'foreach' | 'markdown'
   title: string
   description?: string
   code?: string
@@ -290,6 +291,10 @@ export function SimpleWorkflowBuilder() {
   const [timelineEntries, setTimelineEntries] = useState<TimelineEntry[]>([])
   const [showEditorModal, setShowEditorModal] = useState(false)
   const [isLocked, setIsLocked] = useState(false)
+  const [showMarkdownViewer, setShowMarkdownViewer] = useState(false)
+  const [markdownContent, setMarkdownContent] = useState('')
+  const [markdownTitle, setMarkdownTitle] = useState('')
+  const [executionResults, setExecutionResults] = useState<Map<string, any>>(new Map())
   const canvasRef = useRef<WorkflowCanvasRef>(null)
 
   // tRPC mutations
@@ -608,6 +613,15 @@ export function SimpleWorkflowBuilder() {
       const result = await executeWorkflowMutation.mutateAsync({
         workflow: workflowData
       })
+
+      // Store execution results for later access (e.g., markdown viewer)
+      const resultsMap = new Map<string, any>()
+      if (result.nodes && Array.isArray(result.nodes)) {
+        result.nodes.forEach((nodeResult: any) => {
+          resultsMap.set(nodeResult.id, nodeResult)
+        })
+      }
+      setExecutionResults(resultsMap)
 
       // Process results sequentially to show real-time status
       let allSuccess = true
@@ -992,6 +1006,10 @@ export function SimpleWorkflowBuilder() {
         max_concurrency: 5,
         items_key: 'items'
       }
+    } else if (type === 'markdown') {
+      newNode.config = {
+        content_key: 'content'
+      }
     }
 
     const newNodes = [...nodes, newNode]
@@ -1009,6 +1027,7 @@ export function SimpleWorkflowBuilder() {
       case 'database': return 'Database Query'
       case 'llm': return 'LLM AI Assistant'
       case 'foreach': return 'For Each Loop'
+      case 'markdown': return 'Markdown Viewer'
       default: return 'Unknown Node'
     }
   }
@@ -1033,8 +1052,98 @@ export function SimpleWorkflowBuilder() {
     const node = nodes.find(n => n.id === nodeId)
     if (node) {
       setSelectedNode(nodeId)
-      setShowEditorModal(true)
+      // If it's a markdown node, show markdown viewer instead of editor
+      if (node.type === 'markdown') {
+        // Try to find markdown content from node's execution output
+        const nodeResult = executionResults.get(nodeId)
+        if (nodeResult && nodeResult.output && nodeResult.output.content) {
+          // Display the detected markdown content
+          setMarkdownContent(nodeResult.output.content)
+          const detectedKey = nodeResult.output.detected_key || 'auto-detected'
+          setMarkdownTitle(`${node.title} (from ${detectedKey})`)
+        } else {
+          // Show helpful message if no execution results yet
+          setMarkdownContent('# Markdown Viewer\n\nMarkdown content will appear here after workflow execution.\n\nThe markdown node automatically detects markdown content in any variable passed from upstream nodes.\n\n**Supported markdown patterns:**\n- Headers (#, ##, ###)\n- Bold (**text**) and italic (*text*)\n- Links [text](url)\n- Code blocks (```)\n- Lists (-, *, numbered)\n- Blockquotes (>)\n- Tables\n\n**How it works:**\n1. The node scans all variables from upstream\n2. Detects markdown patterns automatically\n3. Displays the first variable containing markdown')
+          setMarkdownTitle(node.title)
+        }
+        setShowMarkdownViewer(true)
+      } else {
+        setShowEditorModal(true)
+      }
     }
+  }
+
+  const readMarkdownFileMutation = trpc.readMarkdownFile.useMutation()
+
+  const handleOpenMarkdownViewer = async (filePathWithAnchor: string) => {
+    try {
+      // Split file path and anchor
+      const [filePath, anchor] = filePathWithAnchor.split('#')
+      const result = await readMarkdownFileMutation.mutateAsync({ filePath })
+      setMarkdownContent(result.content)
+      // Extract filename for title
+      const filename = result.path.split('/').pop() || result.path
+      setMarkdownTitle(filename.replace('.md', ''))
+      setShowMarkdownViewer(true)
+      
+      // If there's an anchor, scroll to it after a short delay to ensure content is rendered
+      if (anchor) {
+        setTimeout(() => {
+          const element = document.querySelector(`#${anchor}`)
+          if (element) {
+            element.scrollIntoView({ behavior: 'smooth', block: 'start' })
+          }
+        }, 200)
+      }
+    } catch (error) {
+      console.error('Failed to read markdown file:', error)
+      setMarkdownContent(`# Error\n\nFailed to load markdown file: ${filePathWithAnchor}\n\n${(error as Error).message}`)
+      setMarkdownTitle('Error')
+      setShowMarkdownViewer(true)
+    }
+  }
+
+  const handleMarkdownLinkClick = (href: string) => {
+    if (typeof window === 'undefined') return
+    
+    try {
+      // Handle relative links (e.g., /docs/WORKFLOW_NODES_GUIDE.md, ./docs/file.md, or docs/file.md)
+      // Also handle absolute URLs to localhost
+      let normalizedPath: string | null = null
+      
+      // Check if it's an absolute URL to localhost
+      try {
+        const url = new URL(href, window.location.origin)
+        if (url.origin === window.location.origin) {
+          normalizedPath = url.pathname.startsWith('/') ? url.pathname.slice(1) : url.pathname
+        }
+      } catch {
+        // Not a valid URL, treat as relative path
+      }
+      
+      // Handle relative paths
+      if (!normalizedPath) {
+        if (href.startsWith('/')) {
+          normalizedPath = href.slice(1)
+        } else if (href.startsWith('./')) {
+          normalizedPath = href.replace(/^\.\//, '')
+        } else if (href.endsWith('.md') && !href.includes('://')) {
+          // Relative path without leading slash (e.g., "docs/file.md")
+          normalizedPath = href
+        }
+      }
+      
+      if (normalizedPath) {
+        handleOpenMarkdownViewer(normalizedPath)
+      }
+      // External links will open normally (handled by browser)
+    } catch (error) {
+      console.error('Error handling markdown link click:', error)
+    }
+  }
+
+  const handleOpenHelp = () => {
+    handleOpenMarkdownViewer('README.md')
   }
 
   const handleNodeSave = (code?: string, config?: any) => {
@@ -1260,6 +1369,7 @@ export function SimpleWorkflowBuilder() {
         onSelectCustomNode={isLocked ? undefined : handleSelectCustomNode}
         onImportCustomNodes={isLocked ? undefined : handleImportCustomNodes}
         onOpenDbMaintenance={() => setShowDbMaintenance(true)}
+        onOpenHelp={handleOpenHelp}
         onNewWorkflow={handleNewWorkflow}
         onOpenWorkflow={() => setShowWorkflowBrowser(true)}
         onSave={handleSave}
@@ -1543,6 +1653,15 @@ export function SimpleWorkflowBuilder() {
       <DbMaintenanceModal
         isOpen={showDbMaintenance}
         onClose={() => setShowDbMaintenance(false)}
+      />
+
+      {/* Markdown Viewer Modal */}
+      <MarkdownViewerModal
+        isOpen={showMarkdownViewer}
+        onClose={() => setShowMarkdownViewer(false)}
+        title={markdownTitle}
+        markdown={markdownContent}
+        onLinkClick={handleMarkdownLinkClick}
       />
 
       {/* Workflow Delete Confirmation Dialog */}

@@ -1,6 +1,6 @@
 'use client'
 
-import React from 'react'
+import React, { useState, useRef, useEffect } from 'react'
 import { useTheme } from '@/contexts/ThemeContext'
 import { ThemeToggle } from '@/components/theme/ThemeToggle'
 import {
@@ -12,10 +12,16 @@ import {
   Upload,
   Play,
   ShieldAlert,
+  ChevronDown,
+  Code,
+  Network,
+  Database,
+  GitBranch,
+  HelpCircle,
 } from 'lucide-react'
 import type { CustomNodeTemplate } from '@/lib/custom-nodes'
 
-export type NodeType = 'python' | 'typescript' | 'http' | 'file' | 'condition' | 'database' | 'llm' | 'foreach'
+export type NodeType = 'python' | 'typescript' | 'http' | 'file' | 'condition' | 'database' | 'llm' | 'foreach' | 'markdown'
 
 interface ModernToolbarProps {
   activeNodeType?: NodeType | null
@@ -35,6 +41,7 @@ interface ModernToolbarProps {
   onSelectCustomNode?: (templateId: number) => void
   onImportCustomNodes?: () => void
   onOpenDbMaintenance?: () => void
+  onOpenHelp?: () => void
 }
 
 const nodeTypes: { type: NodeType; label: string; color: string }[] = [
@@ -46,7 +53,143 @@ const nodeTypes: { type: NodeType; label: string; color: string }[] = [
   { type: 'database', label: 'Database', color: 'from-green-600 to-emerald-700' },
   { type: 'llm', label: 'LLM AI', color: 'from-pink-500 to-rose-600' },
   { type: 'foreach', label: 'For Each', color: 'from-indigo-500 to-indigo-600' },
+  { type: 'markdown', label: 'Markdown', color: 'from-violet-500 to-violet-600' },
 ]
+
+const nodeGroups = [
+  {
+    label: 'Code',
+    icon: Code,
+    items: [
+      { type: 'python' as NodeType, label: 'Python' },
+      { type: 'typescript' as NodeType, label: 'TypeScript' },
+    ],
+  },
+  {
+    label: 'I/O',
+    icon: Network,
+    items: [
+      { type: 'http' as NodeType, label: 'HTTP' },
+      { type: 'file' as NodeType, label: 'File' },
+      { type: 'markdown' as NodeType, label: 'Markdown' },
+    ],
+  },
+  {
+    label: 'Data',
+    icon: Database,
+    items: [
+      { type: 'database' as NodeType, label: 'Database' },
+      { type: 'llm' as NodeType, label: 'LLM AI' },
+    ],
+  },
+  {
+    label: 'Flow',
+    icon: GitBranch,
+    items: [
+      { type: 'condition' as NodeType, label: 'Condition' },
+      { type: 'foreach' as NodeType, label: 'For Each' },
+    ],
+  },
+]
+
+function NodeGroupDropdown({
+  group,
+  activeNodeType,
+  onNodeTypeClick,
+  isLocked,
+  isDark,
+}: {
+  group: typeof nodeGroups[0]
+  activeNodeType?: NodeType | null
+  onNodeTypeClick: (type: NodeType) => void
+  isLocked: boolean
+  isDark: boolean
+}) {
+  const [isOpen, setIsOpen] = useState(false)
+  const dropdownRef = useRef<HTMLDivElement>(null)
+  const Icon = group.icon
+
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
+        setIsOpen(false)
+      }
+    }
+
+    if (isOpen) {
+      document.addEventListener('mousedown', handleClickOutside)
+      return () => document.removeEventListener('mousedown', handleClickOutside)
+    }
+  }, [isOpen])
+
+  const hasActiveNode = group.items.some(item => activeNodeType === item.type)
+
+  return (
+    <div className="relative" ref={dropdownRef}>
+      <button
+        onClick={() => !isLocked && setIsOpen(!isOpen)}
+        disabled={isLocked}
+        className={`
+          relative px-4 py-2 rounded-lg
+          text-sm font-medium
+          transition-all duration-300
+          flex items-center gap-2
+          ${isLocked 
+            ? 'opacity-50 cursor-not-allowed' 
+            : 'hover:scale-105 active:scale-95'
+          }
+          ${hasActiveNode
+            ? 'bg-white/15 text-foreground'
+            : 'bg-white/5 hover:bg-white/10 text-foreground'
+          }
+        `}
+        title={isLocked ? 'Workflow is locked - unlock to add nodes' : `Add ${group.label} Node`}
+      >
+        <Icon className="w-4 h-4" />
+        <span>{group.label}</span>
+        <ChevronDown className={`w-3 h-3 transition-transform ${isOpen ? 'rotate-180' : ''}`} />
+      </button>
+
+      {isOpen && !isLocked && (
+        <div className={`
+          absolute top-full left-0 mt-2 min-w-[160px]
+          rounded-lg shadow-xl z-50
+          ${isDark 
+            ? 'bg-gradient-to-br from-purple-900/95 via-indigo-900/95 to-purple-800/95' 
+            : 'bg-gradient-to-br from-purple-50/95 via-indigo-50/95 to-purple-100/95'
+          } 
+          backdrop-blur-sm border border-purple-500/30
+          overflow-hidden
+        `}>
+          {group.items.map((item) => {
+            const nodeType = nodeTypes.find(nt => nt.type === item.type)
+            const isActive = activeNodeType === item.type
+            return (
+              <button
+                key={item.type}
+                onClick={() => {
+                  onNodeTypeClick(item.type)
+                  setIsOpen(false)
+                }}
+                className={`
+                  w-full px-4 py-2 text-left text-sm
+                  transition-colors
+                  flex items-center gap-2
+                  ${isActive
+                    ? `bg-gradient-to-r ${nodeType?.color || ''} text-white`
+                    : 'hover:bg-white/10 text-foreground'
+                  }
+                `}
+              >
+                {item.label}
+              </button>
+            )
+          })}
+        </div>
+      )}
+    </div>
+  )
+}
 
 export function ModernToolbar({
   activeNodeType,
@@ -66,6 +209,7 @@ export function ModernToolbar({
   onSelectCustomNode,
   onImportCustomNodes,
   onOpenDbMaintenance,
+  onOpenHelp,
 }: ModernToolbarProps) {
   const { isDark } = useTheme()
 
@@ -117,37 +261,18 @@ export function ModernToolbar({
         </button>
       </div>
 
-      {/* Center: Node type buttons */}
+      {/* Center: Node type dropdowns */}
       <div className="flex items-center gap-2 sm:gap-3 flex-wrap justify-center flex-1 min-w-[220px]">
-        {nodeTypes.map(({ type, label, color }) => {
-          const isActive = activeNodeType === type
-          return (
-            <button
-              key={type}
-              onClick={() => onNodeTypeClick(type)}
-              disabled={isLocked}
-              className={`
-                relative px-4 py-2 rounded-lg
-                text-sm font-medium
-                transition-all duration-300
-                ${isLocked 
-                  ? 'opacity-50 cursor-not-allowed' 
-                  : 'hover:scale-105 active:scale-95'
-                }
-                ${isActive
-                  ? `bg-gradient-to-r ${color} text-white shadow-lg`
-                  : 'bg-white/5 hover:bg-white/10 text-foreground'
-                }
-              `}
-              title={isLocked ? 'Workflow is locked - unlock to add nodes' : `Add ${label} Node`}
-            >
-              {label}
-              {isActive && (
-                <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-white rounded-full" />
-              )}
-            </button>
-          )
-        })}
+        {nodeGroups.map((group) => (
+          <NodeGroupDropdown
+            key={group.label}
+            group={group}
+            activeNodeType={activeNodeType}
+            onNodeTypeClick={onNodeTypeClick}
+            isLocked={isLocked}
+            isDark={isDark}
+          />
+        ))}
       </div>
 
       {/* Right: Custom nodes, Execute and theme toggle */}
@@ -216,6 +341,15 @@ export function ModernToolbar({
           </div>
         </button>
         <ThemeToggle />
+        {onOpenHelp && (
+          <button
+            onClick={onOpenHelp}
+            className="p-2 rounded-lg hover:bg-blue-500/20 transition-colors hover:scale-105 active:scale-95"
+            title="Help & Documentation"
+          >
+            <HelpCircle className="w-4 h-4 text-blue-400" />
+          </button>
+        )}
         {onOpenDbMaintenance && (
           <button
             onClick={onOpenDbMaintenance}

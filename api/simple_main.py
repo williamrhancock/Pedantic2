@@ -683,6 +683,112 @@ def is_local_network_host(host: str) -> bool:
     except:
         return False
 
+def detect_markdown(text: str) -> bool:
+    """Detect if a string contains markdown content"""
+    if not isinstance(text, str) or len(text.strip()) == 0:
+        return False
+    
+    # Common markdown patterns
+    markdown_patterns = [
+        r'^#{1,6}\s+',  # Headers (#, ##, ###, etc.)
+        r'\*\*.*?\*\*',  # Bold (**text**)
+        r'\*.*?\*',  # Italic (*text*)
+        r'\[.*?\]\(.*?\)',  # Links [text](url)
+        r'```',  # Code blocks
+        r'^\s*[-*+]\s+',  # Unordered lists
+        r'^\s*\d+\.\s+',  # Ordered lists
+        r'^\s*>\s+',  # Blockquotes
+        r'`[^`]+`',  # Inline code
+        r'^\s*\|.*\|',  # Tables
+    ]
+    
+    import re
+    text_lines = text.split('\n')
+    markdown_score = 0
+    
+    for line in text_lines[:50]:  # Check first 50 lines
+        for pattern in markdown_patterns:
+            if re.search(pattern, line, re.MULTILINE):
+                markdown_score += 1
+                break
+    
+    # If we find multiple markdown patterns, it's likely markdown
+    return markdown_score >= 2
+
+async def execute_markdown_viewer(config: Dict[str, Any], input_data: Any) -> Dict[str, Any]:
+    """Execute markdown viewer node - automatically detects markdown in any variable"""
+    try:
+        content_key = config.get('content_key', 'content')
+        markdown_content = ''
+        detected_key = None
+        
+        # First, try the specified content_key if provided
+        if isinstance(input_data, dict):
+            if content_key in input_data:
+                candidate = input_data[content_key]
+                if isinstance(candidate, str) and detect_markdown(candidate):
+                    markdown_content = candidate
+                    detected_key = content_key
+        
+        # If no markdown found in specified key, scan all variables
+        if not markdown_content and isinstance(input_data, dict):
+            for key, value in input_data.items():
+                if isinstance(value, str) and detect_markdown(value):
+                    markdown_content = value
+                    detected_key = key
+                    break
+        
+        # If still no markdown found, try common key names
+        if not markdown_content and isinstance(input_data, dict):
+            common_keys = ['content', 'markdown', 'text', 'body', 'message', 'output', 'result']
+            for key in common_keys:
+                if key in input_data:
+                    candidate = input_data[key]
+                    if isinstance(candidate, str):
+                        markdown_content = candidate
+                        detected_key = key
+                        break
+        
+        # If input_data is a string, check if it's markdown
+        if not markdown_content and isinstance(input_data, str):
+            if detect_markdown(input_data):
+                markdown_content = input_data
+                detected_key = 'input'
+        
+        # Final fallback: convert to string
+        if not markdown_content:
+            if isinstance(input_data, dict):
+                # Try to find any string value
+                for key, value in input_data.items():
+                    if isinstance(value, str) and len(value.strip()) > 0:
+                        markdown_content = value
+                        detected_key = key
+                        break
+            else:
+                markdown_content = str(input_data)
+                detected_key = 'input'
+        
+        return {
+            'status': 'success',
+            'output': {
+                'content': markdown_content,
+                'detected_key': detected_key,
+                'content_key': content_key,
+                'source': input_data
+            },
+            'stdout': f'Markdown viewer detected content from key: {detected_key}',
+            'stderr': '',
+            'execution_time': 0.0
+        }
+    except Exception as e:
+        return {
+            'status': 'error',
+            'error': f'Markdown viewer failed: {str(e)}',
+            'output': None,
+            'stdout': '',
+            'stderr': str(e)
+        }
+
 async def execute_llm_request(config: Dict[str, Any], input_data: Any) -> Dict[str, Any]:
     """Execute LLM request via OpenRouter, OpenAI-style providers, or Ollama.
 
@@ -1292,6 +1398,10 @@ async def run_workflow(request: dict):
             elif node_type == 'foreach':
                 config = node_data.get('config', {})
                 result = await execute_foreach_loop(config, input_data, node_id, nodes_data, connections_data)
+                
+            elif node_type == 'markdown':
+                config = node_data.get('config', {})
+                result = await execute_markdown_viewer(config, input_data)
                 
             else:
                 result = {
