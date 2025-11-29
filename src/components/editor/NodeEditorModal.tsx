@@ -47,6 +47,7 @@ export function NodeEditorModal({
   const [liveOutput, setLiveOutput] = useState<any>(null)
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false)
   const [showMakeCustomDialog, setShowMakeCustomDialog] = useState(false)
+  const [showUpdateSuccess, setShowUpdateSuccess] = useState(false)
   const [customNameInput, setCustomNameInput] = useState(customName || nodeTitle)
   const [customDescriptionInput, setCustomDescriptionInput] = useState('')
   const [customError, setCustomError] = useState<string | null>(null)
@@ -265,10 +266,10 @@ export function NodeEditorModal({
                             config: isConfigNode ? updatedConfig : undefined,
                           })
                         )
-                        alert('Custom node updated.')
+                        setShowUpdateSuccess(true)
                       } catch (e) {
                         console.error('Failed to update custom node from editor:', e)
-                        alert(
+                        setCustomError(
                           e instanceof Error
                             ? e.message
                             : 'Failed to update custom node. Please try again.'
@@ -488,6 +489,40 @@ export function NodeEditorModal({
                     className="px-6 py-2 rounded-lg bg-gradient-to-r from-purple-500 to-purple-600 text-white font-medium shadow-lg hover:scale-105 active:scale-95 transition-all"
                   >
                     Save Custom Node
+                  </button>
+                </div>
+              </div>
+            </div>
+          </>
+        )}
+
+        {/* Custom Node Updated Dialog */}
+        {showUpdateSuccess && (
+          <>
+            <div
+              className="fixed inset-0 z-[60] backdrop-blur-md bg-black/60"
+              onClick={() => setShowUpdateSuccess(false)}
+            />
+            <div
+              className="fixed inset-0 z-[60] flex items-center justify-center p-4"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <div
+                className="glass-card p-6 w-full max-w-md"
+                onClick={(e) => e.stopPropagation()}
+              >
+                <h3 className="text-xl font-semibold text-foreground mb-2">
+                  Custom Node Updated
+                </h3>
+                <p className="text-sm text-muted-foreground mb-6">
+                  The custom node &quot;{customName || nodeTitle}&quot; has been updated with the latest changes.
+                </p>
+                <div className="flex items-center justify-end gap-3">
+                  <button
+                    onClick={() => setShowUpdateSuccess(false)}
+                    className="px-6 py-2 rounded-lg bg-white/5 hover:bg-white/10 transition-all hover:scale-105 active:scale-95"
+                  >
+                    OK
                   </button>
                 </div>
               </div>
