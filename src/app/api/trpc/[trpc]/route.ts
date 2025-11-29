@@ -76,6 +76,15 @@ const appRouter = createTRPCRouter({
       isPublic: z.boolean().optional()
     }))
     .mutation(async ({ input }) => {
+      // Guardrail: never create new workflows with the default "Untitled" names.
+      // This prevents legacy or stray callers from filling the DB with unnamed entries.
+      const isUntitledDefault =
+        !input.id &&
+        (input.name === 'Untitled' || input.name === 'Untitled Workflow')
+      if (isUntitledDefault) {
+        throw new Error('Cannot save workflow with the default Untitled name. Please choose a name.')
+      }
+
       if (input.id) {
         // Update existing
         await workflowQueries.updateWorkflow(input.id, {
