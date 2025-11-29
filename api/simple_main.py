@@ -1402,18 +1402,40 @@ async def run_workflow(request: dict):
             # Find input for this node
             input_data = {}
             # Check all connections to find the source for this node
+            # Collect all potential sources
+            potential_sources = []
             for conn_id, conn_data in connections_data.items():
                 target_id = conn_data.get('target')
                 if target_id == node_id:
                     source_id = conn_data.get('source')
-                    print(f"Found connection: {source_id} -> {node_id}")
                     if source_id in node_outputs:
-                        input_data = node_outputs[source_id]
-                        print(f"Using input from {source_id} for {node_id}")
-                        print(f"Input data type: {type(input_data)}, keys: {list(input_data.keys()) if isinstance(input_data, dict) else 'N/A'}")
-                        break
-                    else:
-                        print(f"Source {source_id} not found in node_outputs. Available outputs: {list(node_outputs.keys())}")
+                        potential_sources.append((source_id, node_outputs[source_id]))
+                        print(f"Found connection: {source_id} -> {node_id}")
+            
+            # If multiple sources, prefer the one that makes sense for the node type
+            if len(potential_sources) > 1:
+                print(f"Multiple connections to {node_id}, evaluating which to use...")
+                # For foreach nodes, prefer sources that have 'items' key
+                if node_type == 'foreach':
+                    for source_id, source_output in potential_sources:
+                        if isinstance(source_output, dict) and 'items' in source_output:
+                            input_data = source_output
+                            print(f"Using input from {source_id} for {node_id} (has 'items' key)")
+                            break
+                    # If no source has 'items', use the first one
+                    if not input_data:
+                        source_id, input_data = potential_sources[0]
+                        print(f"Using first available input from {source_id} for {node_id}")
+                else:
+                    # For other nodes, use the first available source
+                    source_id, input_data = potential_sources[0]
+                    print(f"Using input from {source_id} for {node_id}")
+            elif len(potential_sources) == 1:
+                source_id, input_data = potential_sources[0]
+                print(f"Using input from {source_id} for {node_id}")
+                print(f"Input data type: {type(input_data)}, keys: {list(input_data.keys()) if isinstance(input_data, dict) else 'N/A'}")
+            else:
+                print(f"No connections found for {node_id}")
             
             if not input_data:
                 print(f"Using default empty input for {node_id}")
