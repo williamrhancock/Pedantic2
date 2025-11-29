@@ -3,7 +3,6 @@
 import React, { useCallback, useMemo, useEffect, useState, useRef } from 'react'
 import ReactFlow, {
   Background,
-  Controls,
   MiniMap,
   addEdge,
   type Node,
@@ -18,6 +17,7 @@ import { useTheme } from '@/contexts/ThemeContext'
 import { WorkflowNode, type WorkflowNodeType, type WorkflowNodeData } from './NodeTypes'
 import { AnimatedEdge } from './EdgeTypes'
 import { EdgeContextMenu } from './EdgeContextMenu'
+import { CustomControls } from './CustomControls'
 
 // Re-export types for convenience
 export type { WorkflowNodeType, WorkflowNodeData }
@@ -64,6 +64,8 @@ interface WorkflowCanvasProps {
   canvasRef?: React.RefObject<WorkflowCanvasRef> | React.ForwardedRef<WorkflowCanvasRef>
   isExecuting?: boolean
   nodesDraggable?: boolean
+  isLocked?: boolean
+  onToggleLock?: () => void
 }
 
 function WorkflowCanvasInner({
@@ -76,6 +78,8 @@ function WorkflowCanvasInner({
   canvasRef,
   isExecuting = false,
   nodesDraggable = true,
+  isLocked = false,
+  onToggleLock,
 }: WorkflowCanvasProps) {
   const { isDark } = useTheme()
   const reactFlowInstance = useRef<ReactFlowInstance | null>(null)
@@ -510,8 +514,10 @@ const handleCancelEdgeMenu = useCallback(() => {
         className={isDark ? 'dark' : ''}
       >
         <Background color={isDark ? '#4a5568' : '#e2e8f0'} gap={16} size={1} />
-        <Controls
-          className={`${isDark ? 'bg-gray-800/50' : 'bg-white/50'} backdrop-blur-sm border border-white/20 rounded-lg`}
+        <CustomControls
+          reactFlowInstance={reactFlowInstance.current}
+          isLocked={isLocked}
+          onToggleLock={onToggleLock || (() => {})}
         />
         <MiniMap
           className={`${isDark ? 'bg-gray-800/50' : 'bg-white/50'} backdrop-blur-sm border border-white/20 rounded-lg`}

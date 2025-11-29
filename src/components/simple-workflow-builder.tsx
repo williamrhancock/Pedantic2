@@ -708,6 +708,7 @@ export function SimpleWorkflowBuilder() {
             addNode(type)
           }
         }}
+        isLocked={isLocked}
         onNewWorkflow={handleNewWorkflow}
         onOpenWorkflow={() => setShowWorkflowBrowser(true)}
         onSave={handleSave}
@@ -718,8 +719,6 @@ export function SimpleWorkflowBuilder() {
         isExecuting={isExecuting}
         hasUnsavedChanges={hasUnsavedChanges}
         isAutoSaving={isAutoSaving}
-        isLocked={isLocked}
-        onToggleLock={() => setIsLocked(prev => !prev)}
       />
 
       {/* Workflow Metadata */}
@@ -751,6 +750,8 @@ export function SimpleWorkflowBuilder() {
             onNodeClick={handleNodeClick}
             isExecuting={isExecuting}
             nodesDraggable={!isLocked}
+            isLocked={isLocked}
+            onToggleLock={() => setIsLocked(prev => !prev)}
             onNodesChange={(updatedNodes) => {
               // Update node positions from react-flow
               setNodes(prev => prev.map(node => {

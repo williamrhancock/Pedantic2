@@ -11,8 +11,6 @@ import {
   Download,
   Upload,
   Play,
-  Lock,
-  Unlock,
 } from 'lucide-react'
 
 export type NodeType = 'python' | 'typescript' | 'http' | 'file' | 'condition' | 'database' | 'llm'
@@ -31,7 +29,6 @@ interface ModernToolbarProps {
   hasUnsavedChanges?: boolean
   isAutoSaving?: boolean
   isLocked?: boolean
-  onToggleLock?: () => void
 }
 
 const nodeTypes: { type: NodeType; label: string; color: string }[] = [
@@ -58,7 +55,6 @@ export function ModernToolbar({
   hasUnsavedChanges = false,
   isAutoSaving = false,
   isLocked = false,
-  onToggleLock,
 }: ModernToolbarProps) {
   const { isDark } = useTheme()
 
@@ -157,24 +153,8 @@ export function ModernToolbar({
         })}
       </div>
 
-      {/* Right: Lock, Execute and theme toggle */}
+      {/* Right: Execute and theme toggle */}
       <div className="flex items-center gap-2">
-        {onToggleLock && (
-          <button
-            onClick={onToggleLock}
-            className={`
-              p-2 rounded-lg transition-all
-              ${isLocked
-                ? 'bg-yellow-500/20 hover:bg-yellow-500/30 text-yellow-300'
-                : 'hover:bg-white/10'
-              }
-              hover:scale-105 active:scale-95
-            `}
-            title={isLocked ? 'Unlock workflow (allow editing)' : 'Lock workflow (prevent editing)'}
-          >
-            {isLocked ? <Lock className="w-4 h-4" /> : <Unlock className="w-4 h-4" />}
-          </button>
-        )}
         <button
           onClick={onExecute}
           disabled={isExecuting}
