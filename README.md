@@ -67,7 +67,20 @@ Pro Tip: Custom nodes? Save configs as templates. Reuse that "scrape cat memes" 
    npm install
    ```
 
-3. Fire it up:
+3. **Set up API keys** (required for LLM and external API nodes):
+   ```bash
+   # Copy the example environment file
+   cp .env.example .env
+   
+   # Edit .env and add your actual API keys
+   # Required for LLM nodes: OPENROUTER_API_KEY (or provider-specific keys)
+   # Required for stock workflow: POLYGON_API_KEY
+   # See .env.example for all available options
+   ```
+   
+   **Important**: Never commit `.env` files! They're gitignored for a reason.
+
+4. Fire it up:
    ```bash
    npm run dev
    ```
@@ -91,6 +104,12 @@ Manual Python drama? `cd api; python -m venv venv; source venv/bin/activate; pip
 **Example Workflow: "Procrastinator's API Fetch"**
 - Start → HTTP (GET /cats) → Python (`return data + " meow snark"`) → Condition (if funny?) → File Write → End.
 - Boom: Local cat facts, zero AWS bills.
+
+**Using API Keys in Workflows:**
+- **LLM Nodes**: Use `api_key_name` in config (e.g., `"api_key_name": "OPENROUTER_API_KEY"`) or set per-node override
+- **HTTP Nodes**: Use Python node to inject keys from environment: `os.getenv('API_KEY_NAME')` → `{API_KEY_NAME}` placeholder
+- **Never hardcode keys** in workflow JSON files - use environment variables instead
+- See [SECURITY.md](SECURITY.md) for detailed security guidelines
 
 Headless? POST to `/run` with workflow JSON. Or `npm run run-workflow -- 42` (ID from DB). Schedule it to run while you nap.
 

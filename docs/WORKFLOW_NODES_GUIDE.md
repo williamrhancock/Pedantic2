@@ -1023,6 +1023,32 @@ Use `{field_name}` placeholders in queries to insert data from previous nodes:
 
 The LLM AI Assistant node integrates large language models into workflows. It supports multiple providers and dynamic prompt templating.
 
+#### API Key Setup (Required)
+
+Before using LLM nodes, you must configure API keys:
+
+1. **Copy the example environment file**:
+   ```bash
+   cp .env.example .env
+   ```
+
+2. **Add your API keys to `.env`**:
+   ```bash
+   # For OpenRouter (supports multiple providers)
+   OPENROUTER_API_KEY=sk-or-v1-...
+   
+   # Or provider-specific keys
+   OPENAI_API_KEY=sk-...
+   ANTHROPIC_API_KEY=sk-ant-...
+   GROQ_API_KEY=gsk_...
+   ```
+
+3. **In the LLM node configuration**, you can:
+   - **Use environment variable**: Set `api_key_name` (e.g., `"api_key_name": "OPENROUTER_API_KEY"`)
+   - **Override per-node**: Set `api_key` directly in the node config (stored securely in DB, not exported)
+
+**Important**: Never hardcode API keys in workflow JSON files that will be committed to version control. Always use environment variables or the per-node override. See [SECURITY.md](../SECURITY.md) for detailed security guidelines.
+
 #### Configuration via UI
 
 The LLM node uses a dedicated full-size dialog (similar to the node editor) for configuration. The dialog provides:
@@ -1167,9 +1193,13 @@ When you click the model dropdown:
 
 #### API Key Management
 
-- **Per-Node Override**: You can set an API key directly in the LLM node configuration (stored securely in DB)
-- **Environment Variables**: For global keys, use `NEXT_PUBLIC_OPENROUTER_API_KEY`, `NEXT_PUBLIC_OPENAI_API_KEY`, etc.
-- **Security**: API keys are never displayed in the JSON export or Advanced JSON view
+- **Per-Node Override**: You can set an API key directly in the LLM node configuration (stored securely in DB, not exported)
+- **Environment Variables**: Set keys in `.env` file (e.g., `OPENROUTER_API_KEY`, `OPENAI_API_KEY`) and reference via `api_key_name` in config
+- **Security**: 
+  - API keys are never displayed in the JSON export or Advanced JSON view
+  - Never hardcode keys in workflow JSON files
+  - Always use environment variables or per-node override
+  - See [SECURITY.md](../SECURITY.md) for detailed guidelines
 
 ---
 

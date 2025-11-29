@@ -579,6 +579,38 @@ Query becomes: `SELECT * FROM users WHERE id = 123 AND status = 'active'`
 
 ### LLM Node
 
+#### API Key Setup (Required)
+
+Before using LLM nodes, you must configure API keys:
+
+1. **Copy the example environment file**:
+   ```bash
+   cp .env.example .env
+   ```
+
+2. **Add your API keys to `.env`**:
+   ```bash
+   # For OpenRouter (supports multiple providers)
+   OPENROUTER_API_KEY=sk-or-v1-...
+   
+   # Or provider-specific keys
+   OPENAI_API_KEY=sk-...
+   ANTHROPIC_API_KEY=sk-ant-...
+   GROQ_API_KEY=gsk_...
+   ```
+
+3. **In workflow JSON**, use one of these methods:
+   - **Option A**: Use `api_key_name` to reference environment variable:
+     ```json
+     "api_key_name": "OPENROUTER_API_KEY"
+     ```
+   - **Option B**: Override per-node with `api_key` (stored in DB, not exported):
+     ```json
+     "api_key": "sk-..."
+     ```
+
+**Important**: Never hardcode API keys in workflow JSON files that will be committed to version control. Always use environment variables or the per-node override (which is stored securely in the database).
+
 #### Structure
 ```json
 {
@@ -591,7 +623,6 @@ Query becomes: `SELECT * FROM users WHERE id = 123 AND status = 'active'`
     "max_tokens": 1000,
     "system": "You are a helpful assistant.",
     "user": "Analyze this data: {field_name}",
-    "api_key": "sk-...",
     "api_key_name": "OPENROUTER_API_KEY",
     "base_url": "https://openrouter.ai/api/v1"
   },
