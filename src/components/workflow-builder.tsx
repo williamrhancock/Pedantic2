@@ -91,6 +91,8 @@ export function WorkflowBuilder() {
   const [nodeCounter, setNodeCounter] = useState(0) // For unique node IDs
 
   const { data: workflow, refetch: refetchWorkflow } = trpc.getWorkflow.useQuery({ id: 1 })
+  // Legacy Rete-based builder is read-only now; disable persistence to avoid
+  // creating stray "Untitled" workflows in the main database.
   const saveWorkflowMutation = trpc.saveWorkflow.useMutation()
   const executeWorkflowMutation = trpc.executeWorkflow.useMutation()
 
@@ -123,60 +125,13 @@ export function WorkflowBuilder() {
     debouncedSave(editor)
   }
 
-  // Debounced save function
+  // Debounced save function (disabled)
   const debouncedSave = useCallback(
-    (editorInstance: NodeEditor<Schemes>) => {
-      if (!editorInstance) return
-      
-      const saveData = async () => {
-        try {
-          const nodes: Record<string, any> = {}
-          const connections: Record<string, any> = {}
-
-          // Export nodes
-          for (const node of editorInstance.getNodes()) {
-            const id = node.id
-            const nodeData: any = {
-              type: getNodeType(node),
-              position: area?.nodeViews.get(id)?.position || [0, 0],
-              title: node.label
-            }
-
-            if (node instanceof PythonNode || node instanceof TypeScriptNode) {
-              const codeControl = node.controls.code as Classic.InputControl<'text'>
-              nodeData.code = codeControl.value || ''
-            }
-
-            nodes[id] = nodeData
-          }
-
-          // Export connections
-          for (const connection of editorInstance.getConnections()) {
-            connections[connection.id] = {
-              source: connection.source,
-              target: connection.target,
-              sourceOutput: connection.sourceOutput,
-              targetInput: connection.targetInput
-            }
-          }
-
-          const workflowData = { nodes, connections }
-          
-          await saveWorkflowMutation.mutateAsync({
-            id: 1,
-            name: 'Untitled',
-            data: workflowData
-          })
-        } catch (error) {
-          console.error('Failed to save workflow:', error)
-        }
-      }
-
-      // Debounce the actual save
-      const timeoutId = setTimeout(saveData, 1000)
-      return () => clearTimeout(timeoutId)
+    (_editorInstance: NodeEditor<Schemes>) => {
+      // No-op: legacy builder no longer persists workflows.
+      return () => {}
     },
-    [area, saveWorkflowMutation]
+    []
   )
 
   const createNode = async (type: NodeKind, position: [number, number] = [0, 0]) => {
