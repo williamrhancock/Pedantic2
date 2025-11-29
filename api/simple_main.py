@@ -1401,16 +1401,22 @@ async def run_workflow(request: dict):
             
             # Find input for this node
             input_data = {}
+            # Check all connections to find the source for this node
             for conn_id, conn_data in connections_data.items():
-                if conn_data.get('target') == node_id:
+                target_id = conn_data.get('target')
+                if target_id == node_id:
                     source_id = conn_data.get('source')
+                    print(f"Found connection: {source_id} -> {node_id}")
                     if source_id in node_outputs:
                         input_data = node_outputs[source_id]
-                        print(f"Using input from {source_id}: {input_data}")
+                        print(f"Using input from {source_id} for {node_id}")
+                        print(f"Input data type: {type(input_data)}, keys: {list(input_data.keys()) if isinstance(input_data, dict) else 'N/A'}")
                         break
+                    else:
+                        print(f"Source {source_id} not found in node_outputs. Available outputs: {list(node_outputs.keys())}")
             
             if not input_data:
-                print("Using default empty input")
+                print(f"Using default empty input for {node_id}")
                 input_data = {}
             
             # Execute the node
