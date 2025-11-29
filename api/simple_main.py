@@ -1201,21 +1201,35 @@ async def execute_foreach_loop(
     """Execute a foreach loop node"""
     start_time = time.time()
     
+    # Debug logging
+    print(f"ForEach loop - input_data type: {type(input_data)}")
+    print(f"ForEach loop - input_data: {json.dumps(input_data, indent=2) if isinstance(input_data, (dict, list)) else str(input_data)[:200]}")
+    
     # Extract array to iterate over
     items = []
     items_key = config.get('items_key', 'items')
+    print(f"ForEach loop - items_key: {items_key}")
     
     # Check if input_data is an array
     if isinstance(input_data, list):
         items = input_data
+        print(f"ForEach loop - input_data is a list, using directly: {len(items)} items")
     # Check if input_data has the specified key
     elif isinstance(input_data, dict) and items_key in input_data:
         items_value = input_data[items_key]
+        print(f"ForEach loop - found items_key '{items_key}' in input_data, value type: {type(items_value)}")
         if isinstance(items_value, list):
             items = items_value
+            print(f"ForEach loop - extracted {len(items)} items from input_data['{items_key}']")
+        else:
+            print(f"ForEach loop - items_key '{items_key}' exists but is not a list: {type(items_value)}")
+    else:
+        print(f"ForEach loop - items_key '{items_key}' not found in input_data. Available keys: {list(input_data.keys()) if isinstance(input_data, dict) else 'N/A'}")
+    
     # Fall back to config items
     if not items:
         items = config.get('items', [])
+        print(f"ForEach loop - using fallback config items: {len(items)} items")
     
     if not isinstance(items, list):
         return {
