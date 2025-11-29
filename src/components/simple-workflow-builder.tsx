@@ -215,6 +215,9 @@ export function SimpleWorkflowBuilder() {
   const [isAutoSaving, setIsAutoSaving] = useState(false)
   const [showWorkflowBrowser, setShowWorkflowBrowser] = useState(false)
   const [showSaveAsDialog, setShowSaveAsDialog] = useState(false)
+  const [pendingImportCustomNode, setPendingImportCustomNode] = useState<any | null>(null)
+  const [pendingImportCustomNodeName, setPendingImportCustomNodeName] = useState<string | null>(null)
+  const [showImportOverwriteDialog, setShowImportOverwriteDialog] = useState(false)
   const [activeNodeType, setActiveNodeType] = useState<NodeType | null>(null)
 
   // Generate connections based on node order
@@ -878,19 +881,32 @@ export function SimpleWorkflowBuilder() {
       try {
         const text = await file.text()
         const data = JSON.parse(text)
-        const result = await importCustomNodeMutation.mutateAsync({ data })
-        await refetchCustomNodes()
+        try {
+          const result = await importCustomNodeMutation.mutateAsync({ data, overwrite: false })
+          await refetchCustomNodes()
 
-        // Optionally add the imported node to the canvas
-        const newTemplate = customNodes.find((n) => n.id === result.id)
-        if (newTemplate) {
-          handleSelectCustomNode(newTemplate.id)
+          // Optionally add the imported node to the canvas
+          const newTemplate = customNodes.find((n) => n.id === result.id)
+          if (newTemplate) {
+            handleSelectCustomNode(newTemplate.id)
+          }
+
+          alert(`Successfully imported custom node: ${result.name}`)
+        } catch (error: any) {
+          const message = error?.message || String(error)
+          // Detect name collision and offer overwrite via in-app dialog
+          if (message.includes('already exists') && data?.metadata?.name) {
+            setPendingImportCustomNode(data)
+            setPendingImportCustomNodeName(data.metadata.name as string)
+            setShowImportOverwriteDialog(true)
+          } else {
+            console.error('Failed to import custom node:', error)
+            alert('Failed to import custom node. Please check the file format.')
+          }
         }
-
-        alert(`Successfully imported custom node: ${result.name}`)
       } catch (error) {
-        console.error('Failed to import custom node:', error)
-        alert('Failed to import custom node. Please check the file format.')
+        console.error('Failed to read custom node file:', error)
+        alert('Failed to read custom node file. Please try again.')
       }
     }
     input.click()
@@ -1030,6 +1046,74 @@ export function SimpleWorkflowBuilder() {
         onClose={() => setShowSaveAsDialog(false)}
         onSave={handleSaveAs}
       />
+
+      {/* Custom Node Import Overwrite Dialog */}
+      {showImportOverwriteDialog && pendingImportCustomNode && pendingImportCustomNodeName && (
+        <>
+          <div
+            className="fixed inset-0 z-[60] backdrop-blur-md bg-black/60"
+            onClick={() => setShowImportOverwriteDialog(false)}
+          />
+          <div
+            className="fixed inset-0 z-[60] flex items-center justify-center p-4"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div
+              className="glass-card p-6 w-full max-w-md"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <h3 className="text-xl font-semibold text-foreground mb-2">
+                Overwrite Custom Node?
+              </h3>
+              <p className="text-sm text-muted-foreground mb-4">
+                A custom node named &quot;{pendingImportCustomNodeName}&quot; already exists. Do you
+                want to overwrite it with the version from this file?
+              </p>
+              <div className="flex items-center justify-end gap-3">
+                <button
+                  onClick={() => {
+                    setShowImportOverwriteDialog(false)
+                    setPendingImportCustomNode(null)
+                    setPendingImportCustomNodeName(null)
+                  }}
+                  className="px-4 py-2 rounded-lg bg-white/5 hover:bg-white/10 transition-all hover:scale-105 active:scale-95"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={async () => {
+                    if (!pendingImportCustomNode) return
+                    try {
+                      const result = await importCustomNodeMutation.mutateAsync({
+                        data: pendingImportCustomNode,
+                        overwrite: true,
+                      })
+                      await refetchCustomNodes()
+
+                      const newTemplate = customNodes.find((n) => n.id === result.id)
+                      if (newTemplate) {
+                        handleSelectCustomNode(newTemplate.id)
+                      }
+
+                      alert(`Successfully overwrote custom node: ${result.name}`)
+                    } catch (error) {
+                      console.error('Failed to overwrite custom node during import:', error)
+                      alert('Failed to overwrite custom node. Please try again.')
+                    } finally {
+                      setShowImportOverwriteDialog(false)
+                      setPendingImportCustomNode(null)
+                      setPendingImportCustomNodeName(null)
+                    }
+                  }}
+                  className="px-6 py-2 rounded-lg bg-gradient-to-r from-purple-500 to-purple-600 text-white font-medium shadow-lg hover:scale-105 active:scale-95 transition-all"
+                >
+                  Overwrite
+                </button>
+              </div>
+            </div>
+          </div>
+        </>
+      )}
     </div>
   )
 }

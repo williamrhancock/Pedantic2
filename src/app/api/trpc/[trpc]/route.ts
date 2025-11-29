@@ -432,10 +432,11 @@ const appRouter = createTRPCRouter({
 
   importCustomNode: publicProcedure
     .input(z.object({
-      data: z.any()
+      data: z.any(),
+      overwrite: z.boolean().optional(),
     }))
     .mutation(async ({ input }) => {
-      const { data } = input
+      const { data, overwrite } = input
 
       if (!data || data.format !== 'pedantic-custom-node-v1') {
         throw new Error('Unsupported custom node format')
@@ -451,8 +452,24 @@ const appRouter = createTRPCRouter({
       }
 
       const existing = await customNodeQueries.getCustomNodeByName(name)
-      if (existing) {
+
+      if (existing && !overwrite) {
+        // Signal to the client that this is specifically a name-collision case.
         throw new Error(`A custom node named "${name}" already exists`)
+      }
+
+      if (existing && overwrite) {
+        await customNodeQueries.updateCustomNode(existing.id, {
+          name,
+          description,
+          config: JSON.stringify(nodeConfig ?? {}),
+        })
+
+        return {
+          id: existing.id,
+          name,
+          type,
+        }
       }
 
       const newId = await customNodeQueries.createCustomNode(
