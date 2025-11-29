@@ -4,6 +4,7 @@ import {
   workflowQueries,
   executionQueries,
   nodeTemplateQueries,
+  customNodeQueries,
   type Workflow
 } from '@/lib/db'
 import { z } from 'zod'
@@ -344,6 +345,128 @@ const appRouter = createTRPCRouter({
         category: input.category
       })
       return { id, success: true }
+    }),
+
+  // === CUSTOM NODES ===
+  getCustomNodes: publicProcedure
+    .query(async () => {
+      const nodes = await customNodeQueries.listCustomNodes()
+      return nodes
+    }),
+
+  saveCustomNode: publicProcedure
+    .input(z.object({
+      id: z.number().optional(),
+      name: z.string().min(1),
+      description: z.string().optional(),
+      type: z.string().min(1),
+      data: z.any()
+    }))
+    .mutation(async ({ input }) => {
+      const { id, name, description, type, data } = input
+
+      // Enforce unique name (global)
+      const existingWithName = await customNodeQueries.getCustomNodeByName(name)
+
+      if (!id) {
+        if (existingWithName) {
+          throw new Error(`A custom node named "${name}" already exists`)
+        }
+
+        const newId = await customNodeQueries.createCustomNode(
+          name,
+          type,
+          description ?? null,
+          JSON.stringify(data ?? {})
+        )
+        return { id: newId, created: true }
+      }
+
+      // Updating existing custom node
+      if (existingWithName && existingWithName.id !== id) {
+        throw new Error(`A custom node named "${name}" already exists`)
+      }
+
+      await customNodeQueries.updateCustomNode(id, {
+        name,
+        description,
+        config: JSON.stringify(data ?? {})
+      })
+
+      return { id, created: false }
+    }),
+
+  deleteCustomNode: publicProcedure
+    .input(z.object({ id: z.number() }))
+    .mutation(async ({ input }) => {
+      await customNodeQueries.deleteCustomNode(input.id)
+      return { success: true }
+    }),
+
+  exportCustomNode: publicProcedure
+    .input(z.object({
+      id: z.number()
+    }))
+    .query(async ({ input }) => {
+      const node = await customNodeQueries.getCustomNode(input.id)
+      if (!node) {
+        throw new Error('Custom node not found')
+      }
+
+      const exportData = {
+        format: 'pedantic-custom-node-v1',
+        metadata: {
+          name: node.name,
+          description: node.description,
+          type: node.type,
+          exportedAt: new Date().toISOString(),
+        },
+        node: node.config ?? {},
+      }
+
+      return {
+        data: exportData,
+        filename: `${node.name.replace(/[^a-z0-9]/gi, '_')}_${Date.now()}.json`
+      }
+    }),
+
+  importCustomNode: publicProcedure
+    .input(z.object({
+      data: z.any()
+    }))
+    .mutation(async ({ input }) => {
+      const { data } = input
+
+      if (!data || data.format !== 'pedantic-custom-node-v1') {
+        throw new Error('Unsupported custom node format')
+      }
+
+      const name = data.metadata?.name as string | undefined
+      const type = data.metadata?.type as string | undefined
+      const description = data.metadata?.description as string | undefined
+      const nodeConfig = data.node
+
+      if (!name || !type) {
+        throw new Error('Custom node must have a name and type')
+      }
+
+      const existing = await customNodeQueries.getCustomNodeByName(name)
+      if (existing) {
+        throw new Error(`A custom node named "${name}" already exists`)
+      }
+
+      const newId = await customNodeQueries.createCustomNode(
+        name,
+        type,
+        description ?? null,
+        JSON.stringify(nodeConfig ?? {})
+      )
+
+      return {
+        id: newId,
+        name,
+        type,
+      }
     })
 })
 

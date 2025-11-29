@@ -17,6 +17,7 @@ interface NodeEditorModalProps {
   config?: any
   onSave: (code?: string, config?: any) => void
   onDelete?: () => void
+  isLocked?: boolean
 }
 
 export function NodeEditorModal({
@@ -29,6 +30,7 @@ export function NodeEditorModal({
   config,
   onSave,
   onDelete,
+  isLocked = false,
 }: NodeEditorModalProps) {
   const { isDark } = useTheme()
   const [editedCode, setEditedCode] = useState(code || '')
@@ -42,6 +44,7 @@ export function NodeEditorModal({
   const canDelete = nodeType !== 'start' && nodeType !== 'end'
 
   const handleSave = () => {
+    if (isLocked) return
     if (isCodeNode) {
       onSave(editedCode, undefined)
     } else if (isConfigNode) {
@@ -253,7 +256,8 @@ export function NodeEditorModal({
             </button>
             <button
               onClick={handleSave}
-              className="px-6 py-2 rounded-lg bg-gradient-to-r from-purple-500 to-purple-600 text-white font-medium shadow-lg hover:scale-105 active:scale-95 transition-all"
+              disabled={isLocked}
+              className={`px-6 py-2 rounded-lg bg-gradient-to-r from-purple-500 to-purple-600 text-white font-medium shadow-lg hover:scale-105 active:scale-95 transition-all${isLocked ? " opacity-50 cursor-not-allowed hover:scale-100" : ""}`}
             >
               Save Changes
             </button>

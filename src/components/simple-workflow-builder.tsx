@@ -831,6 +831,7 @@ export function SimpleWorkflowBuilder() {
           config={selectedNodeData.config}
           onSave={handleNodeSave}
           onDelete={handleNodeDelete}
+          isLocked={isLocked}
         />
       )}
 
