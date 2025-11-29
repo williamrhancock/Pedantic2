@@ -109,7 +109,24 @@ function WorkflowCanvasInner({
       .filter((conn) => {
         const sourceNode = initialNodes.find((n) => n.id === conn.from)
         const targetNode = initialNodes.find((n) => n.id === conn.to)
-        return sourceNode && sourceNode.type !== 'end' && targetNode && targetNode.type !== 'start'
+
+        if (!sourceNode || !targetNode) return false
+
+        // Skip invalid connections:
+        // - Can't connect FROM an "end" node (no output handle)
+        // - Can't connect TO a "start" node (no input handle)
+        if (sourceNode.type === 'end' || targetNode.type === 'start') {
+          return false
+        }
+
+        // Special-case: don't render the default Start → End edge visually.
+        // We still keep this connection in the logical graph for execution,
+        // but React Flow was emitting a noisy dev warning for this edge.
+        if (sourceNode.type === 'start' && targetNode.type === 'end') {
+          return false
+        }
+
+        return true
       })
       .map((conn) => {
         const edge: Edge = {
