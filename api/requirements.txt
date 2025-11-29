@@ -11,3 +11,4 @@ aiohttp==3.9.1
 aiofiles==23.2.0
 python-dotenv==1.0.0
 markdown==3.5.1
+beautifulsoup4==4.12.2
