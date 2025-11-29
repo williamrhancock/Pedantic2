@@ -85,7 +85,8 @@ def execute_python_code(code: str, input_data: Any) -> Dict[str, Any]:
             'csv', 'codecs', 'textwrap', 'difflib', 'pprint', 'numpy',
             'pandas', 'requests', 'urllib', 'urllib.request', 'urllib.error',
             'markdown',  # For markdown to HTML conversion
-            'bs4'  # BeautifulSoup for HTML parsing
+            'bs4',  # BeautifulSoup for HTML parsing
+            'os'  # For environment variable access (os.getenv)
         }
         
         def safe_import(name, globals=None, locals=None, fromlist=(), level=0):
