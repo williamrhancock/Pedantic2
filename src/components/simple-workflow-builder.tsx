@@ -1,6 +1,7 @@
 'use client'
 
 import React, { useState, useRef, useEffect, useCallback } from 'react'
+import type { WorkflowCanvasRef } from '@/components/canvas/WorkflowCanvas'
 import { trpc } from '@/lib/trpc-provider'
 import { WorkflowCanvas } from '@/components/canvas'
 import { ModernToolbar } from '@/components/toolbar/ModernToolbar'
@@ -241,6 +242,7 @@ export function SimpleWorkflowBuilder() {
   const [isExecuting, setIsExecuting] = useState(false)
   const [timelineEntries, setTimelineEntries] = useState<TimelineEntry[]>([])
   const [showEditorModal, setShowEditorModal] = useState(false)
+  const canvasRef = useRef<WorkflowCanvasRef>(null)
 
   // tRPC mutations
   const executeWorkflowMutation = trpc.executeWorkflow.useMutation()
@@ -570,13 +572,17 @@ export function SimpleWorkflowBuilder() {
   }
 
   const addNode = (type: NodeType) => {
+    // Get viewport center to position new node
+    const viewportCenter = canvasRef.current?.getViewportCenter()
+    const defaultPosition = viewportCenter || { x: 400, y: 300 }
+    
     const newNode: WorkflowNode = {
       id: `${type}_${Date.now()}`,
       type,
       title: getNodeTitle(type),
-      position: { 
-        x: 300 + Math.random() * 200, 
-        y: 200 + nodes.length * 100 
+      position: {
+        x: defaultPosition.x,
+        y: defaultPosition.y,
       }
     }
 
@@ -734,6 +740,7 @@ export function SimpleWorkflowBuilder() {
         {/* Canvas */}
         <div className="flex-1 relative min-w-0">
           <WorkflowCanvas
+            ref={canvasRef}
             nodes={nodes}
             connections={connections}
             onNodeClick={handleNodeClick}

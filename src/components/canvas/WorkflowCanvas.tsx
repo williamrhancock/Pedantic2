@@ -41,6 +41,10 @@ function getEdgeTypes(): EdgeTypes {
   return edgeTypesRef
 }
 
+export interface WorkflowCanvasRef {
+  getViewportCenter: () => { x: number; y: number } | null
+}
+
 interface WorkflowCanvasProps {
   nodes: Array<{
     id: string
@@ -57,6 +61,7 @@ interface WorkflowCanvasProps {
   onEdgesChange?: (edges: Edge[]) => void
   onConnect?: (connection: Connection) => void
   onNodeClick?: (nodeId: string) => void
+  canvasRef?: React.RefObject<WorkflowCanvasRef> | React.ForwardedRef<WorkflowCanvasRef>
   isExecuting?: boolean
 }
 
@@ -67,6 +72,7 @@ function WorkflowCanvasInner({
   onEdgesChange: externalOnEdgesChange,
   onConnect: externalOnConnect,
   onNodeClick,
+  canvasRef,
   isExecuting = false,
 }: WorkflowCanvasProps) {
   const { isDark } = useTheme()
@@ -532,20 +538,22 @@ const handleCancelEdgeMenu = useCallback(() => {
   )
 }
 
-export function WorkflowCanvas(props: WorkflowCanvasProps) {
-  const [isMounted, setIsMounted] = useState(false)
+export const WorkflowCanvas = React.forwardRef<WorkflowCanvasRef, Omit<WorkflowCanvasProps, 'canvasRef'>>(
+  function WorkflowCanvas(props, ref) {
+    const [isMounted, setIsMounted] = useState(false)
 
-  useEffect(() => {
-    setIsMounted(true)
-  }, [])
+    useEffect(() => {
+      setIsMounted(true)
+    }, [])
 
-  if (!isMounted) {
-    return (
-      <div className="w-full h-full flex items-center justify-center">
-        <div className="text-muted-foreground">Loading canvas...</div>
-      </div>
-    )
+    if (!isMounted) {
+      return (
+        <div className="w-full h-full flex items-center justify-center">
+          <div className="text-muted-foreground">Loading canvas...</div>
+        </div>
+      )
+    }
+
+    return <WorkflowCanvasInner {...props} canvasRef={ref} />
   }
-
-  return <WorkflowCanvasInner {...props} />
-}
+)
