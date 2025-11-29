@@ -1017,6 +1017,10 @@ export function SimpleWorkflowBuilder() {
           onSave={handleNodeSave}
           onDelete={handleNodeDelete}
           isLocked={isLocked}
+          isCustom={Boolean(selectedNodeData.customNodeId)}
+          customName={selectedNodeData.customNodeName}
+          onMakeCustom={isLocked ? undefined : handleMakeCustomNode}
+          onUpdateCustomFromNode={isLocked ? undefined : handleUpdateCustomFromNode}
         />
       )}
 
