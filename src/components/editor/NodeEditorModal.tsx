@@ -54,6 +54,7 @@ export function NodeEditorModal({
   const isCodeNode = nodeType === 'python' || nodeType === 'typescript'
   const isConfigNode = !isCodeNode && nodeType !== 'start' && nodeType !== 'end'
   const canDelete = nodeType !== 'start' && nodeType !== 'end'
+  const isCustomInstance = isCustom || !!customName
   const canMakeCustom = nodeType !== 'start' && nodeType !== 'end' && !!onMakeCustom
 
   const handleSave = async () => {
@@ -72,7 +73,7 @@ export function NodeEditorModal({
     }
 
     // Optionally update the underlying custom node template
-    if (isCustom && onUpdateCustomFromNode) {
+    if (isCustomInstance && onUpdateCustomFromNode) {
       const displayName = customName || nodeTitle
       const shouldUpdate = window.confirm(
         `Update the custom node "${displayName}" as well as this workflow node?`
@@ -254,7 +255,7 @@ export function NodeEditorModal({
             )}
 
             {/* Make Custom Node */}
-            {canMakeCustom && !isCustom && !isLocked && (
+            {canMakeCustom && !isCustomInstance && !isLocked && (
               <div className="mt-4">
                 <button
                   onClick={openMakeCustomDialog}
