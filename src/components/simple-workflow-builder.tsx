@@ -819,19 +819,13 @@ export function SimpleWorkflowBuilder() {
     const position = viewportCenter || { x: 400, y: 300 }
 
     const newId = `${template.type}_${Date.now()}`
-    const nodeData = {
-      type: template.data.type,
-      title: template.data.title || template.name,
-      code: template.data.code,
-      config: template.data.config,
-    }
-
     const newNode: WorkflowNode = {
       id: newId,
-      type: nodeData.type,
-      title: nodeData.title,
-      code: nodeData.code,
-      config: nodeData.config,
+      type: template.data.type,
+      // Always display the custom node name on the canvas
+      title: template.name,
+      code: template.data.code,
+      config: template.data.config,
       position,
       customNodeId: template.id,
       customNodeName: template.name,
