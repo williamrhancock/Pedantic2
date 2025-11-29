@@ -9,9 +9,11 @@ import { ExecutionTimeline, TimelineEntry } from '@/components/timeline/Executio
 import { NodeEditorModal } from '@/components/editor/NodeEditorModal'
 import { SaveAsDialog } from '@/components/dialogs/SaveAsDialog'
 import { DbMaintenanceModal } from '@/components/dialogs/DbMaintenanceModal'
+import { LlmNodeDialog } from '@/components/dialogs/LlmNodeDialog'
 import { useTheme } from '@/contexts/ThemeContext'
 import type { NodeType } from '@/components/toolbar/ModernToolbar'
 import { workflowNodeToCustomData } from '@/lib/custom-nodes'
+import { createDefaultLlmConfig, normalizeLlmConfig, type LlmConfig } from '@/lib/llm'
 
 interface WorkflowNode {
   id: string
@@ -410,17 +412,26 @@ export function SimpleWorkflowBuilder() {
         : workflow.data
 
       // Load nodes
-      const loadedNodes: WorkflowNode[] = Object.entries(workflowData.nodes || {}).map(([id, nodeData]: [string, any]) => ({
-        id,
-        type: nodeData.type,
-        title: nodeData.title,
-        description: nodeData.description,
-        code: nodeData.code,
-        config: nodeData.config,
-        position: nodeData.position || { x: 100 + Math.random() * 200, y: 100 + Math.random() * 200 },
-        customNodeId: nodeData.customNodeId,
-        customNodeName: nodeData.customNodeName,
-      }))
+      const loadedNodes: WorkflowNode[] = Object.entries(workflowData.nodes || {}).map(([id, nodeData]: [string, any]) => {
+        const type = nodeData.type as WorkflowNode['type']
+        const rawConfig = nodeData.config
+        const config =
+          type === 'llm'
+            ? normalizeLlmConfig(rawConfig as LlmConfig | undefined)
+            : rawConfig
+
+        return {
+          id,
+          type,
+          title: nodeData.title,
+          description: nodeData.description,
+          code: nodeData.code,
+          config,
+          position: nodeData.position || { x: 100 + Math.random() * 200, y: 100 + Math.random() * 200 },
+          customNodeId: nodeData.customNodeId,
+          customNodeName: nodeData.customNodeName,
+        }
+      })
 
       // Load connections
       const loadedConnections: Connection[] = Object.values(workflowData.connections || {}).map((conn: any) => ({
@@ -695,16 +706,7 @@ export function SimpleWorkflowBuilder() {
         params: []
       }
     } else if (type === 'llm') {
-      newNode.config = {
-        provider: 'openrouter',
-        model: 'anthropic/claude-3.5-sonnet',
-        prompt: 'You are a helpful assistant. Process this data: {input}',
-        system: '',
-        temperature: 0.7,
-        max_tokens: 1000,
-        api_key_name: 'OPENROUTER_API_KEY',
-        ollama_host: 'http://localhost:11434'
-      }
+      newNode.config = createDefaultLlmConfig()
     }
 
     const newNodes = [...nodes, newNode]
@@ -1053,7 +1055,7 @@ export function SimpleWorkflowBuilder() {
       </div>
 
       {/* Node Editor Modal */}
-      {showEditorModal && selectedNodeData && (
+      {showEditorModal && selectedNodeData && selectedNodeData.type !== 'llm' && (
         <NodeEditorModal
           isOpen={showEditorModal}
           onClose={() => {
@@ -1073,6 +1075,29 @@ export function SimpleWorkflowBuilder() {
           onMakeCustom={isLocked ? undefined : handleMakeCustomNode}
           onUpdateCustomFromNode={isLocked ? undefined : handleUpdateCustomFromNode}
           onExportCustomNode={isLocked ? undefined : handleExportSelectedCustomNode}
+        />
+      )}
+
+      {/* LLM Node Dialog */}
+      {showEditorModal && selectedNodeData && selectedNodeData.type === 'llm' && (
+        <LlmNodeDialog
+          isOpen={showEditorModal}
+          isLocked={isLocked}
+          nodeId={selectedNodeData.id}
+          nodeTitle={selectedNodeData.title}
+          rawConfig={selectedNodeData.config as LlmConfig | undefined}
+          onClose={() => {
+            setShowEditorModal(false)
+            setSelectedNode(null)
+          }}
+          onSave={(newConfig) => {
+            if (!selectedNode) return
+            const updatedNodes = nodes.map((node) =>
+              node.id === selectedNode ? { ...node, config: newConfig } : node
+            )
+            setNodes(updatedNodes)
+            markAsChanged()
+          }}
         />
       )}
 

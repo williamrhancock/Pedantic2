@@ -684,34 +684,51 @@ def is_local_network_host(host: str) -> bool:
         return False
 
 async def execute_llm_request(config: Dict[str, Any], input_data: Any) -> Dict[str, Any]:
-    """Execute LLM request via OpenRouter or Ollama"""
+    """Execute LLM request via OpenRouter or Ollama.
+
+    Normalized LlmConfig fields:
+      - provider: optional, default 'openrouter'
+      - model: model string
+      - temperature: float
+      - max_tokens: int
+      - system: system prompt text
+      - user: user prompt text (upstream input is appended)
+      - api_key: optional per-node API key override
+      - api_key_name: optional env var name (legacy)
+    """
     try:
-        provider = config.get('provider', 'openrouter')
-        model = config.get('model', 'anthropic/claude-3.5-sonnet')
-        prompt = config.get('prompt', 'Process this data: {input}')
-        system_prompt = config.get('system', '')
-        temperature = config.get('temperature', 0.7)
-        max_tokens = config.get('max_tokens', 1000)
+        provider = config.get('provider') or 'openrouter'
+        model = config.get('model') or 'gpt-4o-mini'
+        # Prefer new 'user' field; fall back to legacy 'prompt'
+        user_prompt = config.get('user') or config.get('prompt') or 'Process this data.'
+        system_prompt = config.get('system') or ''
+        temperature = float(config.get('temperature', 0.7))
+        max_tokens = int(config.get('max_tokens', 1000))
+        api_key_override = config.get('api_key')
         api_key_name = config.get('api_key_name', 'OPENROUTER_API_KEY')
         ollama_host = config.get('ollama_host', os.getenv('OLLAMA_HOST', 'http://localhost:11434'))
         
-        # Replace placeholders in prompt and system prompt
-        def replace_placeholders(text, data):
-            if isinstance(data, dict):
-                for key, value in data.items():
-                    text = text.replace(f'{{{key}}}', str(value))
-            # Also replace {input} with entire input data
-            text = text.replace('{input}', json.dumps(data) if isinstance(data, (dict, list)) else str(data))
-            return text
+        # Build final user content by appending upstream input as JSON
+        upstream_str = ''
+        if input_data is not None and input_data != {}:
+            try:
+                upstream_str = json.dumps(input_data, ensure_ascii=False)
+            except Exception:
+                upstream_str = str(input_data)
         
-        processed_prompt = replace_placeholders(prompt, input_data)
-        processed_system = replace_placeholders(system_prompt, input_data) if system_prompt else ''
+        if upstream_str:
+            processed_user = f\"{user_prompt}\\n{upstream_str}\"
+        else:
+            processed_user = user_prompt
+        
+        processed_system = system_prompt
         
         start_time = time.time()
         
         if provider == 'openrouter':
             # OpenRouter API integration
-            api_key = os.getenv(api_key_name)
+            # Prefer per-node override if provided
+            api_key = api_key_override or os.getenv(api_key_name)
             if not api_key:
                 raise ValueError(f"API key '{api_key_name}' not found in environment variables")
             
@@ -725,7 +742,7 @@ async def execute_llm_request(config: Dict[str, Any], input_data: Any) -> Dict[s
             payload = {
                 'model': model,
                 'messages': [
-                    {'role': 'user', 'content': processed_prompt}
+                    {'role': 'user', 'content': processed_user}
                 ],
                 'temperature': temperature,
                 'max_tokens': max_tokens
@@ -781,7 +798,7 @@ async def execute_llm_request(config: Dict[str, Any], input_data: Any) -> Dict[s
                 
             payload = {
                 'model': model,
-                'prompt': processed_prompt,
+                'prompt': processed_user,
                 'stream': False,
                 'options': {
                     'temperature': temperature,
