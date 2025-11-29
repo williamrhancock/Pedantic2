@@ -505,39 +505,69 @@ async def execute_conditional_logic(config: Dict[str, Any], input_data: Any) -> 
             operator = condition_config.get('operator', '==')
             value = condition_config.get('value', '')
             
-            # Extract field value from input data
+            # Extract field value from input data (support nested paths like "metadata.totalValue")
+            field_value = None
             if isinstance(data, dict):
-                field_value = data.get(field, None)
+                # Handle nested field paths (e.g., "metadata.totalValue")
+                if '.' in field:
+                    parts = field.split('.')
+                    current = data
+                    try:
+                        for part in parts:
+                            if isinstance(current, dict):
+                                current = current.get(part)
+                            else:
+                                current = None
+                                break
+                        field_value = current
+                    except (AttributeError, TypeError, KeyError):
+                        field_value = None
+                else:
+                    field_value = data.get(field, None)
             else:
                 field_value = data
+            
+            # Handle None values - can't compare None with numbers
+            if field_value is None:
+                if operator == 'exists':
+                    return False
+                elif operator == '!=':
+                    return value is not None
+                else:
+                    # For comparison operators, None values should return False
+                    return False
             
             # Convert types for comparison
             try:
                 if isinstance(value, str) and value.isdigit():
                     value = int(value)
-                elif isinstance(value, str) and value.replace('.', '').isdigit():
+                elif isinstance(value, str) and value.replace('.', '', 1).isdigit():
                     value = float(value)
             except:
                 pass
             
             # Evaluate condition
-            if operator == '==':
-                return field_value == value
-            elif operator == '!=':
-                return field_value != value
-            elif operator == '>':
-                return field_value > value
-            elif operator == '<':
-                return field_value < value
-            elif operator == '>=':
-                return field_value >= value
-            elif operator == '<=':
-                return field_value <= value
-            elif operator == 'contains':
-                return value in str(field_value)
-            elif operator == 'exists':
-                return field_value is not None
-            else:
+            try:
+                if operator == '==':
+                    return field_value == value
+                elif operator == '!=':
+                    return field_value != value
+                elif operator == '>':
+                    return field_value > value
+                elif operator == '<':
+                    return field_value < value
+                elif operator == '>=':
+                    return field_value >= value
+                elif operator == '<=':
+                    return field_value <= value
+                elif operator == 'contains':
+                    return value in str(field_value)
+                elif operator == 'exists':
+                    return field_value is not None
+                else:
+                    return False
+            except (TypeError, ValueError) as e:
+                # If comparison fails (e.g., comparing incompatible types), return False
                 return False
         
         result_output = default_output
@@ -1399,12 +1429,13 @@ async def run_workflow(request: dict):
                 config = node_data.get('config', {})
                 result = await execute_foreach_loop(config, input_data, node_id, nodes_data, connections_data)
                 
-        elif node_type == 'markdown':
-            config = node_data.get('config', {})
-            result = await execute_markdown_viewer(config, input_data)
-        elif node_type == 'html':
-            config = node_data.get('config', {})
-            result = await execute_html_viewer(config, input_data)
+            elif node_type == 'markdown':
+                config = node_data.get('config', {})
+                result = await execute_markdown_viewer(config, input_data)
+                
+            elif node_type == 'html':
+                config = node_data.get('config', {})
+                result = await execute_html_viewer(config, input_data)
                 
             else:
                 result = {

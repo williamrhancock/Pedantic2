@@ -85,9 +85,9 @@
           "conditions": [
             {
               "condition": {
-                "field": "metadata.totalValue",
+                "field": "price",
                 "operator": ">=",
-                "value": 1000
+                "value": 500
               },
               "output": {
                 "route": "high_value",
@@ -97,9 +97,9 @@
             },
             {
               "condition": {
-                "field": "metadata.totalValue",
+                "field": "price",
                 "operator": ">=",
-                "value": 500
+                "value": 100
               },
               "output": {
                 "route": "medium_value",
