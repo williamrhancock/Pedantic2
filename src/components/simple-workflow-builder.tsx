@@ -242,6 +242,7 @@ export function SimpleWorkflowBuilder() {
   const [isExecuting, setIsExecuting] = useState(false)
   const [timelineEntries, setTimelineEntries] = useState<TimelineEntry[]>([])
   const [showEditorModal, setShowEditorModal] = useState(false)
+  const [isLocked, setIsLocked] = useState(false)
   const canvasRef = useRef<WorkflowCanvasRef>(null)
 
   // tRPC mutations
@@ -702,8 +703,10 @@ export function SimpleWorkflowBuilder() {
       <ModernToolbar
         activeNodeType={activeNodeType}
         onNodeTypeClick={(type) => {
-          setActiveNodeType(type)
-          addNode(type)
+          if (!isLocked) {
+            setActiveNodeType(type)
+            addNode(type)
+          }
         }}
         onNewWorkflow={handleNewWorkflow}
         onOpenWorkflow={() => setShowWorkflowBrowser(true)}
@@ -715,6 +718,8 @@ export function SimpleWorkflowBuilder() {
         isExecuting={isExecuting}
         hasUnsavedChanges={hasUnsavedChanges}
         isAutoSaving={isAutoSaving}
+        isLocked={isLocked}
+        onToggleLock={() => setIsLocked(prev => !prev)}
       />
 
       {/* Workflow Metadata */}
@@ -745,6 +750,7 @@ export function SimpleWorkflowBuilder() {
             connections={connections}
             onNodeClick={handleNodeClick}
             isExecuting={isExecuting}
+            nodesDraggable={!isLocked}
             onNodesChange={(updatedNodes) => {
               // Update node positions from react-flow
               setNodes(prev => prev.map(node => {

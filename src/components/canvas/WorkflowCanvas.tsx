@@ -63,6 +63,7 @@ interface WorkflowCanvasProps {
   onNodeClick?: (nodeId: string) => void
   canvasRef?: React.RefObject<WorkflowCanvasRef> | React.ForwardedRef<WorkflowCanvasRef>
   isExecuting?: boolean
+  nodesDraggable?: boolean
 }
 
 function WorkflowCanvasInner({
@@ -74,6 +75,7 @@ function WorkflowCanvasInner({
   onNodeClick,
   canvasRef,
   isExecuting = false,
+  nodesDraggable = true,
 }: WorkflowCanvasProps) {
   const { isDark } = useTheme()
   const reactFlowInstance = useRef<ReactFlowInstance | null>(null)
@@ -94,8 +96,9 @@ function WorkflowCanvasInner({
         executionStatus: node.executionStatus,
       },
       hidden: false, // Force nodes to be visible - this is the key fix!
+      draggable: nodesDraggable,
     }))
-  }, [initialNodes, isExecuting])
+  }, [initialNodes, isExecuting, nodesDraggable])
 
   const reactFlowEdges = useMemo<Edge[]>(() => {
     return initialConnections
@@ -161,7 +164,7 @@ function WorkflowCanvasInner({
           executionStatus: node.executionStatus,
         },
         selected: false,
-        draggable: true,
+        draggable: nodesDraggable,
         selectable: true,
         hidden: false, // Force nodes to be visible - this is the key fix!
       }))
@@ -218,7 +221,7 @@ function WorkflowCanvasInner({
         isUpdatingFromPropsRef.current = false
       }, 100)
     }
-  }, [initialNodes, isExecuting])
+  }, [initialNodes, isExecuting, nodesDraggable])
 
   useEffect(() => {
     const timer = setTimeout(() => {
@@ -498,6 +501,7 @@ const handleCancelEdgeMenu = useCallback(() => {
         onInit={onInit}
         nodeTypes={getNodeTypes()}
         edgeTypes={getEdgeTypes()}
+        nodesDraggable={nodesDraggable}
         minZoom={0.1}
         maxZoom={4}
         defaultViewport={{ x: 0, y: 0, zoom: 1 }}

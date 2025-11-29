@@ -11,6 +11,8 @@ import {
   Download,
   Upload,
   Play,
+  Lock,
+  Unlock,
 } from 'lucide-react'
 
 export type NodeType = 'python' | 'typescript' | 'http' | 'file' | 'condition' | 'database' | 'llm'
@@ -28,6 +30,8 @@ interface ModernToolbarProps {
   isExecuting?: boolean
   hasUnsavedChanges?: boolean
   isAutoSaving?: boolean
+  isLocked?: boolean
+  onToggleLock?: () => void
 }
 
 const nodeTypes: { type: NodeType; label: string; color: string }[] = [
@@ -53,6 +57,8 @@ export function ModernToolbar({
   isExecuting = false,
   hasUnsavedChanges = false,
   isAutoSaving = false,
+  isLocked = false,
+  onToggleLock,
 }: ModernToolbarProps) {
   const { isDark } = useTheme()
 
@@ -126,16 +132,21 @@ export function ModernToolbar({
             <button
               key={type}
               onClick={() => onNodeTypeClick(type)}
+              disabled={isLocked}
               className={`
                 relative px-4 py-2 rounded-lg
                 text-sm font-medium
                 transition-all duration-300
-                hover:scale-105 active:scale-95
+                ${isLocked 
+                  ? 'opacity-50 cursor-not-allowed' 
+                  : 'hover:scale-105 active:scale-95'
+                }
                 ${isActive
                   ? `bg-gradient-to-r ${color} text-white shadow-lg`
                   : 'bg-white/5 hover:bg-white/10 text-foreground'
                 }
               `}
+              title={isLocked ? 'Workflow is locked - unlock to add nodes' : `Add ${label} Node`}
             >
               {label}
               {isActive && (
@@ -146,8 +157,24 @@ export function ModernToolbar({
         })}
       </div>
 
-      {/* Right: Execute and theme toggle */}
+      {/* Right: Lock, Execute and theme toggle */}
       <div className="flex items-center gap-2">
+        {onToggleLock && (
+          <button
+            onClick={onToggleLock}
+            className={`
+              p-2 rounded-lg transition-all
+              ${isLocked
+                ? 'bg-yellow-500/20 hover:bg-yellow-500/30 text-yellow-300'
+                : 'hover:bg-white/10'
+              }
+              hover:scale-105 active:scale-95
+            `}
+            title={isLocked ? 'Unlock workflow (allow editing)' : 'Lock workflow (prevent editing)'}
+          >
+            {isLocked ? <Lock className="w-4 h-4" /> : <Unlock className="w-4 h-4" />}
+          </button>
+        )}
         <button
           onClick={onExecute}
           disabled={isExecuting}
