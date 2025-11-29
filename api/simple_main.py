@@ -684,7 +684,7 @@ def is_local_network_host(host: str) -> bool:
         return False
 
 async def execute_llm_request(config: Dict[str, Any], input_data: Any) -> Dict[str, Any]:
-    """Execute LLM request via OpenRouter or Ollama.
+    """Execute LLM request via OpenRouter, OpenAI-style providers, or Ollama.
 
     Normalized LlmConfig fields:
       - provider: optional, default 'openrouter'
@@ -706,6 +706,7 @@ async def execute_llm_request(config: Dict[str, Any], input_data: Any) -> Dict[s
         max_tokens = int(config.get('max_tokens', 1000))
         api_key_override = config.get('api_key')
         api_key_name = config.get('api_key_name', 'OPENROUTER_API_KEY')
+        base_url = config.get('base_url') or ''
         ollama_host = config.get('ollama_host', os.getenv('OLLAMA_HOST', 'http://localhost:11434'))
         
         # Build final user content by appending upstream input as JSON
@@ -725,18 +726,48 @@ async def execute_llm_request(config: Dict[str, Any], input_data: Any) -> Dict[s
         
         start_time = time.time()
         
-        if provider == 'openrouter':
-            # OpenRouter API integration
-            # Prefer per-node override if provided
-            api_key = api_key_override or os.getenv(api_key_name)
-            if not api_key:
-                raise ValueError(f"API key '{api_key_name}' not found in environment variables")
-            
+        # OpenAI-style chat completion providers
+        if provider in ('openrouter', 'openai', 'groq', 'together', 'fireworks', 'deepinfra', 'perplexity', 'mistral'):
+            # For OpenRouter we still allow falling back to an env var for compatibility.
+            if provider == 'openrouter':
+                api_key = api_key_override or os.getenv(api_key_name)
+                if not api_key:
+                    raise ValueError(f"API key '{api_key_name}' not found in environment variables")
+                chat_url = 'https://openrouter.ai/api/v1/chat/completions'
+                extra_headers = {
+                    'HTTP-Referer': 'http://localhost:3000',
+                    'X-Title': 'Workflow Builder'
+                }
+            else:
+                # For other providers we currently require a per-node API key.
+                api_key = api_key_override
+                if not api_key:
+                    raise ValueError(f"API key is required for provider '{provider}'")
+
+                # Allow overriding the base URL via config.base_url for self-hosted proxies.
+                if base_url:
+                    url = base_url.rstrip('/') + '/chat/completions'
+                else:
+                    provider_chat_endpoints = {
+                        'openai': 'https://api.openai.com/v1/chat/completions',
+                        'groq': 'https://api.groq.com/openai/v1/chat/completions',
+                        'together': 'https://api.together.xyz/v1/chat/completions',
+                        'fireworks': 'https://api.fireworks.ai/inference/v1/chat/completions',
+                        'deepinfra': 'https://api.deepinfra.com/v1/openai/chat/completions',
+                        'perplexity': 'https://api.perplexity.ai/openai/v1/chat/completions',
+                        'mistral': 'https://api.mistral.ai/v1/chat/completions',
+                    }
+                    url = provider_chat_endpoints.get(provider)
+                    if not url:
+                        raise ValueError(f"Chat completions endpoint not configured for provider '{provider}'")
+
+                chat_url = url
+                extra_headers = {}
+
             headers = {
                 'Authorization': f'Bearer {api_key}',
                 'Content-Type': 'application/json',
-                'HTTP-Referer': 'http://localhost:3000',
-                'X-Title': 'Workflow Builder'
+                **extra_headers,
             }
             
             payload = {
@@ -753,7 +784,7 @@ async def execute_llm_request(config: Dict[str, Any], input_data: Any) -> Dict[s
             
             async with aiohttp.ClientSession() as session:
                 async with session.post(
-                    'https://openrouter.ai/api/v1/chat/completions',
+                    chat_url,
                     headers=headers,
                     json=payload,
                     timeout=aiohttp.ClientTimeout(total=60)
@@ -761,7 +792,7 @@ async def execute_llm_request(config: Dict[str, Any], input_data: Any) -> Dict[s
                     response_data = await response.json()
                     
                     if response.status != 200:
-                        raise Exception(f"OpenRouter API error: {response.status} - {response_data.get('error', 'Unknown error')}")
+                        raise Exception(f"{provider} API error: {response.status} - {response_data.get('error', 'Unknown error')}")
                     
                     if 'choices' not in response_data or not response_data['choices']:
                         raise Exception("No response from LLM")
@@ -775,12 +806,12 @@ async def execute_llm_request(config: Dict[str, Any], input_data: Any) -> Dict[s
                         'output': {
                             'content': content,
                             'model': model,
-                            'provider': 'openrouter',
+                            'provider': provider,
                             'prompt': processed_user[:200] + '...' if len(processed_user) > 200 else processed_user,
                             'tokens_used': response_data.get('usage', {}).get('total_tokens', 0),
                             'finish_reason': response_data['choices'][0].get('finish_reason', 'unknown')
                         },
-                        'stdout': f"LLM response from {model} ({len(content)} chars)",
+                        'stdout': f"LLM response from {model} via {provider} ({len(content)} chars)",
                         'stderr': '',
                         'execution_time': execution_time
                     }
@@ -834,7 +865,7 @@ async def execute_llm_request(config: Dict[str, Any], input_data: Any) -> Dict[s
                             'model': model,
                             'provider': 'ollama',
                             'host': ollama_host,
-                            'prompt': processed_prompt[:200] + '...' if len(processed_prompt) > 200 else processed_prompt,
+                            'prompt': processed_user[:200] + '...' if len(processed_user) > 200 else processed_user,
                             'eval_count': response_data.get('eval_count', 0),
                             'eval_duration': response_data.get('eval_duration', 0)
                         },
