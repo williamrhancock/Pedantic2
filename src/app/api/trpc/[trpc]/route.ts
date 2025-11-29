@@ -4,8 +4,11 @@ import {
   workflowQueries,
   executionQueries,
   nodeTemplateQueries,
+  customNodeQueries,
+  dbPath,
   type Workflow
 } from '@/lib/db'
+import fs from 'fs'
 import { z } from 'zod'
 
 const appRouter = createTRPCRouter({
@@ -111,6 +114,16 @@ const appRouter = createTRPCRouter({
       await workflowQueries.deleteWorkflow(input.id)
       await executionQueries.deleteHistory(input.id)
       return { success: true }
+    }),
+
+  checkWorkflowName: publicProcedure
+    .input(z.object({
+      name: z.string().min(1),
+      excludeId: z.number().optional()
+    }))
+    .query(async ({ input }) => {
+      const exists = await workflowQueries.checkWorkflowName(input.name, input.excludeId)
+      return { exists }
     }),
 
   // === IMPORT/EXPORT ===
@@ -334,6 +347,188 @@ const appRouter = createTRPCRouter({
         category: input.category
       })
       return { id, success: true }
+    }),
+
+  // === CUSTOM NODES ===
+  getCustomNodes: publicProcedure
+    .query(async () => {
+      const nodes = await customNodeQueries.listCustomNodes()
+      return nodes
+    }),
+
+  saveCustomNode: publicProcedure
+    .input(z.object({
+      id: z.number().optional(),
+      name: z.string().min(1),
+      description: z.string().optional(),
+      type: z.string().min(1),
+      data: z.any()
+    }))
+    .mutation(async ({ input }) => {
+      const { id, name, description, type, data } = input
+
+      // Enforce unique name (global)
+      const existingWithName = await customNodeQueries.getCustomNodeByName(name)
+
+      if (!id) {
+        if (existingWithName) {
+          throw new Error(`A custom node named "${name}" already exists`)
+        }
+
+        const newId = await customNodeQueries.createCustomNode(
+          name,
+          type,
+          description ?? null,
+          JSON.stringify(data ?? {})
+        )
+        return { id: newId, created: true }
+      }
+
+      // Updating existing custom node
+      if (existingWithName && existingWithName.id !== id) {
+        throw new Error(`A custom node named "${name}" already exists`)
+      }
+
+      await customNodeQueries.updateCustomNode(id, {
+        name,
+        description,
+        config: JSON.stringify(data ?? {})
+      })
+
+      return { id, created: false }
+    }),
+
+  deleteCustomNode: publicProcedure
+    .input(z.object({ id: z.number() }))
+    .mutation(async ({ input }) => {
+      await customNodeQueries.deleteCustomNode(input.id)
+      return { success: true }
+    }),
+
+  exportCustomNode: publicProcedure
+    .input(z.object({
+      id: z.number()
+    }))
+    .mutation(async ({ input }) => {
+      const node = await customNodeQueries.getCustomNode(input.id)
+      if (!node) {
+        throw new Error('Custom node not found')
+      }
+
+      const exportData = {
+        format: 'pedantic-custom-node-v1',
+        metadata: {
+          name: node.name,
+          description: node.description,
+          type: node.type,
+          exportedAt: new Date().toISOString(),
+        },
+        node: node.config ?? {},
+      }
+
+      return {
+        data: exportData,
+        filename: `${node.name.replace(/[^a-z0-9]/gi, '_')}_${Date.now()}.json`
+      }
+    }),
+
+  importCustomNode: publicProcedure
+    .input(z.object({
+      data: z.any(),
+      overwrite: z.boolean().optional(),
+    }))
+    .mutation(async ({ input }) => {
+      const { data, overwrite } = input
+
+      if (!data || data.format !== 'pedantic-custom-node-v1') {
+        throw new Error('Unsupported custom node format')
+      }
+
+      const name = data.metadata?.name as string | undefined
+      const type = data.metadata?.type as string | undefined
+      const description = data.metadata?.description as string | undefined
+      const nodeConfig = data.node
+
+      if (!name || !type) {
+        throw new Error('Custom node must have a name and type')
+      }
+
+      const existing = await customNodeQueries.getCustomNodeByName(name)
+
+      if (existing && !overwrite) {
+        // Signal to the client that this is specifically a name-collision case.
+        throw new Error(`A custom node named "${name}" already exists`)
+      }
+
+      if (existing && overwrite) {
+        await customNodeQueries.updateCustomNode(existing.id, {
+          name,
+          description,
+          config: JSON.stringify(nodeConfig ?? {}),
+        })
+
+        return {
+          id: existing.id,
+          name,
+          type,
+        }
+      }
+
+      const newId = await customNodeQueries.createCustomNode(
+        name,
+        type,
+        description ?? null,
+        JSON.stringify(nodeConfig ?? {})
+      )
+
+      return {
+        id: newId,
+        name,
+        type,
+      }
+    }),
+
+  getDbStats: publicProcedure
+    .query(async () => {
+      const { workflows, total } = await workflowQueries.listWorkflows({ limit: 1, offset: 0 })
+      const customNodes = await customNodeQueries.listCustomNodes()
+      let sizeBytes = 0
+      try {
+        const stat = await fs.promises.stat(dbPath)
+        sizeBytes = stat.size
+      } catch (e) {
+        console.error('Failed to stat DB file for size:', e)
+      }
+      return {
+        workflowCount: total,
+        customNodeCount: customNodes.length,
+        dbSizeBytes: sizeBytes,
+      }
+    }),
+
+  // === DB MAINTENANCE ===
+  backupDatabase: publicProcedure
+    .mutation(async () => {
+      const buffer = await fs.promises.readFile(dbPath)
+      const base64 = buffer.toString('base64')
+      const filename = `pedantic-backup-${new Date().toISOString().replace(/[:.]/g, '-')}.db`
+      return { filename, base64 }
+    }),
+
+  compactDatabase: publicProcedure
+    .mutation(async () => {
+      // Use SQLite VACUUM to compact the DB
+      await workflowQueries.listWorkflows() // ensure DB initialized
+      await new Promise<void>((resolve, reject) => {
+        const sqlite3 = require('sqlite3') as typeof import('sqlite3')
+        const db = new sqlite3.Database(dbPath)
+        db.exec('VACUUM', (err) => {
+          db.close()
+          if (err) reject(err)
+          else resolve()
+        })
+      })
+      return { success: true }
     })
 })
 
