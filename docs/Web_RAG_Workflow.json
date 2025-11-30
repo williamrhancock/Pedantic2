@@ -1,0 +1,281 @@
+{
+  "format": "pedantic-workflow-v1",
+  "metadata": {
+    "name": "Web RAG - Fetch and Query Website Content",
+    "description": "Fetches content from a website, parses HTML, embeds it into a vector database, and answers questions using RAG. Requires: sqlite-vec extension in /tmp/workflow_files/ and OPENROUTER_API_KEY.",
+    "tags": ["RAG", "web-scraping", "vector-search", "example"],
+    "exportedAt": "2025-01-27T00:00:00.000Z",
+    "version": "1.0.0"
+  },
+  "workflow": {
+    "nodes": {
+      "start": {
+        "type": "start",
+        "title": "Start",
+        "position": { "x": 100, "y": 200 }
+      },
+      "python_url": {
+        "type": "python",
+        "title": "Set Website URL",
+        "code": "def run(input):\n    # Change this URL to any website you want to query\n    url = 'https://en.wikipedia.org/wiki/Retrieval-augmented_generation'\n    return {'url': url, 'query': 'What is RAG and how does it work?'}",
+        "position": { "x": 300, "y": 200 }
+      },
+      "http_fetch": {
+        "type": "http",
+        "title": "Fetch Website",
+        "config": {
+          "method": "GET",
+          "url": "{url}",
+          "headers": {
+            "User-Agent": "Mozilla/5.0 (compatible; Pedantic2/1.0)"
+          },
+          "timeout": 30
+        },
+        "position": { "x": 500, "y": 200 }
+      },
+      "python_parse_html": {
+        "type": "python",
+        "title": "Parse HTML",
+        "code": "def run(input):\n    from bs4 import BeautifulSoup\n    \n    # Get HTML from HTTP response\n    html_content = input.get('data', '')\n    if isinstance(html_content, dict):\n        html_content = str(html_content)\n    \n    # Parse HTML and extract text\n    soup = BeautifulSoup(html_content, 'html.parser')\n    \n    # Remove script and style elements\n    for script in soup(['script', 'style', 'nav', 'footer', 'header']):\n        script.decompose()\n    \n    # Get text content\n    text = soup.get_text()\n    \n    # Clean up whitespace\n    lines = (line.strip() for line in text.splitlines())\n    chunks = (phrase.strip() for line in lines for phrase in line.split('  '))\n    text = '\\n'.join(chunk for chunk in chunks if chunk)\n    \n    # Split into chunks (max 500 chars each for better embedding)\n    chunk_size = 500\n    chunks = []\n    words = text.split()\n    current_chunk = []\n    current_length = 0\n    \n    for word in words:\n        word_length = len(word) + 1  # +1 for space\n        if current_length + word_length > chunk_size and current_chunk:\n            chunks.append({'content': ' '.join(current_chunk), 'source': input.get('url', 'unknown')})\n            current_chunk = [word]\n            current_length = word_length\n        else:\n            current_chunk.append(word)\n            current_length += word_length\n    \n    # Add last chunk\n    if current_chunk:\n        chunks.append({'content': ' '.join(current_chunk), 'source': input.get('url', 'unknown')})\n    \n    return {\n        'documents': chunks,\n        'total_chunks': len(chunks),\n        'url': input.get('url', 'unknown'),\n        'query': input.get('query', 'What is this about?')  # Preserve user query\n    }",
+        "position": { "x": 700, "y": 200 }
+      },
+      "database_setup": {
+        "type": "database",
+        "title": "Setup Database",
+        "config": {
+          "operation": "create",
+          "database": "web_rag.db",
+          "query": "CREATE TABLE IF NOT EXISTS docs (id INTEGER PRIMARY KEY, content TEXT, source_url TEXT, embedding BLOB);"
+        },
+        "position": { "x": 900, "y": 200 }
+      },
+      "database_load_ext": {
+        "type": "database",
+        "title": "Load Extension",
+        "config": {
+          "operation": "select",
+          "database": "web_rag.db",
+          "query": "SELECT load_extension('/tmp/workflow_files/vec0.dylib');"
+        },
+        "position": { "x": 1100, "y": 200 }
+      },
+      "database_vec_table": {
+        "type": "database",
+        "title": "Create Vector Table",
+        "config": {
+          "operation": "select",
+          "database": "web_rag.db",
+          "query": "CREATE VIRTUAL TABLE IF NOT EXISTS vec_docs USING vec0(embedding float[384] distance_metric=cosine);"
+        },
+        "position": { "x": 1300, "y": 200 }
+      },
+      "foreach_docs": {
+        "type": "foreach",
+        "title": "Process Chunks",
+        "config": {
+          "items_key": "documents",
+          "execution_mode": "serial",
+          "max_concurrency": 1
+        },
+        "position": { "x": 1500, "y": 200 }
+      },
+      "embedding_node": {
+        "type": "embedding",
+        "title": "Generate Embedding",
+        "config": {
+          "model": "all-MiniLM-L6-v2",
+          "input_field": "content",
+          "output_field": "embedding",
+          "format": "blob"
+        },
+        "position": { "x": 1700, "y": 300 }
+      },
+      "database_insert": {
+        "type": "database",
+        "title": "Store in DB",
+        "config": {
+          "operation": "insert",
+          "database": "web_rag.db",
+          "query": "INSERT INTO docs (content, source_url, embedding) VALUES (?, ?, ?); INSERT INTO vec_docs(rowid, embedding) VALUES (last_insert_rowid(), ?);",
+          "params": ["{content}", "{source}", "{embedding}", "{embedding}"]
+        },
+        "position": { "x": 1900, "y": 300 }
+      },
+      "endloop": {
+        "type": "endloop",
+        "title": "End Loop",
+        "position": { "x": 2100, "y": 300 }
+      },
+      "python_query": {
+        "type": "python",
+        "title": "User Query",
+        "code": "def run(input):\n    # Get the user query (preserved from earlier)\n    query = input.get('query', 'What is this about?')\n    return {'query': query, 'user_query': query, 'content': query}",
+        "position": { "x": 2300, "y": 200 }
+      },
+      "embedding_query": {
+        "type": "embedding",
+        "title": "Embed Query",
+        "config": {
+          "model": "all-MiniLM-L6-v2",
+          "input_field": "content",
+          "output_field": "query_embedding",
+          "format": "blob"
+        },
+        "position": { "x": 2500, "y": 200 }
+      },
+      "database_search": {
+        "type": "database",
+        "title": "Vector Search",
+        "config": {
+          "operation": "select",
+          "database": "web_rag.db",
+          "query": "SELECT v.rowid, v.distance, d.content, d.source_url FROM vec_docs v JOIN docs d ON v.rowid = d.id WHERE v.embedding MATCH ? AND k = 3;",
+          "params": ["{query_embedding}"]
+        },
+        "position": { "x": 2700, "y": 200 }
+      },
+      "python_format": {
+        "type": "python",
+        "title": "Format Context",
+        "code": "def run(input):\n    results = input.get('data', [])\n    \n    # Get user query - prioritize user_query over query\n    query = input.get('user_query', input.get('query', 'What is this about?'))\n    \n    # If query still looks like SQL, use fallback\n    if 'SELECT' in str(query) or 'FROM' in str(query):\n        query = 'What is this about?'\n    \n    # Format retrieved documents as context with sources\n    context_parts = []\n    for i, row in enumerate(results):\n        if isinstance(row, dict):\n            content = row.get('content', '')\n            distance = row.get('distance', 0)\n            source = row.get('source_url', 'unknown')\n            similarity = 1 - distance  # Convert distance to similarity\n            context_parts.append(f\"[Document {i+1}] (similarity: {similarity:.3f}, source: {source})\\n{content}\")\n    \n    context = '\\n\\n'.join(context_parts)\n    \n    return {\n        'query': query,\n        'user_query': query,\n        'context': context,\n        'retrieved_count': len(results),\n        'sources': [r.get('source_url', 'unknown') for r in results if isinstance(r, dict)]\n    }",
+        "position": { "x": 2900, "y": 200 }
+      },
+      "llm_answer": {
+        "type": "llm",
+        "title": "Generate Answer",
+        "config": {
+          "provider": "openrouter",
+          "model": "openai/gpt-4o-mini",
+          "temperature": 0.3,
+          "max_tokens": 500,
+          "system": "You are a helpful assistant. Answer the user's question using ONLY the provided context from the website. Cite sources when possible. If the context doesn't contain the answer, say so clearly.",
+          "user": "Question: {query}\\n\\nContext from website:\\n{context}\\n\\nAnswer:",
+          "api_key_name": "OPENROUTER_API_KEY"
+        },
+        "position": { "x": 3100, "y": 200 }
+      },
+      "markdown_output": {
+        "type": "markdown",
+        "title": "View Answer",
+        "config": {
+          "content_key": "content"
+        },
+        "position": { "x": 3300, "y": 200 }
+      },
+      "end": {
+        "type": "end",
+        "title": "End",
+        "position": { "x": 3500, "y": 200 }
+      }
+    },
+    "connections": {
+      "start_to_url": {
+        "source": "start",
+        "target": "python_url",
+        "sourceOutput": "output",
+        "targetInput": "input"
+      },
+      "url_to_http": {
+        "source": "python_url",
+        "target": "http_fetch",
+        "sourceOutput": "output",
+        "targetInput": "input"
+      },
+      "http_to_parse": {
+        "source": "http_fetch",
+        "target": "python_parse_html",
+        "sourceOutput": "output",
+        "targetInput": "input"
+      },
+      "parse_to_setup": {
+        "source": "python_parse_html",
+        "target": "database_setup",
+        "sourceOutput": "output",
+        "targetInput": "input"
+      },
+      "setup_to_load": {
+        "source": "database_setup",
+        "target": "database_load_ext",
+        "sourceOutput": "output",
+        "targetInput": "input"
+      },
+      "load_to_vec": {
+        "source": "database_load_ext",
+        "target": "database_vec_table",
+        "sourceOutput": "output",
+        "targetInput": "input"
+      },
+      "vec_to_foreach": {
+        "source": "database_vec_table",
+        "target": "foreach_docs",
+        "sourceOutput": "output",
+        "targetInput": "input"
+      },
+      "foreach_to_embed": {
+        "source": "foreach_docs",
+        "target": "embedding_node",
+        "sourceOutput": "output",
+        "targetInput": "input"
+      },
+      "embed_to_insert": {
+        "source": "embedding_node",
+        "target": "database_insert",
+        "sourceOutput": "output",
+        "targetInput": "input"
+      },
+      "insert_to_endloop": {
+        "source": "database_insert",
+        "target": "endloop",
+        "sourceOutput": "output",
+        "targetInput": "input"
+      },
+      "endloop_to_query": {
+        "source": "endloop",
+        "target": "python_query",
+        "sourceOutput": "output",
+        "targetInput": "input"
+      },
+      "query_to_embed_query": {
+        "source": "python_query",
+        "target": "embedding_query",
+        "sourceOutput": "output",
+        "targetInput": "input"
+      },
+      "embed_query_to_search": {
+        "source": "embedding_query",
+        "target": "database_search",
+        "sourceOutput": "output",
+        "targetInput": "input"
+      },
+      "search_to_format": {
+        "source": "database_search",
+        "target": "python_format",
+        "sourceOutput": "output",
+        "targetInput": "input"
+      },
+      "format_to_llm": {
+        "source": "python_format",
+        "target": "llm_answer",
+        "sourceOutput": "output",
+        "targetInput": "input"
+      },
+      "llm_to_markdown": {
+        "source": "llm_answer",
+        "target": "markdown_output",
+        "sourceOutput": "output",
+        "targetInput": "input"
+      },
+      "markdown_to_end": {
+        "source": "markdown_output",
+        "target": "end",
+        "sourceOutput": "output",
+        "targetInput": "input"
+      }
+    },
+    "metadata": {
+      "nodeCount": 18,
+      "lastModified": "2025-01-27T00:00:00.000Z"
+    }
+  }
+}
+
