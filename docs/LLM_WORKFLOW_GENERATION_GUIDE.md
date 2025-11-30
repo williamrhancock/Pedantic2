@@ -578,7 +578,7 @@ Query becomes: `SELECT * FROM users WHERE id = 123 AND status = 'active'`
 
 #### Extension Loading (sqlite-vec)
 
-Database nodes support loading SQLite extensions for vector search:
+Database nodes support loading SQLite extensions for vector search. **Note**: Extension loading requires `pysqlite3` to be installed. See [docs/INSTALL_PYSQLITE3.md](../docs/INSTALL_PYSQLITE3.md) for installation instructions based on [Simon Willison's guide](https://til.simonwillison.net/sqlite/build-specific-sqlite-pysqlite-macos).
 
 ```json
 {
@@ -1525,10 +1525,16 @@ Pedantic2 supports local vector databases using SQLite with the sqlite-vec exten
 
 ### Setup Requirements
 
-1. **Download sqlite-vec extension**:
+1. **Install pysqlite3** (required for extension loading):
+   - See [docs/INSTALL_PYSQLITE3.md](../docs/INSTALL_PYSQLITE3.md) for detailed instructions
+   - Recommended method: Build from source following [Simon Willison's guide](https://til.simonwillison.net/sqlite/build-specific-sqlite-pysqlite-macos)
+   - Quick method (macOS): Use Homebrew SQLite and link pysqlite3 against it
+
+2. **Download sqlite-vec extension**:
    - Visit https://github.com/asg017/sqlite-vec/releases
    - Download platform-specific binary (`vec0.so` for Linux, `vec0.dylib` for macOS, `vec0.dll` for Windows)
    - Place in `/tmp/workflow_files/` directory
+   - On macOS, you may need to remove quarantine: `xattr -d com.apple.quarantine /tmp/workflow_files/vec0.dylib`
 
 2. **Install sentence-transformers** (for embedding generation):
    - Already included in `requirements.txt`

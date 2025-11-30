@@ -76,14 +76,13 @@ Pro Tip: Custom nodes? Save configs as templates. Reuse that "scrape cat memes" 
    cd ..
    ```
    
-   **Note for Vector Database Support**: The standard Python `sqlite3` module doesn't support loading extensions. For vector database workflows (RAG), you need extension loading support:
+   **Note for Vector Database Support**: The standard Python `sqlite3` module doesn't support loading extensions. For vector database workflows (RAG), you need extension loading support.
    
-   **macOS:**
+   **Recommended Method (macOS/Linux)**: Build pysqlite3 from source with a specific SQLite version. See [docs/INSTALL_PYSQLITE3.md](docs/INSTALL_PYSQLITE3.md) for detailed instructions based on [Simon Willison's guide](https://til.simonwillison.net/sqlite/build-specific-sqlite-pysqlite-macos).
+   
+   **Quick Method (macOS with Homebrew):**
    ```bash
-   # Install SQLite with extension support via Homebrew
    brew install sqlite
-   
-   # Install pysqlite3 linking to Homebrew SQLite
    export LDFLAGS="-L$(brew --prefix sqlite)/lib"
    export CPPFLAGS="-I$(brew --prefix sqlite)/include"
    pip install pysqlite3
@@ -100,6 +99,8 @@ Pro Tip: Custom nodes? Save configs as templates. Reuse that "scrape cat memes" 
    sudo yum install sqlite-devel
    pip install pysqlite3
    ```
+   
+   For complete installation instructions, troubleshooting, and alternative methods, see [docs/INSTALL_PYSQLITE3.md](docs/INSTALL_PYSQLITE3.md).
    
    **Alternative**: Try `pysqlite3-binary` first (may not work on all platforms):
    ```bash

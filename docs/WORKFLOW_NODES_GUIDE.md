@@ -1020,7 +1020,7 @@ Use `{field_name}` placeholders in queries to insert data from previous nodes:
 
 #### Extension Loading (sqlite-vec)
 
-Database nodes support loading SQLite extensions for vector search capabilities:
+Database nodes support loading SQLite extensions for vector search capabilities. **Note**: Extension loading requires `pysqlite3` to be installed. See [docs/INSTALL_PYSQLITE3.md](../docs/INSTALL_PYSQLITE3.md) for installation instructions based on [Simon Willison's guide](https://til.simonwillison.net/sqlite/build-specific-sqlite-pysqlite-macos).
 
 **Load Extension:**
 ```json
