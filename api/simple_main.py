@@ -1585,13 +1585,19 @@ async def execute_json_viewer(config: Dict[str, Any], input_data: Any) -> Dict[s
                 if isinstance(candidate, (dict, list)):
                     json_content = candidate
                     detected_key = content_key
-                # If it's a string, try to parse as JSON
-                elif isinstance(candidate, str) and is_json_string(candidate):
-                    json_content = json.loads(candidate)
-                    detected_key = content_key
+                # If it's a string, check if it's a JSON string first
+                elif isinstance(candidate, str):
+                    if is_json_string(candidate):
+                        # It's a JSON string, parse it
+                        json_content = json.loads(candidate)
+                        detected_key = content_key
+                    else:
+                        # It's a regular string value, wrap it for display
+                        json_content = {"value": candidate, "path": content_key, "type": "string"}
+                        detected_key = content_key
                 # If it's a primitive value (number, bool, None), wrap it in a dict for JSON display
                 elif isinstance(candidate, (int, float, bool)) or candidate is None:
-                    json_content = {"value": candidate, "path": content_key}
+                    json_content = {"value": candidate, "path": content_key, "type": type(candidate).__name__}
                     detected_key = content_key
             else:
                 # Key was explicitly set but not found - return error message
