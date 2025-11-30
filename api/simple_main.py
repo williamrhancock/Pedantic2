@@ -1541,18 +1541,40 @@ async def execute_llm_request(config: Dict[str, Any], input_data: Any) -> Dict[s
         base_url = config.get('base_url') or ''
         ollama_host = config.get('ollama_host', os.getenv('OLLAMA_HOST', 'http://localhost:11434'))
         
-        # Build final user content by appending upstream input as JSON
-        upstream_str = ''
-        if input_data is not None and input_data != {}:
+        # First, replace placeholders in user_prompt template (like {query}, {context}, etc.)
+        # This is similar to how HTTP node handles placeholders
+        processed_user = user_prompt
+        if isinstance(input_data, dict):
+            import re
+            for key, value in input_data.items():
+                # Replace {key} placeholders in the prompt
+                placeholder = f'{{{key}}}'
+                if placeholder in processed_user:
+                    # Convert value to string, but handle long strings gracefully
+                    if isinstance(value, str) and len(value) > 5000:
+                        # For very long strings (like context), truncate with ellipsis
+                        processed_user = processed_user.replace(placeholder, value[:5000] + '...')
+                    else:
+                        processed_user = processed_user.replace(placeholder, str(value))
+        
+        # Only append remaining input_data as JSON if there are placeholders that weren't replaced
+        # and if the prompt doesn't already contain the data we need
+        # Check if prompt still has unreplaced placeholders
+        unreplaced_placeholders = re.findall(r'\{(\w+)\}', processed_user)
+        if unreplaced_placeholders and input_data is not None and input_data != {}:
+            # If there are unreplaced placeholders, append the data as JSON for reference
+            # But only if it's not too large (to avoid token limit issues)
             try:
                 upstream_str = json.dumps(input_data, ensure_ascii=False)
+                # Limit the appended JSON to avoid token limit issues
+                if len(upstream_str) > 2000:
+                    upstream_str = upstream_str[:2000] + '... (truncated)'
+                processed_user = f"{processed_user}\n\nAdditional data:\n{upstream_str}"
             except Exception:
                 upstream_str = str(input_data)
-        
-        if upstream_str:
-            processed_user = f"{user_prompt}\n{upstream_str}"
-        else:
-            processed_user = user_prompt
+                if len(upstream_str) > 2000:
+                    upstream_str = upstream_str[:2000] + '... (truncated)'
+                processed_user = f"{processed_user}\n\nAdditional data:\n{upstream_str}"
         
         processed_system = system_prompt
         
