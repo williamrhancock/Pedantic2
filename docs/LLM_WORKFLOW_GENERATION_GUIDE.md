@@ -60,6 +60,7 @@ Additional fields depend on node type:
 - **Code nodes** (Python, TypeScript): `code` (string)
 - **Config nodes** (HTTP, File, Condition, Database, LLM, Embedding, Markdown, HTML, ForEach): `config` (object)
 - **Start/End nodes**: No additional fields
+- **All nodes** (except Start/End): `skipDuringExecution` (boolean, optional) - When `true`, node is skipped during execution
 
 ### Connection Structure
 
@@ -96,6 +97,8 @@ Connections define data flow:
 | `endloop` | Control | ForEach results | Aggregated results | No |
 | `markdown` | Config | Any | Markdown content | Optional |
 | `html` | Config | Any | HTML content | Optional |
+
+**Note**: All nodes (except `start` and `end`) support `skipDuringExecution` property. When set to `true`, the node is skipped during execution and input data is passed through unchanged.
 
 ---
 

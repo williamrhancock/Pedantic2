@@ -12,6 +12,7 @@ This comprehensive guide covers all node types available in the Visual Agentic W
    - [HTTP API Call Node](#http-api-call-node)
    - [File Operations Node](#file-operations-node)
    - [Markdown Viewer Node](#markdown-viewer-node)
+   - [HTML Viewer Node](#html-viewer-node)
    - [Conditional Logic Node](#conditional-logic-node)
    - [Database Query Node](#database-query-node)
    - [Embedding Node](#embedding-node)
@@ -38,6 +39,7 @@ The Visual Agentic Workflow Builder supports multiple node types for building so
 - 🌐 **HTTP API Calls** - Make requests to external APIs and web services
 - 📁 **File Operations** - Read, write, and manipulate files
 - 📄 **Markdown Viewer** - Display markdown content from upstream nodes
+- 🌐 **HTML Viewer** - Display HTML content from upstream nodes
 - 🔀 **Conditional Logic** - Branch workflows based on data conditions
 - 🗄️ **Database Queries** - Execute SQLite queries and operations
 - 🤖 **LLM AI Assistant** - Integrate large language models into workflows
@@ -47,6 +49,25 @@ The Visual Agentic Workflow Builder supports multiple node types for building so
 - ⏹️ **End Node** - Complete workflow execution
 - 🔄 **For Each Loop** - Iterate over arrays with serial or parallel execution
 - 🔁 **End Loop** - Marks the end of a ForEach loop and aggregates results
+
+### Skip During Execution
+
+Any node (except Start and End) can be marked to **Skip During Execution**. When enabled:
+- The node is **not executed** during workflow run
+- Input data is **passed through unchanged** to downstream nodes
+- The node displays a **yellow badge** indicator on the canvas
+- Useful for debugging, temporarily disabling nodes, or testing workflow paths
+
+**How to Enable:**
+1. Open the node editor
+2. Check the "Skip During Execution" checkbox
+3. Save the node
+
+**Use Cases:**
+- Debugging: Skip problematic nodes to test other parts of the workflow
+- Feature flags: Temporarily disable features without deleting nodes
+- Testing: Test alternative execution paths
+- Performance: Skip expensive operations during development
 
 ### Data Flow Between Nodes
 
@@ -779,6 +800,108 @@ After workflow execution:
 2. **Format LLM Output**: When using LLM nodes, request markdown-formatted responses for better readability
 3. **Structure Content**: Use proper markdown headers and sections for better navigation with anchors
 4. **Link to Documentation**: Use relative links (e.g., `docs/guide.md#section`) to create interconnected documentation
+
+---
+
+### HTML Viewer Node
+
+The HTML Viewer node automatically detects and displays HTML content from upstream nodes. It's similar to the Markdown Viewer but renders HTML instead of markdown. Perfect for displaying HTML reports, web content, or formatted HTML output.
+
+#### Basic Configuration
+
+```json
+{
+  "content_key": "content"
+}
+```
+
+#### Parameters
+
+- **`content_key`** (string, optional): The key in the input data that contains HTML content. Defaults to `"content"`. If not specified, the node will automatically scan all string values for HTML content.
+
+#### How It Works
+
+1. **Automatic Detection**: The node scans all string values in the input data for HTML patterns (tags like `<div>`, `<p>`, `<html>`, etc.)
+2. **Priority Selection**: 
+   - First checks the specified `content_key` (if provided)
+   - Then scans all variables for HTML content
+   - Falls back to common key names (`html`, `body`, `content`, `output`, etc.)
+3. **Rendering**: Displays the HTML in a full-size viewer modal with light theme (for better readability)
+
+#### Examples
+
+**Displaying HTML from HTTP Response:**
+
+If an HTTP node fetches HTML content:
+
+```json
+{
+  "status": 200,
+  "body": "<html><body><h1>Welcome</h1><p>This is HTML content.</p></body></html>",
+  "headers": {}
+}
+```
+
+**HTML Viewer Config:**
+```json
+{
+  "content_key": "body"
+}
+```
+
+**Displaying HTML Report:**
+
+If a Python node generates HTML:
+
+```python
+def run(input):
+    html_report = """
+    <html>
+    <head><title>Report</title></head>
+    <body>
+        <h1>Analysis Report</h1>
+        <table border="1">
+            <tr><th>Item</th><th>Status</th></tr>
+            <tr><td>Item 1</td><td>✓ Complete</td></tr>
+            <tr><td>Item 2</td><td>✓ Complete</td></tr>
+        </table>
+    </body>
+    </html>
+    """
+    return {
+        "html_report": html_report,
+        "status": "success"
+    }
+```
+
+**HTML Viewer Config:**
+```json
+{
+  "content_key": "html_report"
+}
+```
+
+#### Viewing HTML
+
+After workflow execution:
+1. Click on the HTML Viewer node
+2. The HTML content opens in a full-size viewer modal
+3. HTML is rendered with light theme for better readability
+4. Links and interactive elements are preserved
+
+#### Best Practices
+
+1. **Use Descriptive Keys**: If you know which key contains HTML, specify it in `content_key`
+2. **Generate Valid HTML**: Ensure HTML is well-formed for proper rendering
+3. **Style for Light Theme**: HTML is displayed in light theme, so design accordingly
+4. **Security Note**: HTML is rendered as-is, so be cautious with user-generated content
+
+#### Differences from Markdown Viewer
+
+- **HTML Viewer**: Renders raw HTML content, preserves all HTML tags and styling
+- **Markdown Viewer**: Renders markdown-formatted text, converts markdown to HTML
+
+Use HTML Viewer when you have HTML content directly, and Markdown Viewer when you have markdown that needs to be converted to HTML.
 
 ---
 
@@ -2306,11 +2429,18 @@ def run(input):
 This guide covers all node types available in the Visual Agentic Workflow Builder:
 
 - **Code-Based Nodes**: Python and TypeScript for custom logic
-- **Configuration-Based Nodes**: HTTP, File, Markdown Viewer, Condition, Database, and LLM for common operations
-- **Control Flow Nodes**: For Each Loop for iteration
+- **Configuration-Based Nodes**: HTTP, File, Markdown Viewer, HTML Viewer, Condition, Database, Embedding, and LLM for common operations
+- **Control Flow Nodes**: For Each Loop with EndLoop aggregation for iteration
 - **Custom Nodes**: Reusable node templates for sharing
+- **Skip During Execution**: Feature to temporarily disable nodes during execution
 
 Each node type uses JSON configuration with template placeholders for dynamic, data-driven workflows. Combined together, these provide a complete toolkit for building complex automation workflows without extensive custom coding.
+
+**Key Features:**
+- **Skip During Execution**: Mark any node to skip during workflow execution while preserving data flow
+- **ForEach Loops**: Iterate over arrays with serial or parallel execution, aggregated by EndLoop nodes
+- **Vector Database Support**: SQLite with sqlite-vec extension for semantic search and RAG workflows
+- **Custom Nodes**: Save, reuse, export, and import node templates for workflow efficiency
 
 For more information about the platform architecture, headless execution, and scheduling, see the [main README](../README.md).
 

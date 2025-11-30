@@ -12,13 +12,16 @@ Why "Pedantic2"? Because the first one was *too* forgiving. This version nags yo
 **TL;DR**: Visual drag-and-drop for agents, code for the masochists, all offline. Deploy? Pfft, as if.
 
 **New in Latest Version**:
-- EndLoop nodes for proper ForEach loop termination and data aggregation
-- Auto-arrange with aggressive zigzag layout for better connection visibility
-- Help icon opens documentation viewer
-- Database maintenance panel for workflow/node management
-- Custom nodes with export/import support
-- Improved execution timeline with real-time status
-- Case-insensitive workflow name matching
+- **Skip During Execution**: Mark any node to skip during workflow execution while preserving data flow
+- **EndLoop nodes**: Proper ForEach loop termination and data aggregation
+- **Auto-arrange**: Aggressive zigzag layout for better connection visibility
+- **Help icon**: Opens documentation viewer with anchor link support
+- **Database maintenance panel**: Workflow/node management, backup, and optimization
+- **Custom nodes**: Save, reuse, export, and import node templates
+- **HTML Viewer**: Auto-detect and render HTML content (similar to Markdown Viewer)
+- **Improved execution timeline**: Real-time status with execution times
+- **Case-insensitive workflow names**: Workflow name matching is now case-insensitive
+- **Vector Database Support**: SQLite with sqlite-vec extension for local RAG workflows
 
 ## 🎨 What Makes It Tick (Without Needing a Watch)
 
@@ -37,15 +40,17 @@ Why "Pedantic2"? Because the first one was *too* forgiving. This version nags yo
 - HTML Viewer: Auto-detect and render HTML content.
 - Vector Database Support: SQLite with sqlite-vec extension for local vector search (RAG workflows). Requires `pysqlite3-binary` and sqlite-vec extension file.
 - **Fancy Bits**: 
+  - **Skip During Execution**: Mark nodes to skip during execution (useful for debugging or temporary disabling)
   - Auto-arrange nodes with intelligent zigzag layout (staggered for visibility)
   - Real-time execution logs (stdout/stderr/errors – the full therapy session)
   - Import/export JSON like you're sharing breakup playlists
-  - Help icon opens documentation in markdown viewer
-  - Database maintenance panel for cleanup and optimization
+  - Help icon opens documentation in markdown viewer with anchor link support
+  - Database maintenance panel for cleanup, backup, and optimization
   - Custom nodes: Save, reuse, export, and import node templates
   - Lock functionality to prevent accidental edits during execution
   - Save As with overwrite confirmation (case-insensitive workflow names)
-  - Execution timeline shows real-time status with timestamps
+  - Execution timeline shows real-time status with execution times
+  - ForEach loops with serial/parallel execution and EndLoop aggregation
 - **Headless Mode**: Run via API or CLI. Schedule with cron/launchd/Task Scheduler. Because who needs a UI for 3 AM regrets?
 - **Security? We Pretend**: Timeouts, memory caps, localhost-only. Your secrets stay secret... unless you `print(password)` in a Python node. Rookie.
 
