@@ -1367,7 +1367,7 @@ export function SimpleWorkflowBuilder() {
     handleOpenMarkdownViewer('README.md')
   }
 
-  const handleNodeSave = (code?: string, config?: any, skipDuringExecution?: boolean) => {
+  const handleNodeSave = async (code?: string, config?: any, skipDuringExecution?: boolean) => {
     if (selectedNode) {
       if (code !== undefined) {
         updateNodeCode(selectedNode, code)
@@ -1377,6 +1377,18 @@ export function SimpleWorkflowBuilder() {
       }
       if (skipDuringExecution !== undefined) {
         updateNodeSkipDuringExecution(selectedNode, skipDuringExecution)
+      }
+      
+      // Auto-save the workflow if it has an ID (is already saved)
+      // This ensures "Save to Workflow" actually persists the changes
+      if (workflowMetadata.id) {
+        try {
+          await handleSave()
+        } catch (error) {
+          console.error('Failed to auto-save workflow after node update:', error)
+          // Don't throw - the node update was successful, just the auto-save failed
+          // User can manually save via Save As if needed
+        }
       }
     }
   }

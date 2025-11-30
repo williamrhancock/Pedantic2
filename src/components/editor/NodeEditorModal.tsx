@@ -16,7 +16,7 @@ interface NodeEditorModalProps {
   code?: string
   config?: any
   skipDuringExecution?: boolean
-  onSave: (code?: string, config?: any, skipDuringExecution?: boolean) => void
+  onSave: (code?: string, config?: any, skipDuringExecution?: boolean) => Promise<void> | void
   onDelete?: () => void
   isLocked?: boolean
   onMakeCustom?: (options: { name: string; description: string; code?: string; config?: any }) => Promise<void> | void
@@ -73,23 +73,28 @@ export function NodeEditorModal({
 
     setConfigError(null)
 
-    if (isCodeNode) {
-      onSave(editedCode, undefined, skipExecution)
-    } else if (isConfigNode) {
-      try {
-        const parsedConfig = JSON.parse(editedConfig)
-        onSave(undefined, parsedConfig, skipExecution)
-      } catch (e) {
-        setConfigError('Invalid JSON configuration')
-        return
+    try {
+      if (isCodeNode) {
+        await onSave(editedCode, undefined, skipExecution)
+      } else if (isConfigNode) {
+        try {
+          const parsedConfig = JSON.parse(editedConfig)
+          await onSave(undefined, parsedConfig, skipExecution)
+        } catch (e) {
+          setConfigError('Invalid JSON configuration')
+          return
+        }
+      } else {
+        // For nodes without code/config (like endloop), just save skip flag
+        // Note: start/end nodes don't show the checkbox, so this won't be called for them
+        await onSave(undefined, undefined, skipExecution)
       }
-    } else {
-      // For nodes without code/config (like endloop), just save skip flag
-      // Note: start/end nodes don't show the checkbox, so this won't be called for them
-      onSave(undefined, undefined, skipExecution)
+      
+      onClose()
+    } catch (error) {
+      // Error handling is done in handleNodeSave
+      console.error('Error saving node:', error)
     }
-
-    onClose()
   }
 
   const handleDelete = () => {
