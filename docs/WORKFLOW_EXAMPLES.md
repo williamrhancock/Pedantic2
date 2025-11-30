@@ -11,6 +11,7 @@ This document provides comprehensive documentation for all example workflows inc
 5. [Load Full Documents Example](#load-full-documents-example)
 6. [Complete All Nodes Workflow](#complete-all-nodes-workflow)
 7. [Mixed Python TypeScript Workflow](#mixed-python-typescript-workflow)
+8. [Simple Mixed Workflow Demo](#simple-mixed-workflow-demo)
 
 ---
 
@@ -573,6 +574,50 @@ None (no external APIs or dependencies)
 - Add more Python nodes for data processing
 - Add more TypeScript nodes for type-safe transformations
 - Mix and match based on task requirements
+
+---
+
+## Simple Mixed Workflow Demo
+
+**File**: `Simple_Mixed_Workflow_Demo.json`
+
+### Overview
+
+A simplified version of the Mixed Python TypeScript workflow. Demonstrates the core concept of Python and TypeScript interoperability with a minimal example.
+
+### What It Does
+
+1. **Python Generates Data**: Creates sample e-commerce orders
+2. **TypeScript Analyzes**: Calculates revenue, averages, and top products
+3. **Python Finalizes**: Creates a summary report
+
+### Workflow Structure
+
+```
+Start → Python Data Generator → TypeScript Analytics → Python Report Finalizer → End
+```
+
+### Key Differences from Full Mixed Workflow
+
+- **Simpler**: Only 3 processing nodes (vs 4)
+- **Focused**: Demonstrates core interoperability without extra formatting
+- **Faster**: Quick execution for testing
+
+### Requirements
+
+None (no external APIs)
+
+### Use Cases
+
+- Quick test of Python/TypeScript interoperability
+- Learning basic data flow patterns
+- Template for simple mixed-language workflows
+
+### Learning Points
+
+- Minimal Python ↔ TypeScript example
+- Basic data generation and processing
+- Simple summary generation
 
 ---
 
