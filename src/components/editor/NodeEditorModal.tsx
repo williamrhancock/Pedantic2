@@ -1,6 +1,6 @@
 'use client'
 
-import React, { useState } from 'react'
+import React, { useState, useEffect } from 'react'
 import Editor from '@monaco-editor/react'
 import { X, Trash2 } from 'lucide-react'
 import { useTheme } from '@/contexts/ThemeContext'
@@ -74,15 +74,19 @@ export function NodeEditorModal({
     setConfigError(null)
 
     if (isCodeNode) {
-      onSave(editedCode, undefined)
+      onSave(editedCode, undefined, skipExecution)
     } else if (isConfigNode) {
       try {
         const parsedConfig = JSON.parse(editedConfig)
-        onSave(undefined, parsedConfig)
+        onSave(undefined, parsedConfig, skipExecution)
       } catch (e) {
         setConfigError('Invalid JSON configuration')
         return
       }
+    } else {
+      // For nodes without code/config (like endloop), just save skip flag
+      // Note: start/end nodes don't show the checkbox, so this won't be called for them
+      onSave(undefined, undefined, skipExecution)
     }
 
     onClose()
@@ -114,6 +118,15 @@ export function NodeEditorModal({
     setCustomError(null)
     setShowMakeCustomDialog(true)
   }
+
+  // Update state when modal opens or props change
+  useEffect(() => {
+    if (isOpen) {
+      setEditedCode(code || '')
+      setEditedConfig(config ? JSON.stringify(config, null, 2) : '')
+      setSkipExecution(skipDuringExecution || false)
+    }
+  }, [isOpen, code, config, skipDuringExecution])
 
   const cancelMakeCustom = () => {
     setShowMakeCustomDialog(false)

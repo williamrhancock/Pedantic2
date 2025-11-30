@@ -13,6 +13,7 @@ export interface WorkflowNodeData {
   config?: any
   isExecuting?: boolean
   executionStatus?: 'success' | 'error' | 'running'
+  skipDuringExecution?: boolean
 }
 
 // Simple wrapper component
@@ -29,6 +30,7 @@ export function WorkflowNode({ id, data, selected }: { id: string; data: Workflo
         description: data.description,
         code: data.code,
         config: data.config,
+        skipDuringExecution: data.skipDuringExecution,
       }}
     />
   )
