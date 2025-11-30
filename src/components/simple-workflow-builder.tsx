@@ -1369,21 +1369,73 @@ export function SimpleWorkflowBuilder() {
 
   const handleNodeSave = async (code?: string, config?: any, skipDuringExecution?: boolean) => {
     if (selectedNode) {
-      if (code !== undefined) {
-        updateNodeCode(selectedNode, code)
-      }
-      if (config !== undefined) {
-        updateNodeConfig(selectedNode, config)
-      }
-      if (skipDuringExecution !== undefined) {
-        updateNodeSkipDuringExecution(selectedNode, skipDuringExecution)
-      }
+      // Update the node in state first
+      const updatedNodes = nodes.map(node => {
+        if (node.id === selectedNode) {
+          const updated: WorkflowNode = { ...node }
+          if (code !== undefined) {
+            updated.code = code
+          }
+          if (config !== undefined) {
+            updated.config = config
+          }
+          if (skipDuringExecution !== undefined) {
+            updated.skipDuringExecution = skipDuringExecution
+          }
+          return updated
+        }
+        return node
+      })
+      
+      // Update state
+      setNodes(updatedNodes)
+      markAsChanged()
       
       // Auto-save the workflow if it has an ID (is already saved)
-      // This ensures "Save to Workflow" actually persists the changes
+      // Use the updated nodes directly to ensure we save the latest changes
       if (workflowMetadata.id) {
         try {
-          await handleSave()
+          // Create workflow data with the updated nodes (not waiting for state update)
+          const workflowData = {
+            nodes: updatedNodes.reduce((acc, node) => {
+              acc[node.id] = {
+                type: node.type,
+                title: node.title,
+                description: node.description,
+                code: node.code,
+                config: node.config,
+                position: node.position,
+                customNodeId: node.customNodeId,
+                customNodeName: node.customNodeName,
+                skipDuringExecution: node.skipDuringExecution || false,
+              }
+              return acc
+            }, {} as any),
+            connections: connections.reduce((acc, conn) => {
+              acc[`${conn.from}_${conn.to}`] = {
+                source: conn.from,
+                target: conn.to,
+                sourceOutput: 'output',
+                targetInput: 'input'
+              }
+              return acc
+            }, {} as any),
+            metadata: {
+              nodeCount: updatedNodes.length,
+              lastModified: new Date().toISOString()
+            }
+          }
+          
+          await saveWorkflowMutation.mutateAsync({
+            id: workflowMetadata.id,
+            name: workflowMetadata.name,
+            description: workflowMetadata.description,
+            tags: workflowMetadata.tags,
+            data: workflowData,
+            isTemplate: workflowMetadata.isTemplate
+          })
+          
+          setHasUnsavedChanges(false)
         } catch (error) {
           console.error('Failed to auto-save workflow after node update:', error)
           // Don't throw - the node update was successful, just the auto-save failed
