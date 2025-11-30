@@ -1300,57 +1300,9 @@ export function SimpleWorkflowBuilder() {
         }
         setShowHtmlViewer(true)
       } else if (node.type === 'json') {
-        // Try to find JSON content from node's execution output
-        let nodeResult = executionResults.get(nodeId)
-        
-        // If not found in executionResults, try to find it in timeline entries
-        if (!nodeResult || !nodeResult.output || !nodeResult.output.content) {
-          // First try non-forEach timeline entries
-          let timelineEntry = timelineEntries
-            .filter(e => e.nodeId === nodeId && !e.isForEachResult && e.output)
-            .sort((a, b) => b.timestamp.getTime() - a.timestamp.getTime())[0]
-          
-          // If still not found, check all entries (including forEach results) but prefer the latest
-          if (!timelineEntry || !timelineEntry.output || !timelineEntry.output.content) {
-            timelineEntry = timelineEntries
-              .filter(e => e.nodeId === nodeId && e.output && e.output.content)
-              .sort((a, b) => b.timestamp.getTime() - a.timestamp.getTime())[0]
-          }
-          
-          if (timelineEntry && timelineEntry.output && timelineEntry.output.content) {
-            nodeResult = {
-              output: timelineEntry.output
-            }
-          }
-        }
-        
-        // If still not found, check if we can get it from the last iteration of a for-each loop
-        if (!nodeResult || !nodeResult.output || !nodeResult.output.content) {
-          // Look for the JSON viewer in the last for-each iteration
-          const forEachResults = timelineEntries
-            .filter(e => e.isForEachResult && e.nodeId === nodeId && e.output && e.output.content)
-            .sort((a, b) => (b.forEachIteration ?? 0) - (a.forEachIteration ?? 0))
-          
-          if (forEachResults.length > 0) {
-            const lastIteration = forEachResults[0]
-            if (lastIteration.output && lastIteration.output.content) {
-              nodeResult = {
-                output: lastIteration.output
-              }
-            }
-          }
-        }
-        
-        if (nodeResult && nodeResult.output && nodeResult.output.content) {
-          setJsonContent(nodeResult.output.content)
-          const detectedKey = nodeResult.output.detected_key || 'auto-detected'
-          setJsonTitle(`${node.title} (from ${detectedKey})`)
-        } else {
-          // Show helpful message if no execution results yet
-          setJsonContent('{\n  "message": "JSON content will appear here after workflow execution.",\n  "description": "The JSON viewer automatically detects and formats JSON content in any variable passed from upstream nodes.",\n  "how_it_works": [\n    "The node scans all variables from upstream",\n    "Detects JSON objects and arrays automatically",\n    "Formats and displays the JSON with syntax highlighting"\n  ]\n}')
-          setJsonTitle(node.title)
-        }
-        setShowJsonViewer(true)
+        // JSON nodes should open the editor to configure content_key
+        // The viewer can be accessed after execution by clicking the node again
+        setShowEditorModal(true)
       } else {
         setShowEditorModal(true)
       }
