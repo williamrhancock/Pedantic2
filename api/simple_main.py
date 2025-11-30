@@ -1162,9 +1162,21 @@ async def execute_markdown_viewer(config: Dict[str, Any], input_data: Any) -> Di
         markdown_content = ''
         detected_key = None
         
-        # First, try the specified content_key if provided
+        # Priority 1: Check for 'content' field first (from LLM nodes)
+        # This is the most common case - LLM nodes return their answer in 'content'
+        # We prioritize this because LLM responses are typically the actual answer text
+        if isinstance(input_data, dict) and 'content' in input_data:
+            candidate = input_data['content']
+            if isinstance(candidate, str) and len(candidate.strip()) > 0:
+                # LLM content is usually the answer - use it if it's substantial (> 20 chars)
+                # or if it contains markdown patterns
+                if len(candidate) > 20 or detect_markdown(candidate):
+                    markdown_content = candidate
+                    detected_key = 'content'
+        
+        # Priority 2: Try the specified content_key if provided (and not already found)
         # If content_key is explicitly set (not default 'content'), trust it and use it even without markdown detection
-        if isinstance(input_data, dict):
+        if not markdown_content and isinstance(input_data, dict):
             if content_key in input_data:
                 candidate = input_data[content_key]
                 if isinstance(candidate, str):
