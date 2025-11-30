@@ -1,0 +1,249 @@
+{
+  "format": "pedantic-workflow-v1",
+  "metadata": {
+    "name": "Local SQLite RAG with sqlite-vec",
+    "description": "Ingest documents, embed locally using Embedding node, vector search with sqlite-vec, and query with LLM for grounded answers. Requires: sqlite-vec extension in /tmp/workflow_files/ and OPENROUTER_API_KEY environment variable.",
+    "tags": ["RAG", "vector-db", "local-ai"],
+    "exportedAt": "2025-11-29T00:00:00.000Z",
+    "version": "1.0.0"
+  },
+  "workflow": {
+    "nodes": {
+      "start": {
+        "type": "start",
+        "title": "Start",
+        "position": { "x": 100, "y": 200 }
+      },
+      "python_sample_docs": {
+        "type": "python",
+        "title": "Generate Sample Documents",
+        "code": "def run(input):\n    # Sample documents (replace with File read for real data)\n    docs = [\n        {'content': 'SQLite is a lightweight database that runs locally without a server.'},\n        {'content': 'Vector embeddings capture semantic meaning for similarity search.'},\n        {'content': 'RAG combines retrieval from a vector DB with LLM generation.'},\n        {'content': 'sqlite-vec enables fast KNN in SQLite using cosine distance.'}\n    ]\n    return {'documents': docs, 'total_docs': len(docs)}",
+        "position": { "x": 300, "y": 200 }
+      },
+      "database_create": {
+        "type": "database",
+        "title": "Create Vector Table",
+        "config": {
+          "operation": "create",
+          "database": "rag_vectors.db",
+          "query": "CREATE TABLE IF NOT EXISTS document_vectors (id INTEGER PRIMARY KEY, content TEXT, embedding BLOB);"
+        },
+        "position": { "x": 500, "y": 200 }
+      },
+      "database_load_vec": {
+        "type": "database",
+        "title": "Load sqlite-vec Extension",
+        "config": {
+          "operation": "select",
+          "database": "rag_vectors.db",
+          "query": "SELECT load_extension('/tmp/workflow_files/vec0.dylib');"
+        },
+        "position": { "x": 700, "y": 200 }
+      },
+      "database_vec_table": {
+        "type": "database",
+        "title": "Create vec Virtual Table",
+        "config": {
+          "operation": "select",
+          "database": "rag_vectors.db",
+          "query": "CREATE VIRTUAL TABLE IF NOT EXISTS vec_vectors USING vec0(embedding float[384] distance_metric=cosine);"
+        },
+        "position": { "x": 900, "y": 200 }
+      },
+      "foreach_embed": {
+        "type": "foreach",
+        "title": "Embed and Insert Documents",
+        "config": {
+          "items_key": "documents",
+          "execution_mode": "serial",
+          "max_concurrency": 1
+        },
+        "position": { "x": 1100, "y": 200 }
+      },
+      "embedding_doc": {
+        "type": "embedding",
+        "title": "Embed Document",
+        "config": {
+          "model": "all-MiniLM-L6-v2",
+          "input_field": "content",
+          "output_field": "embedding",
+          "format": "blob"
+        },
+        "position": { "x": 1300, "y": 300 }
+      },
+      "database_insert": {
+        "type": "database",
+        "title": "Insert Vector",
+        "config": {
+          "operation": "insert",
+          "database": "rag_vectors.db",
+          "query": "INSERT INTO document_vectors (content, embedding) VALUES (?, ?); INSERT INTO vec_vectors(rowid, embedding) VALUES (last_insert_rowid(), ?);",
+          "params": ["{content}", "{embedding}", "{embedding}"]
+        },
+        "position": { "x": 1500, "y": 300 }
+      },
+      "endloop": {
+        "type": "endloop",
+        "title": "End Ingestion Loop",
+        "position": { "x": 1700, "y": 300 }
+      },
+      "python_query": {
+        "type": "python",
+        "title": "Prepare Query",
+        "code": "def run(input):\n    query = input.get('query', 'What is RAG?')\n    return {'query': query, 'content': query}",
+        "position": { "x": 1900, "y": 200 }
+      },
+      "embedding_query": {
+        "type": "embedding",
+        "title": "Embed User Query",
+        "config": {
+          "model": "all-MiniLM-L6-v2",
+          "input_field": "content",
+          "output_field": "query_embedding",
+          "format": "blob"
+        },
+        "position": { "x": 2100, "y": 200 }
+      },
+      "database_search": {
+        "type": "database",
+        "title": "Vector Search (Top 3)",
+        "config": {
+          "operation": "select",
+          "database": "rag_vectors.db",
+          "query": "SELECT v.rowid, v.distance, d.content FROM vec_vectors v JOIN document_vectors d ON v.rowid = d.id WHERE v.embedding MATCH ? AND k = 3;",
+          "params": ["{query_embedding}"]
+        },
+        "position": { "x": 2300, "y": 200 }
+      },
+      "python_format_context": {
+        "type": "python",
+        "title": "Format Retrieved Context",
+        "code": "def run(input):\n    results = input.get('data', [])\n    # Get user query - database node overwrites 'query' with SQL, so use 'user_query'\n    query = input.get('user_query', input.get('query', 'What is RAG?'))\n    # If query still looks like SQL, use fallback\n    if 'SELECT' in str(query) or 'FROM' in str(query):\n        query = 'What is RAG?'\n    \n    context = '\\n\\n'.join([f\"[Source {r.get('rowid', i)}] {r.get('content', '')}\" for i, r in enumerate(results)])\n    return {\n        **input,\n        'context': context,\n        'retrieved_count': len(results),\n        'query': query,\n        'user_query': query\n    }",
+        "position": { "x": 2500, "y": 200 }
+      },
+      "llm_generate": {
+        "type": "llm",
+        "title": "LLM Generate Answer",
+        "config": {
+          "provider": "openrouter",
+          "model": "openai/gpt-4o-mini",
+          "temperature": 0.1,
+          "max_tokens": 500,
+          "system": "You are a helpful assistant. Use the provided context to ground your answer. Cite sources with [Source ID].",
+          "user": "Query: {query}\\n\\nContext:\\n{context}\\n\\nProvide a concise, accurate answer.",
+          "api_key_name": "OPENROUTER_API_KEY"
+        },
+        "position": { "x": 2700, "y": 200 }
+      },
+      "markdown_viewer": {
+        "type": "markdown",
+        "title": "View RAG Response",
+        "config": {
+          "content_key": "content"
+        },
+        "position": { "x": 2900, "y": 200 }
+      },
+      "end": {
+        "type": "end",
+        "title": "End",
+        "position": { "x": 3100, "y": 200 }
+      }
+    },
+    "connections": {
+      "start_to_sample": {
+        "source": "start",
+        "target": "python_sample_docs",
+        "sourceOutput": "output",
+        "targetInput": "input"
+      },
+      "sample_to_create": {
+        "source": "python_sample_docs",
+        "target": "database_create",
+        "sourceOutput": "output",
+        "targetInput": "input"
+      },
+      "create_to_load": {
+        "source": "database_create",
+        "target": "database_load_vec",
+        "sourceOutput": "output",
+        "targetInput": "input"
+      },
+      "load_to_vec_table": {
+        "source": "database_load_vec",
+        "target": "database_vec_table",
+        "sourceOutput": "output",
+        "targetInput": "input"
+      },
+      "vec_table_to_foreach": {
+        "source": "database_vec_table",
+        "target": "foreach_embed",
+        "sourceOutput": "output",
+        "targetInput": "input"
+      },
+      "foreach_to_embedding": {
+        "source": "foreach_embed",
+        "target": "embedding_doc",
+        "sourceOutput": "output",
+        "targetInput": "input"
+      },
+      "embedding_to_insert": {
+        "source": "embedding_doc",
+        "target": "database_insert",
+        "sourceOutput": "output",
+        "targetInput": "input"
+      },
+      "insert_to_endloop": {
+        "source": "database_insert",
+        "target": "endloop",
+        "sourceOutput": "output",
+        "targetInput": "input"
+      },
+      "endloop_to_query": {
+        "source": "endloop",
+        "target": "python_query",
+        "sourceOutput": "output",
+        "targetInput": "input"
+      },
+      "query_to_embedding_query": {
+        "source": "python_query",
+        "target": "embedding_query",
+        "sourceOutput": "output",
+        "targetInput": "input"
+      },
+      "embedding_query_to_search": {
+        "source": "embedding_query",
+        "target": "database_search",
+        "sourceOutput": "output",
+        "targetInput": "input"
+      },
+      "search_to_format": {
+        "source": "database_search",
+        "target": "python_format_context",
+        "sourceOutput": "output",
+        "targetInput": "input"
+      },
+      "format_to_llm": {
+        "source": "python_format_context",
+        "target": "llm_generate",
+        "sourceOutput": "output",
+        "targetInput": "input"
+      },
+      "llm_to_markdown": {
+        "source": "llm_generate",
+        "target": "markdown_viewer",
+        "sourceOutput": "output",
+        "targetInput": "input"
+      },
+      "markdown_to_end": {
+        "source": "markdown_viewer",
+        "target": "end",
+        "sourceOutput": "output",
+        "targetInput": "input"
+      }
+    },
+    "metadata": {
+      "nodeCount": 16,
+      "lastModified": "2025-11-29T00:00:00.000Z"
+    }
+  }
+}

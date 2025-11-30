@@ -12,3 +12,8 @@ aiofiles==23.2.0
 python-dotenv==1.0.0
 markdown==3.5.1
 beautifulsoup4==4.12.2
+sentence-transformers==2.2.2
+# pysqlite3-binary: Optional - enables SQLite extension loading for vector databases
+# Install manually if needed: pip install pysqlite3-binary
+# Note: May not be available for all Python versions/platforms
+# Alternative: Use standard sqlite3 (extension loading won't work)

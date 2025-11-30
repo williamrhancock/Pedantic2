@@ -1,0 +1,250 @@
+{
+  "format": "pedantic-workflow-v1",
+  "metadata": {
+    "name": "Simple RAG Example",
+    "description": "A simple RAG workflow demonstrating the Embedding node: embed documents, store in vector DB, search, and answer with LLM. Requires: sqlite-vec extension in /tmp/workflow_files/ and OPENROUTER_API_KEY.",
+    "tags": ["RAG", "embedding", "vector-search", "example"],
+    "exportedAt": "2025-11-29T00:00:00.000Z",
+    "version": "1.0.0"
+  },
+  "workflow": {
+    "nodes": {
+      "start": {
+        "type": "start",
+        "title": "Start",
+        "position": { "x": 100, "y": 200 }
+      },
+      "python_docs": {
+        "type": "python",
+        "title": "Sample Documents",
+        "code": "def run(input):\n    # Sample knowledge base documents\n    docs = [\n        {'id': 1, 'content': 'Pedantic2 is a visual workflow builder for creating automated workflows.'},\n        {'id': 2, 'content': 'Embedding nodes use sentence-transformers to generate vector embeddings from text.'},\n        {'id': 3, 'content': 'Vector databases enable semantic search by finding similar text based on meaning.'},\n        {'id': 4, 'content': 'RAG combines retrieval from vector databases with LLM generation for accurate answers.'},\n        {'id': 5, 'content': 'SQLite with sqlite-vec extension provides local vector search capabilities.'}\n    ]\n    return {'documents': docs, 'count': len(docs)}",
+        "position": { "x": 300, "y": 200 }
+      },
+      "database_setup": {
+        "type": "database",
+        "title": "Setup Database",
+        "config": {
+          "operation": "create",
+          "database": "simple_rag.db",
+          "query": "CREATE TABLE IF NOT EXISTS docs (id INTEGER PRIMARY KEY, content TEXT, embedding BLOB);"
+        },
+        "position": { "x": 500, "y": 200 }
+      },
+      "database_load_ext": {
+        "type": "database",
+        "title": "Load Extension",
+        "config": {
+          "operation": "select",
+          "database": "simple_rag.db",
+          "query": "SELECT load_extension('/tmp/workflow_files/vec0.dylib');"
+        },
+        "position": { "x": 700, "y": 200 }
+      },
+      "database_vec_table": {
+        "type": "database",
+        "title": "Create Vector Table",
+        "config": {
+          "operation": "select",
+          "database": "simple_rag.db",
+          "query": "CREATE VIRTUAL TABLE IF NOT EXISTS vec_docs USING vec0(embedding float[384] distance_metric=cosine);"
+        },
+        "position": { "x": 900, "y": 200 }
+      },
+      "foreach_docs": {
+        "type": "foreach",
+        "title": "Process Documents",
+        "config": {
+          "items_key": "documents",
+          "execution_mode": "serial",
+          "max_concurrency": 1
+        },
+        "position": { "x": 1100, "y": 200 }
+      },
+      "embedding_node": {
+        "type": "embedding",
+        "title": "Generate Embedding",
+        "config": {
+          "model": "all-MiniLM-L6-v2",
+          "input_field": "content",
+          "output_field": "embedding",
+          "format": "blob"
+        },
+        "position": { "x": 1300, "y": 300 }
+      },
+      "database_insert": {
+        "type": "database",
+        "title": "Store in DB",
+        "config": {
+          "operation": "insert",
+          "database": "simple_rag.db",
+          "query": "INSERT INTO docs (content, embedding) VALUES (?, ?); INSERT INTO vec_docs(rowid, embedding) VALUES (last_insert_rowid(), ?);",
+          "params": ["{content}", "{embedding}", "{embedding}"]
+        },
+        "position": { "x": 1500, "y": 300 }
+      },
+      "endloop": {
+        "type": "endloop",
+        "title": "End Loop",
+        "position": { "x": 1700, "y": 300 }
+      },
+      "python_query": {
+        "type": "python",
+        "title": "User Query",
+        "code": "def run(input):\n    # User's question\n    query = 'What is Pedantic2?'\n    return {'query': query, 'user_query': query, 'content': query}",
+        "position": { "x": 1900, "y": 200 }
+      },
+      "embedding_query": {
+        "type": "embedding",
+        "title": "Embed Query",
+        "config": {
+          "model": "all-MiniLM-L6-v2",
+          "input_field": "content",
+          "output_field": "query_embedding",
+          "format": "blob"
+        },
+        "position": { "x": 2100, "y": 200 }
+      },
+      "database_search": {
+        "type": "database",
+        "title": "Vector Search",
+        "config": {
+          "operation": "select",
+          "database": "simple_rag.db",
+          "query": "SELECT v.rowid, v.distance, d.content FROM vec_docs v JOIN docs d ON v.rowid = d.id WHERE v.embedding MATCH ? AND k = 2;",
+          "params": ["{query_embedding}"]
+        },
+        "position": { "x": 2300, "y": 200 }
+      },
+      "python_format": {
+        "type": "python",
+        "title": "Format Context",
+        "code": "def run(input):\n    results = input.get('data', [])\n    # Get user query - database node overwrites 'query' with SQL, so use 'user_query'\n    query = input.get('user_query', input.get('query', 'What is Pedantic2?'))\n    # If query still looks like SQL, use fallback\n    if 'SELECT' in str(query) or 'FROM' in str(query):\n        query = 'What is Pedantic2?'\n    \n    # Format retrieved documents as context\n    context_parts = []\n    for i, row in enumerate(results):\n        if isinstance(row, dict):\n            content = row.get('content', '')\n            distance = row.get('distance', 0)\n            context_parts.append(f\"[Document {i+1}] (similarity: {1-distance:.3f})\\n{content}\")\n    \n    context = '\\n\\n'.join(context_parts)\n    \n    return {\n        'query': query,\n        'user_query': query,\n        'context': context,\n        'retrieved_count': len(results)\n    }",
+        "position": { "x": 2500, "y": 200 }
+      },
+      "llm_answer": {
+        "type": "llm",
+        "title": "Generate Answer",
+        "config": {
+          "provider": "openrouter",
+          "model": "openai/gpt-4o-mini",
+          "temperature": 0.3,
+          "max_tokens": 300,
+          "system": "You are a helpful assistant. Answer the user's question using ONLY the provided context. If the context doesn't contain the answer, say so.",
+          "user": "Question: {query}\\n\\nContext:\\n{context}\\n\\nAnswer:",
+          "api_key_name": "OPENROUTER_API_KEY"
+        },
+        "position": { "x": 2700, "y": 200 }
+      },
+      "markdown_output": {
+        "type": "markdown",
+        "title": "View Answer",
+        "config": {
+          "content_key": "content"
+        },
+        "position": { "x": 2900, "y": 200 }
+      },
+      "end": {
+        "type": "end",
+        "title": "End",
+        "position": { "x": 3100, "y": 200 }
+      }
+    },
+    "connections": {
+      "start_to_docs": {
+        "source": "start",
+        "target": "python_docs",
+        "sourceOutput": "output",
+        "targetInput": "input"
+      },
+      "docs_to_setup": {
+        "source": "python_docs",
+        "target": "database_setup",
+        "sourceOutput": "output",
+        "targetInput": "input"
+      },
+      "setup_to_load": {
+        "source": "database_setup",
+        "target": "database_load_ext",
+        "sourceOutput": "output",
+        "targetInput": "input"
+      },
+      "load_to_vec": {
+        "source": "database_load_ext",
+        "target": "database_vec_table",
+        "sourceOutput": "output",
+        "targetInput": "input"
+      },
+      "vec_to_foreach": {
+        "source": "database_vec_table",
+        "target": "foreach_docs",
+        "sourceOutput": "output",
+        "targetInput": "input"
+      },
+      "foreach_to_embed": {
+        "source": "foreach_docs",
+        "target": "embedding_node",
+        "sourceOutput": "output",
+        "targetInput": "input"
+      },
+      "embed_to_insert": {
+        "source": "embedding_node",
+        "target": "database_insert",
+        "sourceOutput": "output",
+        "targetInput": "input"
+      },
+      "insert_to_endloop": {
+        "source": "database_insert",
+        "target": "endloop",
+        "sourceOutput": "output",
+        "targetInput": "input"
+      },
+      "endloop_to_query": {
+        "source": "endloop",
+        "target": "python_query",
+        "sourceOutput": "output",
+        "targetInput": "input"
+      },
+      "query_to_embed_query": {
+        "source": "python_query",
+        "target": "embedding_query",
+        "sourceOutput": "output",
+        "targetInput": "input"
+      },
+      "embed_query_to_search": {
+        "source": "embedding_query",
+        "target": "database_search",
+        "sourceOutput": "output",
+        "targetInput": "input"
+      },
+      "search_to_format": {
+        "source": "database_search",
+        "target": "python_format",
+        "sourceOutput": "output",
+        "targetInput": "input"
+      },
+      "format_to_llm": {
+        "source": "python_format",
+        "target": "llm_answer",
+        "sourceOutput": "output",
+        "targetInput": "input"
+      },
+      "llm_to_markdown": {
+        "source": "llm_answer",
+        "target": "markdown_output",
+        "sourceOutput": "output",
+        "targetInput": "input"
+      },
+      "markdown_to_end": {
+        "source": "markdown_output",
+        "target": "end",
+        "sourceOutput": "output",
+        "targetInput": "input"
+      }
+    },
+    "metadata": {
+      "nodeCount": 16,
+      "lastModified": "2025-11-29T00:00:00.000Z"
+    }
+  }
+}
+

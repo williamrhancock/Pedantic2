@@ -14,6 +14,7 @@ This comprehensive guide covers all node types available in the Visual Agentic W
    - [Markdown Viewer Node](#markdown-viewer-node)
    - [Conditional Logic Node](#conditional-logic-node)
    - [Database Query Node](#database-query-node)
+   - [Embedding Node](#embedding-node)
    - [LLM AI Assistant Node](#llm-ai-assistant-node)
 4. [Control Flow Nodes](#control-flow-nodes)
    - [For Each Loop Node](#for-each-loop-node)
@@ -1016,6 +1017,200 @@ Use `{field_name}` placeholders in queries to insert data from previous nodes:
   "params": ["{workflow_id}", "{status}", "{message}", "{timestamp}"]
 }
 ```
+
+#### Extension Loading (sqlite-vec)
+
+Database nodes support loading SQLite extensions for vector search capabilities:
+
+**Load Extension:**
+```json
+{
+  "operation": "select",
+  "database": "rag_vectors.db",
+  "query": "SELECT load_extension('/tmp/workflow_files/vec0.so');"
+}
+```
+
+**Security Rules:**
+- Extensions must be in `/tmp/workflow_files/` directory
+- Only whitelisted filenames: `vec0.so`, `vec0.dylib`, `vec0.dll`
+- Path traversal (`../`) is blocked
+- Absolute paths outside safe directory are blocked
+
+**Create Vector Table:**
+```json
+{
+  "operation": "select",
+  "database": "rag_vectors.db",
+  "query": "CREATE VIRTUAL TABLE IF NOT EXISTS vec_vectors USING vec0(embedding float[384] distance_metric=cosine);"
+}
+```
+
+**Vector Search:**
+```json
+{
+  "operation": "select",
+  "database": "rag_vectors.db",
+  "query": "SELECT rowid, distance, content FROM vec_vectors WHERE embedding MATCH ? LIMIT 5;",
+  "params": ["{query_embedding}"]
+}
+```
+
+See [Embedding Node](#embedding-node) and [Local_RAG_Workflow.json](../Local_RAG_Workflow.json) for complete RAG workflow examples.
+
+---
+
+### Embedding Node
+
+The Embedding node generates vector embeddings from text using sentence-transformers models. This enables semantic search, similarity matching, and RAG (Retrieval-Augmented Generation) workflows.
+
+#### Basic Configuration
+
+```json
+{
+  "model": "all-MiniLM-L6-v2",
+  "input_field": "content",
+  "output_field": "embedding",
+  "format": "blob"
+}
+```
+
+#### Parameters
+
+- **`model`** (string): Sentence-transformers model name (default: `all-MiniLM-L6-v2`)
+  - Common models: `all-MiniLM-L6-v2` (384 dims, fast), `all-mpnet-base-v2` (768 dims, higher quality)
+- **`input_field`** (string): Field name to extract text from input (default: `content`)
+- **`output_field`** (string): Field name for embedding output (default: `embedding`)
+- **`format`** (string): Output format - `blob` for SQLite BLOB or `array` for JSON array (default: `blob`)
+
+#### Input
+
+- **Source**: Output from previous node
+- **Text Extraction**: 
+  - If input is a string, uses it directly
+  - If input is a dict, extracts from `input_field` (or first string value found)
+  - Supports arrays of texts for batch processing
+
+#### Output Structure
+
+**Single Text Input:**
+```json
+{
+  "embedding": "<BLOB bytes>",  // or array if format="array"
+  "embedding_array": [0.123, -0.456, ...],
+  "embedding_bytes": "<BLOB bytes>",
+  "embedding_dim": 384,
+  "text": "original text",
+  "input_field": "content"
+}
+```
+
+**Batch Input (array of texts):**
+```json
+{
+  "embedding": [<BLOB>, <BLOB>, ...],  // or array of arrays
+  "embedding_array": [[...], [...], ...],
+  "embedding_bytes": [<BLOB>, <BLOB>, ...],
+  "embedding_dim": 384,
+  "texts": ["text1", "text2", ...],
+  "input_field": "content",
+  "count": 2
+}
+```
+
+#### What Embedding Nodes CAN Do
+
+✅ Generate vector embeddings from text  
+✅ Support multiple sentence-transformers models  
+✅ Batch process arrays of texts  
+✅ Output in BLOB format (for SQLite) or JSON array format  
+✅ Cache models in memory for performance  
+✅ Preserve original input data in output  
+
+#### What Embedding Nodes CANNOT Do
+
+❌ Generate embeddings for images or other non-text data  
+❌ Use custom embedding models (must be from sentence-transformers)  
+❌ Access conversation history (stateless)  
+❌ Modify input text (read-only)  
+
+#### Model Caching
+
+Models are cached in memory after first load, so subsequent executions in the same workflow run are faster. The first execution will download the model if not already cached.
+
+#### Example: Single Text Embedding
+
+**Input:**
+```json
+{
+  "content": "SQLite is a lightweight database"
+}
+```
+
+**Embedding Node Config:**
+```json
+{
+  "model": "all-MiniLM-L6-v2",
+  "input_field": "content",
+  "output_field": "embedding",
+  "format": "blob"
+}
+```
+
+**Output:**
+```json
+{
+  "content": "SQLite is a lightweight database",
+  "embedding": "<384-dim BLOB>",
+  "embedding_array": [0.123, -0.456, ...],
+  "embedding_dim": 384,
+  "text": "SQLite is a lightweight database"
+}
+```
+
+#### Example: Batch Embedding
+
+**Input:**
+```json
+{
+  "documents": [
+    {"content": "Document 1"},
+    {"content": "Document 2"},
+    {"content": "Document 3"}
+  ]
+}
+```
+
+**Embedding Node Config:**
+```json
+{
+  "model": "all-MiniLM-L6-v2",
+  "input_field": "documents",
+  "output_field": "embeddings",
+  "format": "array"
+}
+```
+
+**Output:**
+```json
+{
+  "documents": [...],
+  "embeddings": [[0.123, ...], [0.456, ...], [0.789, ...]],
+  "embedding_dim": 384,
+  "count": 3
+}
+```
+
+#### Vector Database Integration
+
+Embeddings are typically used with vector databases for semantic search:
+
+1. **Generate embeddings** using Embedding node
+2. **Store in SQLite with sqlite-vec** extension (see Database node)
+3. **Search similar vectors** using SQL queries with `MATCH` operator
+4. **Use in RAG workflows** with LLM nodes
+
+See the [Local RAG Workflow example](../Local_RAG_Workflow.json) for a complete implementation.
 
 ---
 

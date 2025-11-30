@@ -58,7 +58,7 @@ Every node must have:
 
 Additional fields depend on node type:
 - **Code nodes** (Python, TypeScript): `code` (string)
-- **Config nodes** (HTTP, File, Condition, Database, LLM, Markdown, HTML, ForEach): `config` (object)
+- **Config nodes** (HTTP, File, Condition, Database, LLM, Embedding, Markdown, HTML, ForEach): `config` (object)
 - **Start/End nodes**: No additional fields
 
 ### Connection Structure
@@ -91,6 +91,7 @@ Connections define data flow:
 | `condition` | Config | Any | Condition result | Yes |
 | `database` | Config | Any | Query result | Yes |
 | `llm` | Config | Any | LLM response | Yes |
+| `embedding` | Config | Any | Vector embeddings | Yes |
 | `foreach` | Control | Array or dict | Loop results | Yes |
 | `endloop` | Control | ForEach results | Aggregated results | No |
 | `markdown` | Config | Any | Markdown content | Optional |
@@ -574,6 +575,87 @@ And Database config has:
 Query becomes: `SELECT * FROM users WHERE id = 123 AND status = 'active'`
 
 **WARNING**: Always prefer parameterized queries (`?` placeholders with `params` array) over template replacement for security.
+
+#### Extension Loading (sqlite-vec)
+
+Database nodes support loading SQLite extensions for vector search:
+
+```json
+{
+  "type": "database",
+  "title": "Load sqlite-vec Extension",
+  "config": {
+    "operation": "select",
+    "database": "rag_vectors.db",
+    "query": "SELECT load_extension('/tmp/workflow_files/vec0.so');"
+  }
+}
+```
+
+**Security**: Only extensions from `/tmp/workflow_files/` with whitelisted filenames (`vec0.so`, `vec0.dylib`, `vec0.dll`) are allowed.
+
+---
+
+### Embedding Node
+
+#### Structure
+```json
+{
+  "type": "embedding",
+  "title": "Generate Embeddings",
+  "config": {
+    "model": "all-MiniLM-L6-v2",
+    "input_field": "content",
+    "output_field": "embedding",
+    "format": "blob"
+  },
+  "position": { "x": 100, "y": 100 }
+}
+```
+
+#### Input
+- **Source**: Output from previous node
+- **Text Extraction**: 
+  - String input: uses directly
+  - Dict input: extracts from `input_field` (or first string value)
+  - Array input: processes each item
+
+#### Output Structure
+```json
+{
+  "embedding": "<BLOB or array>",
+  "embedding_array": [0.123, -0.456, ...],
+  "embedding_bytes": "<BLOB>",
+  "embedding_dim": 384,
+  "text": "original text",
+  "input_field": "content"
+}
+```
+
+#### What Embedding Nodes CAN Do
+✅ Generate vector embeddings from text  
+✅ Support multiple sentence-transformers models  
+✅ Batch process arrays of texts  
+✅ Output in BLOB format (for SQLite) or JSON array  
+✅ Cache models in memory for performance  
+
+#### What Embedding Nodes CANNOT Do
+❌ Generate embeddings for images or non-text data  
+❌ Use custom embedding models (must be from sentence-transformers)  
+❌ Access conversation history (stateless)  
+
+#### Example
+```json
+{
+  "type": "embedding",
+  "config": {
+    "model": "all-MiniLM-L6-v2",
+    "input_field": "content",
+    "output_field": "embedding",
+    "format": "blob"
+  }
+}
+```
 
 ---
 
@@ -1434,6 +1516,90 @@ Start → Python (prepare) → LLM (analyze) → Python (format) → Markdown Vi
 ```
 Start → Python (data) → Database (create table) → Database (insert) → Database (select) → End
 ```
+
+---
+
+## Vector Database and RAG Workflows
+
+Pedantic2 supports local vector databases using SQLite with the sqlite-vec extension, enabling RAG (Retrieval-Augmented Generation) workflows entirely on-device.
+
+### Setup Requirements
+
+1. **Download sqlite-vec extension**:
+   - Visit https://github.com/asg017/sqlite-vec/releases
+   - Download platform-specific binary (`vec0.so` for Linux, `vec0.dylib` for macOS, `vec0.dll` for Windows)
+   - Place in `/tmp/workflow_files/` directory
+
+2. **Install sentence-transformers** (for embedding generation):
+   - Already included in `requirements.txt`
+   - First execution will download the model (~80MB for `all-MiniLM-L6-v2`)
+
+### RAG Workflow Pattern
+
+**Ingestion Phase:**
+```
+Start → Python (load documents) → Embedding (generate vectors) → 
+Database (create table) → Database (load extension) → Database (create vec table) → 
+ForEach (documents) → Database (insert vectors) → EndLoop
+```
+
+**Query Phase:**
+```
+Python (prepare query) → Embedding (embed query) → 
+Database (vector search) → Python (format context) → 
+LLM (generate answer) → Markdown Viewer → End
+```
+
+### Database Extension Loading
+
+Database nodes can securely load SQLite extensions:
+
+```json
+{
+  "type": "database",
+  "config": {
+    "operation": "select",
+    "database": "rag.db",
+    "query": "SELECT load_extension('/tmp/workflow_files/vec0.so');"
+  }
+}
+```
+
+**Security**: Only extensions from `/tmp/workflow_files/` with whitelisted filenames are allowed.
+
+### Embedding Node Usage
+
+```json
+{
+  "type": "embedding",
+  "config": {
+    "model": "all-MiniLM-L6-v2",
+    "input_field": "content",
+    "output_field": "embedding",
+    "format": "blob"
+  }
+}
+```
+
+### Vector Search Query
+
+After loading sqlite-vec and creating a virtual table:
+
+```json
+{
+  "type": "database",
+  "config": {
+    "operation": "select",
+    "database": "rag.db",
+    "query": "SELECT rowid, distance, content FROM vec_vectors WHERE embedding MATCH ? LIMIT 5;",
+    "params": ["{query_embedding}"]
+  }
+}
+```
+
+### Complete Example
+
+See [Local_RAG_Workflow.json](../Local_RAG_Workflow.json) for a complete RAG workflow implementation.
 
 ---
 

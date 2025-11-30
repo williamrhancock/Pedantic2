@@ -19,7 +19,7 @@ import { createDefaultLlmConfig, normalizeLlmConfig, type LlmConfig } from '@/li
 
 interface WorkflowNode {
   id: string
-  type: 'start' | 'end' | 'python' | 'typescript' | 'http' | 'file' | 'condition' | 'database' | 'llm' | 'foreach' | 'endloop' | 'markdown' | 'html'
+  type: 'start' | 'end' | 'python' | 'typescript' | 'http' | 'file' | 'condition' | 'database' | 'llm' | 'foreach' | 'endloop' | 'markdown' | 'html' | 'embedding'
   title: string
   description?: string
   code?: string
@@ -1018,6 +1018,13 @@ export function SimpleWorkflowBuilder() {
       newNode.config = {
         content_key: 'content'
       }
+    } else if (type === 'embedding') {
+      newNode.config = {
+        model: 'all-MiniLM-L6-v2',
+        input_field: 'content',
+        output_field: 'embedding',
+        format: 'blob'
+      }
     }
 
     const newNodes = [...nodes, newNode]
@@ -1036,6 +1043,7 @@ export function SimpleWorkflowBuilder() {
       case 'llm': return 'LLM AI Assistant'
       case 'foreach': return 'For Each Loop'
       case 'endloop': return 'End Loop'
+      case 'embedding': return 'Embedding'
       case 'markdown': return 'Markdown Viewer'
       case 'html': return 'HTML Viewer'
       default: return 'Unknown Node'

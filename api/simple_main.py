@@ -8,7 +8,15 @@ import time
 from typing import Any, Dict, List, Optional
 import aiohttp
 import aiofiles
-import sqlite3
+try:
+    # Try to use pysqlite3 which supports extension loading
+    # Install with: pip install pysqlite3-binary (may require building from source on some platforms)
+    import pysqlite3 as sqlite3
+    _HAS_EXTENSION_SUPPORT = True
+except ImportError:
+    # Fall back to standard sqlite3 (may not support extensions)
+    import sqlite3
+    _HAS_EXTENSION_SUPPORT = hasattr(sqlite3.Connection, 'enable_load_extension')
 from pathlib import Path
 from dotenv import load_dotenv
 import re
@@ -86,7 +94,8 @@ def execute_python_code(code: str, input_data: Any) -> Dict[str, Any]:
             'pandas', 'requests', 'urllib', 'urllib.request', 'urllib.error',
             'markdown',  # For markdown to HTML conversion
             'bs4',  # BeautifulSoup for HTML parsing
-            'os'  # For environment variable access (os.getenv)
+            'os',  # For environment variable access (os.getenv)
+            'sentence_transformers'  # For embedding generation
         }
         
         def safe_import(name, globals=None, locals=None, fromlist=(), level=0):
@@ -695,6 +704,63 @@ async def execute_conditional_logic(config: Dict[str, Any], input_data: Any) -> 
             'stderr': str(e)
         }
 
+def validate_extension_path(extension_path: str) -> tuple[bool, str]:
+    """Validate SQLite extension path for security.
+    
+    Returns:
+        (is_valid, error_message_or_validated_path)
+    """
+    import sys
+    
+    # Allowed extension filenames (sqlite-vec)
+    allowed_extensions = {'vec0.so', 'vec0.dylib', 'vec0.dll'}
+    
+    # Platform-specific extension mapping
+    platform_extensions = {
+        'linux': 'vec0.so',
+        'darwin': 'vec0.dylib',  # macOS
+        'win32': 'vec0.dll'
+    }
+    platform_ext = platform_extensions.get(sys.platform, 'vec0.so')
+    
+    # Must be within safe directory
+    safe_dir = Path('/tmp/workflow_files')
+    safe_dir_str = str(safe_dir)
+    
+    # Normalize path
+    path = Path(extension_path)
+    
+    # Check for path traversal attempts
+    if '..' in str(path):
+        return False, "Path traversal (..) not allowed in extension paths"
+    
+    # Check if path is absolute and outside safe directory
+    if path.is_absolute():
+        try:
+            path.resolve().relative_to(safe_dir.resolve())
+        except ValueError:
+            return False, f"Extension path must be within {safe_dir_str}"
+    
+    # Check filename is in whitelist
+    filename = path.name
+    if filename not in allowed_extensions:
+        return False, f"Extension filename '{filename}' not allowed. Allowed: {', '.join(allowed_extensions)}"
+    
+    # Construct full path for requested filename
+    full_path = safe_dir / filename
+    
+    # If requested file doesn't exist, try platform-specific extension
+    if not full_path.exists():
+        # Try platform-specific extension as fallback
+        platform_path = safe_dir / platform_ext
+        if platform_path.exists() and filename != platform_ext:
+            # User requested wrong platform extension, but correct one exists
+            return True, str(platform_path)
+        else:
+            return False, f"Extension file not found: {full_path}. Expected platform extension: {platform_ext}"
+    
+    return True, str(full_path)
+
 async def execute_database_query(config: Dict[str, Any], input_data: Any) -> Dict[str, Any]:
     """Execute database query (SQLite only for security)"""
     try:
@@ -713,48 +779,303 @@ async def execute_database_query(config: Dict[str, Any], input_data: Any) -> Dic
         start_time = time.time()
         
         # Replace query placeholders with input data
-        processed_params = params.copy()
+        processed_params = []
+        
+        # First, replace {key} placeholders in the query string
         if isinstance(input_data, dict):
             for key, value in input_data.items():
                 query = query.replace(f'{{{key}}}', str(value))
-                if f':{key}' in query:
-                    processed_params.append(value)
+        
+        # Now process parameters from the config params array
+        # These are the actual parameters that will be bound to ? placeholders
+        for param_template in params:
+            if isinstance(param_template, str) and param_template.startswith('{') and param_template.endswith('}'):
+                # Extract key from {key} format
+                key = param_template[1:-1]
+                if key in input_data:
+                    value = input_data[key]
+                    
+                    # Check if this is a vec0 MATCH query - vec0 requires JSON array format as a STRING
+                    if 'MATCH' in query.upper():
+                        import json
+                        # For vec0 MATCH queries, prefer the _array version if available
+                        array_key = f'{key}_array'
+                        if array_key in input_data:
+                            # Convert list to JSON string for vec0
+                            embedding_array = input_data[array_key]
+                            if isinstance(embedding_array, list):
+                                processed_params.append(json.dumps(embedding_array))
+                            else:
+                                processed_params.append(embedding_array)
+                        elif isinstance(value, bytes):
+                            # Convert bytes back to numpy array, then to JSON string
+                            import numpy as np
+                            try:
+                                # Assume float32 format (as stored by embedding node)
+                                embedding_array = np.frombuffer(value, dtype=np.float32).tolist()
+                                processed_params.append(json.dumps(embedding_array))
+                            except Exception as e:
+                                # Fallback: use the bytes value (might fail, but at least try)
+                                processed_params.append(value)
+                        elif isinstance(value, str):
+                            if value.startswith('['):
+                                # Already a JSON array string, use as-is
+                                processed_params.append(value)
+                            else:
+                                # Might be base64 encoded - try to decode and convert
+                                import base64
+                                import numpy as np
+                                try:
+                                    decoded_bytes = base64.b64decode(value)
+                                    embedding_array = np.frombuffer(decoded_bytes, dtype=np.float32).tolist()
+                                    processed_params.append(json.dumps(embedding_array))
+                                except Exception:
+                                    # Not base64, use as-is (might fail, but let vec0 handle the error)
+                                    processed_params.append(value)
+                        elif isinstance(value, list):
+                            # Already a list, convert to JSON string
+                            processed_params.append(json.dumps(value))
+                        else:
+                            # Other format - try to convert to JSON string
+                            try:
+                                processed_params.append(json.dumps(value))
+                            except Exception:
+                                processed_params.append(value)
+                    else:
+                        # Not a MATCH query, use value as-is
+                        processed_params.append(value)
+                else:
+                    # Key not found, append None or empty string
+                    processed_params.append(None)
+            else:
+                # Not a template, use as-is
+                processed_params.append(param_template)
+        
+        # Check if query contains load_extension call
+        import re
+        load_ext_pattern = r'load_extension\s*\(\s*["\']([^"\']+)["\']\s*\)'
+        load_ext_match = re.search(load_ext_pattern, query, re.IGNORECASE)
         
         with sqlite3.connect(database) as conn:
+            # Check if extension loading is supported
+            extension_loading_supported = hasattr(conn, 'enable_load_extension')
+            
+            # Check if query uses vec0 (needs extension loaded)
+            # This includes CREATE VIRTUAL TABLE ... USING vec0(...)
+            # or queries on vec0 virtual tables (check for common vec0 table patterns)
+            query_upper = query.upper()
+            uses_vec0 = (
+                'VEC0' in query_upper or 
+                'USING VEC0' in query_upper or
+                # Check if querying a vec0 virtual table (common patterns)
+                any(pattern in query_upper for pattern in [
+                    'FROM VEC_', 'FROM VEC0_', 'JOIN VEC_', 'JOIN VEC0_',
+                    'VEC_DOCS', 'VEC_VECTORS', 'VEC_EMBEDDINGS'
+                ])
+            )
+            
+            # If load_extension is explicitly called in the query, handle it
+            if load_ext_match:
+                if not extension_loading_supported:
+                    install_instructions = (
+                        "SQLite extension loading is not available on this system.\n\n"
+                        "Vector database features (sqlite-vec) require extension loading support.\n\n"
+                        "Workarounds:\n"
+                        "1. Use workflows that don't require vector databases\n"
+                        "2. Use Embedding nodes with Python nodes for similarity search\n"
+                        "3. Store embeddings as JSON and use Python for vector operations\n\n"
+                        "For full vector database support, you may need:\n"
+                        "- A Python environment with pysqlite3 pre-installed\n"
+                        "- Or compile SQLite/Python with extension loading enabled\n\n"
+                        "See docs/INSTALL_PYSQLITE3.md for detailed instructions.\n"
+                        "Note: All other workflow features work without extension loading."
+                    )
+                    return {
+                        'status': 'error',
+                        'error': f'Extension loading not supported. {install_instructions}',
+                        'output': None,
+                        'stdout': '',
+                        'stderr': 'enable_load_extension() method not available. See error message for installation instructions.'
+                    }
+                
+                ext_path = load_ext_match.group(1)
+                is_valid, validated_path = validate_extension_path(ext_path)
+                if not is_valid:
+                    return {
+                        'status': 'error',
+                        'error': f'Extension loading failed: {validated_path}',
+                        'output': None,
+                        'stdout': '',
+                        'stderr': f'Invalid extension path: {ext_path}'
+                    }
+                
+                # Enable extension loading
+                try:
+                    conn.enable_load_extension(True)
+                except AttributeError:
+                    return {
+                        'status': 'error',
+                        'error': 'Extension loading not supported. Install pysqlite3-binary: pip install pysqlite3-binary',
+                        'output': None,
+                        'stdout': '',
+                        'stderr': 'enable_load_extension() method not available'
+                    }
+                
+                # Ensure we use absolute resolved path
+                validated_path_abs = str(Path(validated_path).resolve())
+                
+                # SQLite on macOS/Linux automatically appends platform-specific extensions
+                # So we need to remove the extension to avoid double extension (.dylib.dylib)
+                import sys
+                if sys.platform == 'darwin' and validated_path_abs.endswith('.dylib'):
+                    # Remove .dylib - SQLite will add it automatically
+                    validated_path_abs = validated_path_abs[:-6]
+                elif sys.platform.startswith('linux') and validated_path_abs.endswith('.so'):
+                    # Remove .so - SQLite will add it automatically  
+                    validated_path_abs = validated_path_abs[:-3]
+                elif sys.platform == 'win32' and validated_path_abs.endswith('.dll'):
+                    # Remove .dll - SQLite will add it automatically
+                    validated_path_abs = validated_path_abs[:-4]
+                
+                # Replace the entire load_extension call with path (without extension)
+                original_call = load_ext_match.group(0)
+                new_call = f'load_extension("{validated_path_abs}")'
+                query = query.replace(original_call, new_call)
+            
+            # If query uses vec0 but extension wasn't explicitly loaded, load it automatically
+            if uses_vec0 and not load_ext_match:
+                # Extension needed but not explicitly loaded in query - load it automatically
+                if extension_loading_supported:
+                    try:
+                        conn.enable_load_extension(True)
+                        # Get the extension path (platform-specific)
+                        import sys
+                        safe_dir = Path('/tmp/workflow_files')
+                        if sys.platform == 'darwin':
+                            ext_file = safe_dir / 'vec0.dylib'
+                            ext_path = str(ext_file.resolve())[:-6] if ext_file.exists() else None  # Remove .dylib
+                        elif sys.platform.startswith('linux'):
+                            ext_file = safe_dir / 'vec0.so'
+                            ext_path = str(ext_file.resolve())[:-3] if ext_file.exists() else None  # Remove .so
+                        elif sys.platform == 'win32':
+                            ext_file = safe_dir / 'vec0.dll'
+                            ext_path = str(ext_file.resolve())[:-4] if ext_file.exists() else None  # Remove .dll
+                        else:
+                            ext_file = safe_dir / 'vec0.so'
+                            ext_path = str(ext_file.resolve())[:-3] if ext_file.exists() else None
+                        
+                        # Check if extension file exists
+                        if ext_path and ext_file.exists():
+                            try:
+                                conn.load_extension(ext_path)
+                            except Exception as e:
+                                return {
+                                    'status': 'error',
+                                    'error': f'Failed to auto-load vec0 extension: {str(e)}. Make sure vec0 extension is in /tmp/workflow_files/',
+                                    'output': None,
+                                    'stdout': '',
+                                    'stderr': str(e)
+                                }
+                        else:
+                            return {
+                                'status': 'error',
+                                'error': f'vec0 extension not found at {ext_file}. Download from https://github.com/asg017/sqlite-vec/releases',
+                                'output': None,
+                                'stdout': '',
+                                'stderr': f'Extension file not found: {ext_file}'
+                            }
+                    except Exception as e:
+                        return {
+                            'status': 'error',
+                            'error': f'Failed to enable extension loading: {str(e)}',
+                            'output': None,
+                            'stdout': '',
+                            'stderr': str(e)
+                        }
+            
             conn.row_factory = sqlite3.Row  # For dict-like access
             cursor = conn.cursor()
             
+            # Preserve original input data (workflow context) for passing through
+            base_output = input_data.copy() if isinstance(input_data, dict) else {}
+            
+            # Check if query contains multiple statements (separated by semicolons)
+            statements = [s.strip() for s in query.split(';') if s.strip()]
+            
             if operation == 'select':
-                cursor.execute(query, processed_params)
+                if len(statements) > 1:
+                    # Multiple statements - execute all but return results from last SELECT
+                    for stmt in statements[:-1]:
+                        cursor.execute(stmt, [])
+                    cursor.execute(statements[-1], processed_params)
+                else:
+                    cursor.execute(query, processed_params)
                 rows = cursor.fetchall()
                 result_data = [dict(row) for row in rows]
                 
             elif operation in ['insert', 'update', 'delete']:
-                cursor.execute(query, processed_params)
-                conn.commit()
-                result_data = {
-                    'rows_affected': cursor.rowcount,
-                    'last_row_id': cursor.lastrowid if operation == 'insert' else None
-                }
+                if len(statements) > 1:
+                    # Multiple statements - need to split parameters appropriately
+                    # For now, execute each statement with appropriate parameters
+                    # This is a simplified approach - assumes params are in order
+                    param_index = 0
+                    total_rows_affected = 0
+                    last_row_id = None
+                    
+                    for i, stmt in enumerate(statements):
+                        # Count placeholders in this statement
+                        placeholder_count = stmt.count('?')
+                        if placeholder_count > 0:
+                            stmt_params = processed_params[param_index:param_index + placeholder_count]
+                            cursor.execute(stmt, stmt_params)
+                            param_index += placeholder_count
+                        else:
+                            cursor.execute(stmt)
+                        
+                        total_rows_affected += cursor.rowcount
+                        if operation == 'insert' and cursor.lastrowid:
+                            last_row_id = cursor.lastrowid
+                    
+                    conn.commit()
+                    result_data = {
+                        'rows_affected': total_rows_affected,
+                        'last_row_id': last_row_id
+                    }
+                else:
+                    cursor.execute(query, processed_params)
+                    conn.commit()
+                    result_data = {
+                        'rows_affected': cursor.rowcount,
+                        'last_row_id': cursor.lastrowid if operation == 'insert' else None
+                    }
                 
             elif operation == 'create':
-                cursor.execute(query)
+                if len(statements) > 1:
+                    # Execute all statements
+                    for stmt in statements:
+                        cursor.execute(stmt)
+                else:
+                    cursor.execute(query)
                 conn.commit()
                 result_data = {'table_created': True}
                 
             else:
                 raise ValueError(f"Unsupported database operation: {operation}")
+            
+            # Merge query results with original context (preserve workflow data)
+            output = {
+                **base_output,
+                'data': result_data,
+                'operation': operation,
+                'database': database,
+                'query': query[:100] + '...' if len(query) > 100 else query
+            }
         
         execution_time = time.time() - start_time
         
         return {
             'status': 'success',
-            'output': {
-                'data': result_data,
-                'operation': operation,
-                'database': database,
-                'query': query[:100] + '...' if len(query) > 100 else query
-            },
+            'output': output,
             'stdout': f"Database {operation} completed on {database}",
             'stderr': '',
             'execution_time': execution_time
@@ -947,6 +1268,142 @@ def detect_html(text: str) -> bool:
     
     # If we find multiple HTML patterns, it's likely HTML
     return html_score >= 2
+
+# Global model cache for sentence-transformers (per-process)
+_embedding_model_cache: Dict[str, Any] = {}
+
+async def execute_embedding_node(config: Dict[str, Any], input_data: Any) -> Dict[str, Any]:
+    """Execute embedding node - generate vector embeddings from text using sentence-transformers"""
+    try:
+        model_name = config.get('model', 'all-MiniLM-L6-v2')
+        input_field = config.get('input_field', 'content')
+        output_field = config.get('output_field', 'embedding')
+        format_type = config.get('format', 'blob')  # 'blob' or 'array'
+        
+        start_time = time.time()
+        
+        # Load or get cached model
+        if model_name not in _embedding_model_cache:
+            try:
+                from sentence_transformers import SentenceTransformer
+                _embedding_model_cache[model_name] = SentenceTransformer(model_name)
+            except ImportError:
+                return {
+                    'status': 'error',
+                    'error': 'sentence-transformers not installed. Install with: pip install sentence-transformers',
+                    'output': None,
+                    'stdout': '',
+                    'stderr': 'sentence-transformers module not found',
+                    'execution_time': 0.0
+                }
+            except Exception as e:
+                return {
+                    'status': 'error',
+                    'error': f'Failed to load embedding model: {str(e)}',
+                    'output': None,
+                    'stdout': '',
+                    'stderr': str(e),
+                    'execution_time': 0.0
+                }
+        
+        model = _embedding_model_cache[model_name]
+        
+        # Extract text from input
+        texts = []
+        if isinstance(input_data, str):
+            texts = [input_data]
+        elif isinstance(input_data, dict):
+            # Try to get from specified field
+            if input_field in input_data:
+                field_value = input_data[input_field]
+                if isinstance(field_value, str):
+                    texts = [field_value]
+                elif isinstance(field_value, list):
+                    texts = [str(item) for item in field_value]
+                else:
+                    texts = [str(field_value)]
+            else:
+                # Fallback: use first string value found
+                for key, value in input_data.items():
+                    if isinstance(value, str):
+                        texts = [value]
+                        input_field = key
+                        break
+                    elif isinstance(value, list) and len(value) > 0:
+                        texts = [str(item) for item in value]
+                        input_field = key
+                        break
+        else:
+            texts = [str(input_data)]
+        
+        if not texts:
+            return {
+                'status': 'error',
+                'error': f'No text found in input field "{input_field}"',
+                'output': None,
+                'stdout': '',
+                'stderr': f'Input field "{input_field}" not found or empty',
+                'execution_time': 0.0
+            }
+        
+        # Generate embeddings
+        import numpy as np
+        embeddings = model.encode(texts, convert_to_numpy=True)
+        embedding_dim = embeddings.shape[1] if len(embeddings.shape) > 1 else len(embeddings)
+        
+        # Prepare output
+        base_output = input_data.copy() if isinstance(input_data, dict) else {}
+        
+        if len(texts) == 1:
+            # Single text input
+            embedding = embeddings[0] if len(embeddings.shape) > 1 else embeddings
+            embedding_array = embedding.tolist()
+            embedding_bytes = embedding.astype(np.float32).tobytes()
+            
+            output = {
+                **base_output,
+                output_field: embedding_bytes if format_type == 'blob' else embedding_array,
+                f'{output_field}_array': embedding_array,
+                f'{output_field}_bytes': embedding_bytes,
+                f'{output_field}_dim': embedding_dim,
+                'text': texts[0],
+                'input_field': input_field
+            }
+        else:
+            # Batch input
+            embedding_arrays = [emb.tolist() for emb in embeddings]
+            embedding_bytes_list = [emb.astype(np.float32).tobytes() for emb in embeddings]
+            
+            output = {
+                **base_output,
+                output_field: embedding_bytes_list if format_type == 'blob' else embedding_arrays,
+                f'{output_field}_array': embedding_arrays,
+                f'{output_field}_bytes': embedding_bytes_list,
+                f'{output_field}_dim': embedding_dim,
+                'texts': texts,
+                'input_field': input_field,
+                'count': len(texts)
+            }
+        
+        execution_time = time.time() - start_time
+        
+        return {
+            'status': 'success',
+            'output': output,
+            'stdout': f'Generated {len(texts)} embedding(s) using model {model_name} (dim={embedding_dim})',
+            'stderr': '',
+            'execution_time': execution_time
+        }
+        
+    except Exception as e:
+        return {
+            'status': 'error',
+            'error': f'Embedding generation failed: {str(e)}',
+            'output': None,
+            'stdout': '',
+            'stderr': str(e),
+            'execution_time': 0.0
+        }
 
 async def execute_html_viewer(config: Dict[str, Any], input_data: Any) -> Dict[str, Any]:
     """Execute HTML viewer node - automatically detects HTML in any variable"""
@@ -1333,6 +1790,9 @@ async def execute_sub_workflow(
             elif node_type == 'html':
                 config = node_data.get('config', {})
                 result = await execute_html_viewer(config, input_data)
+            elif node_type == 'embedding':
+                config = node_data.get('config', {})
+                result = await execute_embedding_node(config, input_data)
             elif node_type == 'endloop':
                 # EndLoop node: just passes through the input (aggregation happens in ForEach)
                 # This node exists to mark the end of a ForEach sub-workflow
@@ -1873,6 +2333,10 @@ async def run_workflow(request: dict):
                 config = node_data.get('config', {})
                 result = await execute_html_viewer(config, input_data)
                 
+            elif node_type == 'embedding':
+                config = node_data.get('config', {})
+                result = await execute_embedding_node(config, input_data)
+                
             else:
                 result = {
                     'status': 'error',
@@ -1919,9 +2383,36 @@ async def run_workflow(request: dict):
         }
         
         print(f"\n=== EXECUTION COMPLETE ===")
-        print(f"Final result: {json.dumps(final_result, indent=2)}")
         
-        return final_result
+        # Convert bytes to base64 for JSON serialization (both for printing and return)
+        def convert_bytes_to_base64(obj):
+            import base64
+            if isinstance(obj, bytes):
+                return base64.b64encode(obj).decode('utf-8')
+            elif isinstance(obj, dict):
+                return {k: convert_bytes_to_base64(v) for k, v in obj.items()}
+            elif isinstance(obj, list):
+                return [convert_bytes_to_base64(item) for item in obj]
+            return obj
+        
+        # Convert bytes to base64 in the actual return value (for FastAPI JSON encoding)
+        try:
+            serializable_result = convert_bytes_to_base64(final_result)
+            print(f"Final result: {json.dumps(serializable_result, indent=2)}")
+            return serializable_result
+        except Exception as e:
+            print(f"Warning: Could not serialize final result: {e}")
+            # Fallback: return original but try to handle bytes at top level
+            if isinstance(final_result, dict):
+                cleaned = {}
+                for k, v in final_result.items():
+                    if isinstance(v, bytes):
+                        import base64
+                        cleaned[k] = base64.b64encode(v).decode('utf-8')
+                    else:
+                        cleaned[k] = v
+                return cleaned
+            return final_result
         
     except Exception as e:
         print(f"\n=== EXECUTION ERROR ===")

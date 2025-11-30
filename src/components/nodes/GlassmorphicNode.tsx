@@ -14,10 +14,11 @@ import {
   Repeat,
   RotateCcw,
   BookOpen,
-  FileCode
+  FileCode,
+  Layers
 } from 'lucide-react'
 
-export type NodeType = 'start' | 'end' | 'python' | 'typescript' | 'http' | 'file' | 'condition' | 'database' | 'llm' | 'foreach' | 'endloop' | 'markdown' | 'html'
+export type NodeType = 'start' | 'end' | 'python' | 'typescript' | 'http' | 'file' | 'condition' | 'database' | 'llm' | 'foreach' | 'endloop' | 'markdown' | 'html' | 'embedding'
 
 interface GlassmorphicNodeProps {
   id: string
@@ -44,6 +45,7 @@ const nodeIcons = {
   condition: GitBranch,
   database: Database,
   llm: Sparkles,
+  embedding: Layers,
   foreach: Repeat,
   endloop: RotateCcw,
   markdown: BookOpen,
@@ -60,6 +62,7 @@ const nodeColors = {
   condition: 'from-orange-500 to-orange-600',
   database: 'from-green-600 to-emerald-700',
   llm: 'from-pink-500 to-rose-600',
+  embedding: 'from-amber-500 to-amber-600',
   foreach: 'from-indigo-500 to-indigo-600',
   endloop: 'from-red-500 to-red-600',
   markdown: 'from-violet-500 to-violet-600',

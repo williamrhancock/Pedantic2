@@ -32,8 +32,10 @@ Why "Pedantic2"? Because the first one was *too* forgiving. This version nags yo
 - Conditionals: Branch if `data.salty > 10` (spoiler: it always is).
 - SQLite queries: Parameterized, because SQL injection is so 2010.
 - LLM AI Assistant: Full dialog with provider/model selection, dynamic model fetching, API key management.
+- Embedding Node: Generate vector embeddings using sentence-transformers for semantic search and RAG.
 - Markdown Viewer: Auto-detect and render markdown with anchor support.
 - HTML Viewer: Auto-detect and render HTML content.
+- Vector Database Support: SQLite with sqlite-vec extension for local vector search (RAG workflows). Requires `pysqlite3-binary` and sqlite-vec extension file.
 - **Fancy Bits**: 
   - Auto-arrange nodes with intelligent zigzag layout (staggered for visibility)
   - Real-time execution logs (stdout/stderr/errors – the full therapy session)
@@ -67,7 +69,48 @@ Pro Tip: Custom nodes? Save configs as templates. Reuse that "scrape cat memes" 
    npm install
    ```
 
-3. **Set up API keys** (required for LLM and external API nodes):
+3. **Install Python dependencies** (if not auto-installed):
+   ```bash
+   cd api
+   pip install -r requirements.txt
+   cd ..
+   ```
+   
+   **Note for Vector Database Support**: The standard Python `sqlite3` module doesn't support loading extensions. For vector database workflows (RAG), you need extension loading support:
+   
+   **macOS:**
+   ```bash
+   # Install SQLite with extension support via Homebrew
+   brew install sqlite
+   
+   # Install pysqlite3 linking to Homebrew SQLite
+   export LDFLAGS="-L$(brew --prefix sqlite)/lib"
+   export CPPFLAGS="-I$(brew --prefix sqlite)/include"
+   pip install pysqlite3
+   ```
+   
+   **Linux (Debian/Ubuntu):**
+   ```bash
+   sudo apt-get install libsqlite3-dev
+   pip install pysqlite3
+   ```
+   
+   **Linux (RHEL/CentOS):**
+   ```bash
+   sudo yum install sqlite-devel
+   pip install pysqlite3
+   ```
+   
+   **Alternative**: Try `pysqlite3-binary` first (may not work on all platforms):
+   ```bash
+   pip install pysqlite3-binary
+   ```
+   
+   After installation, restart the FastAPI server. The code will automatically detect and use the extension-capable sqlite3 module.
+   
+   **Note**: If extension loading isn't available, regular database operations still work. Only vector database features (sqlite-vec) require extension support.
+
+4. **Set up API keys** (required for LLM and external API nodes):
    ```bash
    # Copy the example environment file
    cp .env.example .env
