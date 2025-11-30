@@ -1168,9 +1168,16 @@ async def execute_markdown_viewer(config: Dict[str, Any], input_data: Any) -> Di
         if isinstance(input_data, dict) and 'content' in input_data:
             candidate = input_data['content']
             if isinstance(candidate, str) and len(candidate.strip()) > 0:
+                # Check if this looks like a JSON string (starts with { or [)
+                # If so, it might be the entire object stringified - skip it
+                candidate_stripped = candidate.strip()
+                if candidate_stripped.startswith('{') or candidate_stripped.startswith('['):
+                    # This might be a JSON string of the entire object - skip it
+                    # and look for the actual answer in other fields
+                    pass
                 # LLM content is usually the answer - use it if it's substantial (> 20 chars)
                 # or if it contains markdown patterns
-                if len(candidate) > 20 or detect_markdown(candidate):
+                elif len(candidate) > 20 or detect_markdown(candidate):
                     markdown_content = candidate
                     detected_key = 'content'
         
@@ -1215,11 +1222,14 @@ async def execute_markdown_viewer(config: Dict[str, Any], input_data: Any) -> Di
                 detected_key = 'input'
         
         # Final fallback: find the longest string value (likely the answer/content)
+        # But exclude JSON strings (they start with { or [)
         if not markdown_content:
             if isinstance(input_data, dict):
                 # Find all string values and pick the longest one (likely the main content)
+                # Exclude JSON strings (they start with { or [)
                 string_values = [(key, value) for key, value in input_data.items() 
-                               if isinstance(value, str) and len(value.strip()) > 0]
+                               if isinstance(value, str) and len(value.strip()) > 0
+                               and not (value.strip().startswith('{') or value.strip().startswith('['))]
                 if string_values:
                     # Sort by length (descending) and take the longest
                     string_values.sort(key=lambda x: len(x[1]), reverse=True)
