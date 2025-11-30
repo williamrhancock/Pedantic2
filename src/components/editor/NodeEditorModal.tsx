@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect, useRef } from 'react'
 import Editor from '@monaco-editor/react'
-import { X, Trash2 } from 'lucide-react'
+import { X, Trash2, Edit, Eye } from 'lucide-react'
 import { useTheme } from '@/contexts/ThemeContext'
 
 export type NodeType = 'start' | 'end' | 'python' | 'typescript' | 'http' | 'file' | 'condition' | 'database' | 'llm' | 'foreach' | 'endloop' | 'markdown' | 'html' | 'json' | 'embedding'
@@ -24,6 +24,7 @@ interface NodeEditorModalProps {
   onExportCustomNode?: (options: { filename: string }) => Promise<void> | void
   isCustom?: boolean
   customName?: string
+  jsonViewerContent?: string // For JSON nodes: execution result content to view
 }
 
 export function NodeEditorModal({
@@ -43,6 +44,7 @@ export function NodeEditorModal({
   onExportCustomNode,
   isCustom = false,
   customName,
+  jsonViewerContent,
 }: NodeEditorModalProps) {
   const { isDark } = useTheme()
   const [editedCode, setEditedCode] = useState(code || '')
@@ -61,6 +63,8 @@ export function NodeEditorModal({
   const [exportFilenameInput, setExportFilenameInput] = useState(
     (customName || nodeTitle || 'custom_node') + '.json'
   )
+  // For JSON nodes: toggle between edit and view mode
+  const [jsonViewMode, setJsonViewMode] = useState<'edit' | 'view'>('edit')
 
   // Track the previous nodeId to detect when we're editing a different node
   const prevNodeIdRef = useRef<string | null>(null)
@@ -144,11 +148,17 @@ export function NodeEditorModal({
       setEditedCode(code || '')
       setEditedConfig(config ? JSON.stringify(config, null, 2) : '')
       setSkipExecution(skipDuringExecution || false)
+      
+      // For JSON nodes: default to view mode if we have execution content, otherwise edit mode
+      if (nodeType === 'json') {
+        setJsonViewMode(jsonViewerContent ? 'view' : 'edit')
+      }
+      
       prevNodeIdRef.current = nodeId
     }
     
     prevIsOpenRef.current = isOpen
-  }, [isOpen, nodeId]) // Removed code, config, skipDuringExecution from dependencies
+  }, [isOpen, nodeId, nodeType, jsonViewerContent]) // Removed code, config, skipDuringExecution from dependencies
   
   // Cleanup typing timeout on unmount
   useEffect(() => {
@@ -478,14 +488,41 @@ export function NodeEditorModal({
 
           {/* Center: Editor */}
           <div className="flex-1 glass-card p-4 flex flex-col min-w-0">
-            <div className="mb-2">
-              <h3 className="text-sm font-semibold text-foreground">
-                {isCodeNode ? 'Code Editor' : 'Configuration Editor'}
-              </h3>
-              <p className="text-xs text-muted-foreground mt-1">
-                {isCodeNode && nodeType === 'python' && 'Must have a "run(input)" function that returns output'}
-                {isCodeNode && nodeType === 'typescript' && 'Must have an "async run(input)" function that returns output'}
-              </p>
+            <div className="mb-2 flex items-center justify-between">
+              <div>
+                <h3 className="text-sm font-semibold text-foreground">
+                  {nodeType === 'json' && jsonViewMode === 'view' 
+                    ? 'JSON Viewer' 
+                    : isCodeNode 
+                    ? 'Code Editor' 
+                    : 'Configuration Editor'}
+                </h3>
+                <p className="text-xs text-muted-foreground mt-1">
+                  {isCodeNode && nodeType === 'python' && 'Must have a "run(input)" function that returns output'}
+                  {isCodeNode && nodeType === 'typescript' && 'Must have an "async run(input)" function that returns output'}
+                  {nodeType === 'json' && jsonViewMode === 'view' && 'Read-only view of JSON content from workflow execution'}
+                </p>
+              </div>
+              {/* Toggle button for JSON nodes */}
+              {nodeType === 'json' && jsonViewerContent && (
+                <button
+                  onClick={() => setJsonViewMode(jsonViewMode === 'edit' ? 'view' : 'edit')}
+                  className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-white/5 hover:bg-white/10 border border-white/10 text-sm text-foreground transition-all hover:scale-105 active:scale-95"
+                  title={jsonViewMode === 'edit' ? 'View JSON content' : 'Edit configuration'}
+                >
+                  {jsonViewMode === 'edit' ? (
+                    <>
+                      <Eye className="w-4 h-4" />
+                      View
+                    </>
+                  ) : (
+                    <>
+                      <Edit className="w-4 h-4" />
+                      Edit
+                    </>
+                  )}
+                </button>
+              )}
             </div>
             <div 
               className="flex-1 min-h-0"
@@ -538,7 +575,26 @@ export function NodeEditorModal({
                     quickSuggestions: true,
                   }}
                 />
+              ) : nodeType === 'json' && jsonViewMode === 'view' && jsonViewerContent ? (
+                // JSON Viewer mode: show execution result
+                <Editor
+                  key={`${nodeId}-json-view`}
+                  height="100%"
+                  language="json"
+                  value={jsonViewerContent}
+                  theme={isDark ? 'vs-dark' : 'vs-light'}
+                  options={{
+                    minimap: { enabled: true },
+                    fontSize: 14,
+                    lineNumbers: 'on',
+                    scrollBeyondLastLine: false,
+                    wordWrap: 'on',
+                    automaticLayout: true,
+                    readOnly: true, // Always read-only in view mode
+                  }}
+                />
               ) : (
+                // Configuration Editor mode
                 <Editor
                   key={`${nodeId}-config`}
                   height="100%"

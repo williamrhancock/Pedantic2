@@ -1300,84 +1300,9 @@ export function SimpleWorkflowBuilder() {
         }
         setShowHtmlViewer(true)
       } else if (node.type === 'json') {
-        // Try to find JSON content from node's execution output
-        let nodeResult = executionResults.get(nodeId)
-        
-        // If not found in executionResults, try to find it in timeline entries
-        if (!nodeResult || !nodeResult.output || !nodeResult.output.content) {
-          // First try non-forEach timeline entries
-          let timelineEntry = timelineEntries
-            .filter(e => e.nodeId === nodeId && !e.isForEachResult && e.output)
-            .sort((a, b) => b.timestamp.getTime() - a.timestamp.getTime())[0]
-          
-          // If still not found, check all entries (including forEach results) but prefer the latest
-          if (!timelineEntry || !timelineEntry.output || !timelineEntry.output.content) {
-            timelineEntry = timelineEntries
-              .filter(e => e.nodeId === nodeId && e.output && e.output.content)
-              .sort((a, b) => b.timestamp.getTime() - a.timestamp.getTime())[0]
-          }
-          
-          if (timelineEntry && timelineEntry.output && timelineEntry.output.content) {
-            nodeResult = {
-              output: timelineEntry.output
-            }
-          }
-        }
-        
-        // If still not found, check if we can get it from the last iteration of a for-each loop
-        if (!nodeResult || !nodeResult.output || !nodeResult.output.content) {
-          // Look for the JSON viewer in the last for-each iteration
-          const forEachResults = timelineEntries
-            .filter(e => e.isForEachResult && e.nodeId === nodeId && e.output && e.output.content)
-            .sort((a, b) => (b.forEachIteration ?? 0) - (a.forEachIteration ?? 0))
-          
-          if (forEachResults.length > 0) {
-            const lastIteration = forEachResults[0]
-            if (lastIteration.output && lastIteration.output.content) {
-              nodeResult = {
-                output: lastIteration.output
-              }
-            }
-          }
-          
-          // Also check executionResults for for-each nodes and extract from their results
-          if (!nodeResult || !nodeResult.output || !nodeResult.output.content) {
-            Array.from(executionResults.entries()).forEach(([resultNodeId, result]) => {
-              // Check if this is a for-each node result
-              if (result.output && result.output.results && Array.isArray(result.output.results)) {
-                // Find the last successful iteration that has node_executions
-                for (let i = result.output.results.length - 1; i >= 0; i--) {
-                  const iteration = result.output.results[i]
-                  if (iteration.node_executions && Array.isArray(iteration.node_executions)) {
-                    // Find the JSON viewer in this iteration
-                    const jsonExec = iteration.node_executions.find(
-                      (exec: any) => exec.node_id === nodeId && exec.output && exec.output.content
-                    )
-                    if (jsonExec) {
-                      nodeResult = {
-                        output: jsonExec.output
-                      }
-                      return
-                    }
-                  }
-                }
-              }
-            })
-          }
-        }
-        
-        if (nodeResult && nodeResult.output && nodeResult.output.content) {
-          // Display the detected JSON content
-          setJsonContent(nodeResult.output.content)
-          const detectedKey = nodeResult.output.detected_key || 'auto-detected'
-          const contentKey = nodeResult.output.content_key || ''
-          const titleSuffix = contentKey ? ` (content_key: ${contentKey})` : ` (from ${detectedKey})`
-          setJsonTitle(`${node.title}${titleSuffix}`)
-          setShowJsonViewer(true)
-        } else {
-          // No execution results yet, open editor to configure
-          setShowEditorModal(true)
-        }
+        // Always open editor for JSON nodes
+        // The editor will show a toggle button to switch between edit and view modes
+        setShowEditorModal(true)
       } else {
         setShowEditorModal(true)
       }
@@ -1850,6 +1775,69 @@ export function SimpleWorkflowBuilder() {
           onMakeCustom={isLocked ? undefined : handleMakeCustomNode}
           onUpdateCustomFromNode={isLocked ? undefined : handleUpdateCustomFromNode}
           onExportCustomNode={isLocked ? undefined : handleExportSelectedCustomNode}
+          jsonViewerContent={(() => {
+            // For JSON nodes, try to find execution content
+            if (selectedNodeData.type === 'json') {
+              let nodeResult = executionResults.get(selectedNodeData.id)
+              
+              // If not found in executionResults, try to find it in timeline entries
+              if (!nodeResult || !nodeResult.output || !nodeResult.output.content) {
+                let timelineEntry = timelineEntries
+                  .filter(e => e.nodeId === selectedNodeData.id && !e.isForEachResult && e.output)
+                  .sort((a, b) => b.timestamp.getTime() - a.timestamp.getTime())[0]
+                
+                if (!timelineEntry || !timelineEntry.output || !timelineEntry.output.content) {
+                  timelineEntry = timelineEntries
+                    .filter(e => e.nodeId === selectedNodeData.id && e.output && e.output.content)
+                    .sort((a, b) => b.timestamp.getTime() - a.timestamp.getTime())[0]
+                }
+                
+                if (timelineEntry && timelineEntry.output && timelineEntry.output.content) {
+                  nodeResult = {
+                    output: timelineEntry.output
+                  }
+                }
+              }
+              
+              // Check for-each results
+              if (!nodeResult || !nodeResult.output || !nodeResult.output.content) {
+                const forEachResults = timelineEntries
+                  .filter(e => e.isForEachResult && e.nodeId === selectedNodeData.id && e.output && e.output.content)
+                  .sort((a, b) => (b.forEachIteration ?? 0) - (a.forEachIteration ?? 0))
+                
+                if (forEachResults.length > 0 && forEachResults[0].output && forEachResults[0].output.content) {
+                  nodeResult = {
+                    output: forEachResults[0].output
+                  }
+                }
+              }
+              
+              // Check executionResults for for-each nodes
+              if (!nodeResult || !nodeResult.output || !nodeResult.output.content) {
+                Array.from(executionResults.entries()).forEach(([resultNodeId, result]) => {
+                  if (result.output && result.output.results && Array.isArray(result.output.results)) {
+                    for (let i = result.output.results.length - 1; i >= 0; i--) {
+                      const iteration = result.output.results[i]
+                      if (iteration.node_executions && Array.isArray(iteration.node_executions)) {
+                        const jsonExec = iteration.node_executions.find(
+                          (exec: any) => exec.node_id === selectedNodeData.id && exec.output && exec.output.content
+                        )
+                        if (jsonExec) {
+                          nodeResult = {
+                            output: jsonExec.output
+                          }
+                          return
+                        }
+                      }
+                    }
+                  }
+                })
+              }
+              
+              return nodeResult?.output?.content || undefined
+            }
+            return undefined
+          })()}
         />
       )}
 
