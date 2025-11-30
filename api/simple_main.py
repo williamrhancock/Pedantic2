@@ -1552,6 +1552,27 @@ async def execute_json_viewer(config: Dict[str, Any], input_data: Any) -> Dict[s
         
         # Priority 1: Try the specified content_key if provided (supports nested paths)
         if isinstance(input_data, dict) and content_key_explicitly_set:
+            # Check if input_data is empty first
+            if not input_data:
+                return {
+                    'status': 'error',
+                    'error': f'JSON viewer: input_data is empty (no data received from upstream node)',
+                    'output': {
+                        'content': json.dumps({
+                            'error': 'Input data is empty',
+                            'message': 'No data was received from the upstream node. Check that the upstream node is outputting data correctly.',
+                            'content_key': content_key,
+                            'input_data': input_data
+                        }, indent=2),
+                        'detected_key': None,
+                        'content_key': content_key,
+                        'source': input_data
+                    },
+                    'stdout': f'JSON viewer: input_data is empty',
+                    'stderr': f'No data received from upstream node. Expected content_key: "{content_key}"',
+                    'execution_time': 0.0
+                }
+            
             # Try nested path first (e.g., 'output.data')
             if '.' in content_key:
                 candidate = get_nested_value(input_data, content_key)
@@ -1577,14 +1598,15 @@ async def execute_json_viewer(config: Dict[str, Any], input_data: Any) -> Dict[s
                         'content': json.dumps({
                             'error': f'Content key "{content_key}" not found',
                             'available_keys': list(input_data.keys()) if isinstance(input_data, dict) else [],
-                            'input_data': input_data
+                            'input_data': input_data,
+                            'hint': f'Available keys: {list(input_data.keys()) if isinstance(input_data, dict) else "N/A"}. For nested paths, use dot notation like "output.data".'
                         }, indent=2),
                         'detected_key': None,
                         'content_key': content_key,
                         'source': input_data
                     },
                     'stdout': f'JSON viewer: content_key "{content_key}" not found',
-                    'stderr': f'Content key "{content_key}" not found in input data',
+                    'stderr': f'Content key "{content_key}" not found in input data. Available keys: {list(input_data.keys()) if isinstance(input_data, dict) else "N/A"}',
                     'execution_time': 0.0
                 }
         
