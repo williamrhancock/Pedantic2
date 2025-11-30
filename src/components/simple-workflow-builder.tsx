@@ -314,12 +314,26 @@ export function SimpleWorkflowBuilder() {
   const saveWorkflowMutation = trpc.saveWorkflow.useMutation({
     onMutate: () => setIsAutoSaving(true),
     onSuccess: (data, variables) => {
-      setWorkflowMetadata(prev => ({
-        ...prev,
-        id: data.id,
-        lastSaved: new Date()
-      }))
-      setHasUnsavedChanges(false)
+      // Double-check: never update metadata if name is "Untitled"
+      const isUntitled = 
+        variables.name.toLowerCase() === 'untitled' || 
+        variables.name.toLowerCase() === 'untitled workflow'
+      
+      if (!isUntitled) {
+        setWorkflowMetadata(prev => ({
+          ...prev,
+          id: data.id,
+          name: variables.name, // Update with the actual saved name
+          lastSaved: new Date()
+        }))
+        setHasUnsavedChanges(false)
+      }
+    },
+    onError: (error) => {
+      // If error is about Untitled name, log it (user will see error in dialog)
+      if (error.message.includes('Untitled')) {
+        console.error('Cannot save Untitled workflow:', error.message)
+      }
     },
     onSettled: () => setIsAutoSaving(false)
   })
@@ -361,32 +375,24 @@ export function SimpleWorkflowBuilder() {
 
   const handleSave = useCallback(async () => {
     try {
-      // Special case: for the default "Untitled" workflows with no id yet,
-      // do NOT auto-save. The user must explicitly name the workflow first
-      // via Save As; this prevents cluttering the DB with unnamed entries.
-      let targetId = workflowMetadata.id
+      // NEVER save workflows with "Untitled" names - user must name it first via Save As
       const isUntitled =
-        workflowMetadata.name === 'Untitled Workflow' ||
-        workflowMetadata.name === 'Untitled'
+        workflowMetadata.name.toLowerCase() === 'untitled workflow' ||
+        workflowMetadata.name.toLowerCase() === 'untitled'
 
-      if (!targetId && isUntitled) {
-        // Skip saving entirely for unnamed workflows with no id.
+      if (isUntitled) {
+        // Skip saving entirely - backend will also reject, but prevent the call
         return
       }
 
-      if (!targetId && isUntitled) {
-        try {
-          const existing = await getWorkflowByNameQuery.refetch()
-          if (existing.data?.id) {
-            targetId = existing.data.id
-          }
-        } catch (e) {
-          console.error('Failed to lookup existing Untitled workflow by name:', e)
-        }
+      // Only save if workflow has an ID (already named) or if explicitly saving
+      if (!workflowMetadata.id) {
+        // No ID means it's a new workflow - user must use Save As to name it
+        return
       }
 
       await saveWorkflowMutation.mutateAsync({
-        id: targetId ?? workflowMetadata.id,
+        id: workflowMetadata.id,
         name: workflowMetadata.name,
         description: workflowMetadata.description,
         tags: workflowMetadata.tags,
@@ -398,10 +404,20 @@ export function SimpleWorkflowBuilder() {
       // Surface error; SaveAsDialog / caller is responsible for UI feedback.
       throw error
     }
-  }, [workflowMetadata, saveWorkflowMutation, createWorkflowData, getWorkflowByNameQuery])
+  }, [workflowMetadata, saveWorkflowMutation, createWorkflowData])
 
   const handleSaveAs = async (name: string, shouldUpdateCurrent: boolean) => {
     try {
+      // Validate name - prevent "Untitled" names
+      const trimmedName = name.trim()
+      const isUntitled = 
+        trimmedName.toLowerCase() === 'untitled' || 
+        trimmedName.toLowerCase() === 'untitled workflow'
+      
+      if (isUntitled || !trimmedName) {
+        throw new Error('Cannot save workflow with the default Untitled name. Please choose a name.')
+      }
+
       // Determine if we should update the current workflow or create a new one:
       // - If same name (shouldUpdateCurrent), always update current workflow
       // - If different name but current workflow has ID, update current workflow with new name
@@ -410,7 +426,7 @@ export function SimpleWorkflowBuilder() {
       
       const result = await saveWorkflowMutation.mutateAsync({
         id: workflowId,
-        name: name,
+        name: trimmedName,
         description: workflowMetadata.description,
         tags: workflowMetadata.tags,
         data: createWorkflowData(),
@@ -419,7 +435,7 @@ export function SimpleWorkflowBuilder() {
       
       setWorkflowMetadata(prev => ({
         ...prev,
-        name: name,
+        name: trimmedName,
         id: result.id,
         lastSaved: new Date()
       }))
@@ -467,9 +483,16 @@ export function SimpleWorkflowBuilder() {
 
       setNodes(loadedNodes)
       setConnections(loadedConnections)
+      
+      // If loaded workflow has "Untitled" name, force user to rename it
+      const loadedName = workflow.name
+      const isUntitled = 
+        loadedName.toLowerCase() === 'untitled' || 
+        loadedName.toLowerCase() === 'untitled workflow'
+      
       setWorkflowMetadata({
         id: workflow.id,
-        name: workflow.name,
+        name: isUntitled ? 'Untitled Workflow' : workflow.name, // Keep UI name but mark for rename
         description: workflow.description || '',
         tags: workflow.tags || [],
         isTemplate: workflow.is_template || false,
@@ -477,6 +500,14 @@ export function SimpleWorkflowBuilder() {
       })
       setHasUnsavedChanges(false)
       setShowWorkflowBrowser(false)
+      
+      // If loaded workflow is "Untitled", prompt user to rename it
+      if (isUntitled) {
+        // Open Save As dialog to force rename
+        setTimeout(() => {
+          setShowSaveAsDialog(true)
+        }, 100)
+      }
     } catch (error) {
       console.error('Failed to load workflow:', error)
       // TODO: show a dedicated app dialog for workflow load failures.

@@ -77,12 +77,13 @@ const appRouter = createTRPCRouter({
       isPublic: z.boolean().optional()
     }))
     .mutation(async ({ input }) => {
-      // Guardrail: never create new workflows with the default "Untitled" names.
-      // This prevents legacy or stray callers from filling the DB with unnamed entries.
-      const isUntitledDefault =
-        !input.id &&
-        (input.name === 'Untitled' || input.name === 'Untitled Workflow')
-      if (isUntitledDefault) {
+      // Guardrail: NEVER allow saving workflows with "Untitled" names (new OR update).
+      // This prevents filling the DB with unnamed entries from any code path.
+      const isUntitled = 
+        input.name.toLowerCase() === 'untitled' || 
+        input.name.toLowerCase() === 'untitled workflow'
+      
+      if (isUntitled) {
         throw new Error('Cannot save workflow with the default Untitled name. Please choose a name.')
       }
 
@@ -212,7 +213,17 @@ const appRouter = createTRPCRouter({
         throw new Error('Unsupported workflow format')
       }
       
-      const name = input.name || input.data.metadata?.name || 'Imported Workflow'
+      let name = input.name || input.data.metadata?.name || 'Imported Workflow'
+      
+      // Prevent importing workflows with "Untitled" names
+      const isUntitled = 
+        name.toLowerCase() === 'untitled' || 
+        name.toLowerCase() === 'untitled workflow'
+      
+      if (isUntitled) {
+        name = 'Imported Workflow'
+      }
+      
       const description = input.overwriteMetadata
         ? input.data.metadata?.description || 'Imported workflow'
         : 'Imported workflow'

@@ -77,6 +77,16 @@ export function SaveAsDialog({
       return
     }
 
+    // Prevent saving with "Untitled" names
+    const isUntitled = 
+      trimmedName.toLowerCase() === 'untitled' || 
+      trimmedName.toLowerCase() === 'untitled workflow'
+    
+    if (isUntitled) {
+      setNameError('Cannot save workflow with the default Untitled name. Please choose a different name.')
+      return
+    }
+
     // Check if we're saving with the same name as the current workflow (case-insensitive)
     const isSameName = trimmedName.toLowerCase() === currentName.toLowerCase() && currentId !== undefined
 
