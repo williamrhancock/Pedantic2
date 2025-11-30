@@ -32,6 +32,7 @@ interface GlassmorphicNodeProps {
     description?: string
     code?: string
     config?: any
+    skipDuringExecution?: boolean
   }
 }
 
@@ -192,6 +193,16 @@ export const GlassmorphicNode = React.memo(function GlassmorphicNode({
             {type === 'database' && `${data.config.operation} ${data.config.database}`}
             {type === 'llm' && `${data.config.provider} ${data.config.model}`}
           </p>
+        </div>
+      )}
+
+      {/* Skip indicator */}
+      {data?.skipDuringExecution && (
+        <div className="mt-3 flex items-center gap-2 px-2 py-1 rounded-md bg-yellow-500/20 border border-yellow-500/30">
+          <div className="w-2 h-2 rounded-full bg-yellow-500" />
+          <span className="text-xs text-yellow-200 font-medium">
+            Skip During Execution
+          </span>
         </div>
       )}
 

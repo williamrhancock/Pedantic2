@@ -1750,6 +1750,7 @@ async def execute_sub_workflow(
         node_data = nodes_data.get(node_id, {})
         node_type = node_data.get('type', 'unknown')
         node_title = node_data.get('title', node_id)
+        skip_during_execution = node_data.get('skipDuringExecution', False)
         
         # Find input for this node (from local outputs or starting input)
         input_data = current_input
@@ -1759,6 +1760,26 @@ async def execute_sub_workflow(
                 if source_id in local_outputs:
                     input_data = local_outputs[source_id]
                     break
+        
+        # Check if node should be skipped
+        if skip_during_execution:
+            # Pass through input to output without executing
+            result = {
+                'status': 'success',
+                'output': input_data,
+                'stdout': f'Node "{node_title}" skipped during execution (input passed through)',
+                'stderr': '',
+                'execution_time': 0.0
+            }
+            local_outputs[node_id] = result['output']
+            node_executions.append({
+                'node_id': node_id,
+                'node_type': node_type,
+                'status': 'skipped',
+                'execution_time': 0.0
+            })
+            current_input = result['output']
+            continue
         
         # Execute the node
         node_start_time = time.time()
@@ -2229,6 +2250,31 @@ async def run_workflow(request: dict):
             if not input_data:
                 print(f"Using default empty input for {node_id}")
                 input_data = {}
+            
+            # Check if node should be skipped
+            skip_during_execution = node_data.get('skipDuringExecution', False)
+            if skip_during_execution:
+                # Pass through input to output without executing
+                node_title = node_data.get('title', node_id)
+                result = {
+                    'status': 'success',
+                    'output': input_data,
+                    'stdout': f'Node "{node_title}" skipped during execution (input passed through)',
+                    'stderr': '',
+                    'execution_time': 0.0
+                }
+                node_outputs[node_id] = result['output']
+                node_results.append({
+                    'id': node_id,
+                    'status': 'success',
+                    'output': result['output'],
+                    'stdout': result['stdout'],
+                    'stderr': result['stderr'],
+                    'execution_time': result['execution_time'],
+                    'error': None
+                })
+                print(f"Node {node_id} skipped during execution")
+                continue
             
             # Execute the node
             if node_type == 'start':

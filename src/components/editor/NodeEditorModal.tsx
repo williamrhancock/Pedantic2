@@ -15,7 +15,8 @@ interface NodeEditorModalProps {
   nodeTitle: string
   code?: string
   config?: any
-  onSave: (code?: string, config?: any) => void
+  skipDuringExecution?: boolean
+  onSave: (code?: string, config?: any, skipDuringExecution?: boolean) => void
   onDelete?: () => void
   isLocked?: boolean
   onMakeCustom?: (options: { name: string; description: string; code?: string; config?: any }) => Promise<void> | void
@@ -33,6 +34,7 @@ export function NodeEditorModal({
   nodeTitle,
   code,
   config,
+  skipDuringExecution = false,
   onSave,
   onDelete,
   isLocked = false,
@@ -45,6 +47,7 @@ export function NodeEditorModal({
   const { isDark } = useTheme()
   const [editedCode, setEditedCode] = useState(code || '')
   const [editedConfig, setEditedConfig] = useState(config ? JSON.stringify(config, null, 2) : '')
+  const [skipExecution, setSkipExecution] = useState(skipDuringExecution)
   const [testInput, setTestInput] = useState('{}')
   const [liveOutput, setLiveOutput] = useState<any>(null)
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false)
@@ -255,6 +258,29 @@ export function NodeEditorModal({
                 <p className="text-xs text-muted-foreground">
                   End Loop node marks the end of a ForEach loop. It aggregates all iteration results and passes the complete dataset to the next node. No configuration needed.
                 </p>
+              </div>
+            )}
+
+            {/* Skip During Execution */}
+            {nodeType !== 'start' && nodeType !== 'end' && (
+              <div className="mt-4 p-3 rounded-lg bg-white/5 border border-white/10">
+                <label className="flex items-center gap-3 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={skipExecution}
+                    onChange={(e) => setSkipExecution(e.target.checked)}
+                    disabled={isLocked}
+                    className="w-4 h-4 rounded border-white/20 bg-white/5 text-purple-500 focus:ring-purple-500 focus:ring-offset-0 focus:ring-offset-transparent focus:ring-2"
+                  />
+                  <div>
+                    <span className="text-sm font-semibold text-foreground block">
+                      Skip During Execution
+                    </span>
+                    <span className="text-xs text-muted-foreground block mt-1">
+                      When enabled, this node will be skipped during workflow execution. Input data will be passed through to downstream nodes unchanged.
+                    </span>
+                  </div>
+                </label>
               </div>
             )}
 

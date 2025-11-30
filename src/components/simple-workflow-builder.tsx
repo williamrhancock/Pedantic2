@@ -29,6 +29,7 @@ interface WorkflowNode {
   executionStatus?: 'success' | 'error' | 'running'
   customNodeId?: number
   customNodeName?: string
+  skipDuringExecution?: boolean
 }
 
 interface Connection {
@@ -355,6 +356,7 @@ export function SimpleWorkflowBuilder() {
         position: node.position,
         customNodeId: node.customNodeId,
         customNodeName: node.customNodeName,
+        skipDuringExecution: node.skipDuringExecution || false,
       }
       return acc
     }, {} as any),
@@ -472,6 +474,7 @@ export function SimpleWorkflowBuilder() {
           position: nodeData.position || { x: 100 + Math.random() * 200, y: 100 + Math.random() * 200 },
           customNodeId: nodeData.customNodeId,
           customNodeName: nodeData.customNodeName,
+          skipDuringExecution: nodeData.skipDuringExecution || false,
         }
       })
 
@@ -1097,6 +1100,14 @@ export function SimpleWorkflowBuilder() {
     markAsChanged()
   }
 
+  const updateNodeSkipDuringExecution = (nodeId: string, skip: boolean) => {
+    const updatedNodes = nodes.map(node =>
+      node.id === nodeId ? { ...node, skipDuringExecution: skip } : node
+    )
+    setNodes(updatedNodes)
+    markAsChanged()
+  }
+
   const handleNodeClick = (nodeId: string) => {
     const node = nodes.find(n => n.id === nodeId)
     if (node) {
@@ -1356,13 +1367,16 @@ export function SimpleWorkflowBuilder() {
     handleOpenMarkdownViewer('README.md')
   }
 
-  const handleNodeSave = (code?: string, config?: any) => {
+  const handleNodeSave = (code?: string, config?: any, skipDuringExecution?: boolean) => {
     if (selectedNode) {
       if (code !== undefined) {
         updateNodeCode(selectedNode, code)
       }
       if (config !== undefined) {
         updateNodeConfig(selectedNode, config)
+      }
+      if (skipDuringExecution !== undefined) {
+        updateNodeSkipDuringExecution(selectedNode, skipDuringExecution)
       }
     }
   }
@@ -1673,6 +1687,7 @@ export function SimpleWorkflowBuilder() {
           nodeTitle={selectedNodeData.title}
           code={selectedNodeData.code}
           config={selectedNodeData.config}
+          skipDuringExecution={selectedNodeData.skipDuringExecution}
           onSave={handleNodeSave}
           onDelete={handleNodeDelete}
           isLocked={isLocked}

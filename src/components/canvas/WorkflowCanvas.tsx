@@ -100,6 +100,7 @@ function WorkflowCanvasInner({
         config: node.config,
         isExecuting: node.isExecuting || isExecuting,
         executionStatus: node.executionStatus,
+        skipDuringExecution: (node as any).skipDuringExecution || false,
       },
       hidden: false, // Force nodes to be visible - this is the key fix!
       draggable: nodesDraggable,
@@ -186,6 +187,7 @@ function WorkflowCanvasInner({
           config: node.config,
           isExecuting: node.isExecuting || isExecuting,
           executionStatus: node.executionStatus,
+          skipDuringExecution: (node as any).skipDuringExecution || false,
         },
         selected: false,
         draggable: nodesDraggable,
@@ -563,6 +565,7 @@ const handleCancelEdgeMenu = useCallback(() => {
                   config: node.config,
                   isExecuting: node.isExecuting || isExecuting,
                   executionStatus: node.executionStatus,
+                  skipDuringExecution: (node as any).skipDuringExecution || false,
                 },
                 hidden: false,
                 draggable: nodesDraggable,
