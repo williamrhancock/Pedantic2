@@ -3,7 +3,7 @@
 import React from 'react'
 import { GlassmorphicNode } from '@/components/nodes/GlassmorphicNode'
 
-export type WorkflowNodeType = 'start' | 'end' | 'python' | 'typescript' | 'http' | 'file' | 'condition' | 'database' | 'llm' | 'foreach' | 'endloop' | 'markdown' | 'html' | 'embedding'
+export type WorkflowNodeType = 'start' | 'end' | 'python' | 'typescript' | 'http' | 'file' | 'condition' | 'database' | 'llm' | 'foreach' | 'endloop' | 'markdown' | 'html' | 'json' | 'embedding'
 
 export interface WorkflowNodeData {
   type: WorkflowNodeType

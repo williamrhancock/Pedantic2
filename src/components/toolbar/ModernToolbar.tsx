@@ -22,7 +22,7 @@ import {
 } from 'lucide-react'
 import type { CustomNodeTemplate } from '@/lib/custom-nodes'
 
-export type NodeType = 'python' | 'typescript' | 'http' | 'file' | 'condition' | 'database' | 'llm' | 'foreach' | 'endloop' | 'markdown' | 'html' | 'embedding'
+export type NodeType = 'python' | 'typescript' | 'http' | 'file' | 'condition' | 'database' | 'llm' | 'foreach' | 'endloop' | 'markdown' | 'html' | 'json' | 'embedding'
 
 interface ModernToolbarProps {
   activeNodeType?: NodeType | null
@@ -58,6 +58,7 @@ const nodeTypes: { type: NodeType; label: string; color: string }[] = [
   { type: 'endloop', label: 'End Loop', color: 'from-red-500 to-red-600' },
   { type: 'markdown', label: 'Markdown', color: 'from-violet-500 to-violet-600' },
   { type: 'html', label: 'HTML', color: 'from-teal-500 to-teal-600' },
+  { type: 'json', label: 'JSON', color: 'from-slate-500 to-slate-600' },
 ]
 
 const nodeGroups = [
@@ -101,6 +102,7 @@ const nodeGroups = [
     items: [
       { type: 'markdown' as NodeType, label: 'Markdown Viewer' },
       { type: 'html' as NodeType, label: 'HTML Viewer' },
+      { type: 'json' as NodeType, label: 'JSON Viewer' },
     ],
   },
 ]

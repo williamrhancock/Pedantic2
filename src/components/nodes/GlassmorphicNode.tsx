@@ -15,10 +15,11 @@ import {
   RotateCcw,
   BookOpen,
   FileCode,
-  Layers
+  Layers,
+  Braces
 } from 'lucide-react'
 
-export type NodeType = 'start' | 'end' | 'python' | 'typescript' | 'http' | 'file' | 'condition' | 'database' | 'llm' | 'foreach' | 'endloop' | 'markdown' | 'html' | 'embedding'
+export type NodeType = 'start' | 'end' | 'python' | 'typescript' | 'http' | 'file' | 'condition' | 'database' | 'llm' | 'foreach' | 'endloop' | 'markdown' | 'html' | 'json' | 'embedding'
 
 interface GlassmorphicNodeProps {
   id: string
@@ -51,6 +52,7 @@ const nodeIcons = {
   endloop: RotateCcw,
   markdown: BookOpen,
   html: FileCode,
+  json: Braces,
 }
 
 const nodeColors = {
@@ -68,6 +70,7 @@ const nodeColors = {
   endloop: 'from-red-500 to-red-600',
   markdown: 'from-violet-500 to-violet-600',
   html: 'from-teal-500 to-teal-600',
+  json: 'from-slate-500 to-slate-600',
 }
 
 export const GlassmorphicNode = React.memo(function GlassmorphicNode({

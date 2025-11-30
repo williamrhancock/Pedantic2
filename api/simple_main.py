@@ -1515,6 +1515,105 @@ async def execute_html_viewer(config: Dict[str, Any], input_data: Any) -> Dict[s
             'stderr': str(e)
         }
 
+async def execute_json_viewer(config: Dict[str, Any], input_data: Any) -> Dict[str, Any]:
+    """Execute JSON viewer node - automatically detects and formats JSON in any variable"""
+    try:
+        import json
+        content_key = config.get('content_key', 'content')
+        json_content = None
+        detected_key = None
+        
+        # Helper function to check if a string is valid JSON
+        def is_json_string(text: str) -> bool:
+            if not isinstance(text, str) or len(text.strip()) == 0:
+                return False
+            try:
+                json.loads(text)
+                return True
+            except:
+                return False
+        
+        # Priority 1: Try the specified content_key if provided
+        if isinstance(input_data, dict):
+            if content_key in input_data:
+                candidate = input_data[content_key]
+                # If it's already a dict/list, use it directly
+                if isinstance(candidate, (dict, list)):
+                    json_content = candidate
+                    detected_key = content_key
+                # If it's a string, try to parse as JSON
+                elif isinstance(candidate, str) and is_json_string(candidate):
+                    json_content = json.loads(candidate)
+                    detected_key = content_key
+        
+        # Priority 2: If no JSON found in specified key, scan all variables
+        if json_content is None and isinstance(input_data, dict):
+            for key, value in input_data.items():
+                # If it's already a dict/list, use it
+                if isinstance(value, (dict, list)):
+                    json_content = value
+                    detected_key = key
+                    break
+                # If it's a string, try to parse as JSON
+                elif isinstance(value, str) and is_json_string(value):
+                    json_content = json.loads(value)
+                    detected_key = key
+                    break
+        
+        # Priority 3: Try common key names
+        if json_content is None and isinstance(input_data, dict):
+            common_keys = ['json', 'data', 'content', 'body', 'output', 'result', 'response']
+            for key in common_keys:
+                if key in input_data:
+                    candidate = input_data[key]
+                    if isinstance(candidate, (dict, list)):
+                        json_content = candidate
+                        detected_key = key
+                        break
+                    elif isinstance(candidate, str) and is_json_string(candidate):
+                        json_content = json.loads(candidate)
+                        detected_key = key
+                        break
+        
+        # Priority 4: If input_data itself is a dict/list, use it
+        if json_content is None:
+            if isinstance(input_data, (dict, list)):
+                json_content = input_data
+                detected_key = 'input'
+            elif isinstance(input_data, str) and is_json_string(input_data):
+                json_content = json.loads(input_data)
+                detected_key = 'input'
+        
+        # Final fallback: convert entire input_data to JSON
+        if json_content is None:
+            json_content = input_data
+            detected_key = 'input'
+        
+        # Format JSON with indentation
+        json_string = json.dumps(json_content, indent=2, ensure_ascii=False)
+        
+        return {
+            'status': 'success',
+            'output': {
+                'content': json_string,
+                'json_data': json_content,
+                'detected_key': detected_key,
+                'content_key': content_key,
+                'source': input_data
+            },
+            'stdout': f'JSON viewer detected content from key: {detected_key}',
+            'stderr': '',
+            'execution_time': 0.0
+        }
+    except Exception as e:
+        return {
+            'status': 'error',
+            'error': f'JSON viewer failed: {str(e)}',
+            'output': None,
+            'stdout': '',
+            'stderr': str(e)
+        }
+
 async def execute_llm_request(config: Dict[str, Any], input_data: Any) -> Dict[str, Any]:
     """Execute LLM request via OpenRouter, OpenAI-style providers, or Ollama.
 
@@ -1862,6 +1961,9 @@ async def execute_sub_workflow(
             elif node_type == 'html':
                 config = node_data.get('config', {})
                 result = await execute_html_viewer(config, input_data)
+            elif node_type == 'json':
+                config = node_data.get('config', {})
+                result = await execute_json_viewer(config, input_data)
             elif node_type == 'embedding':
                 config = node_data.get('config', {})
                 result = await execute_embedding_node(config, input_data)
@@ -2429,6 +2531,10 @@ async def run_workflow(request: dict):
             elif node_type == 'html':
                 config = node_data.get('config', {})
                 result = await execute_html_viewer(config, input_data)
+                
+            elif node_type == 'json':
+                config = node_data.get('config', {})
+                result = await execute_json_viewer(config, input_data)
                 
             elif node_type == 'embedding':
                 config = node_data.get('config', {})

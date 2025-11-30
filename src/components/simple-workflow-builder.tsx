@@ -13,6 +13,7 @@ import { LlmNodeDialog } from '@/components/dialogs/LlmNodeDialog'
 import { HttpNodeDialog } from '@/components/dialogs/HttpNodeDialog'
 import { MarkdownViewerModal } from '@/components/dialogs/MarkdownViewerModal'
 import { HtmlViewerModal } from '@/components/dialogs/HtmlViewerModal'
+import { JsonViewerModal } from '@/components/dialogs/JsonViewerModal'
 import { useTheme } from '@/contexts/ThemeContext'
 import type { NodeType } from '@/components/toolbar/ModernToolbar'
 import { workflowNodeToCustomData } from '@/lib/custom-nodes'
@@ -21,7 +22,7 @@ import type { HttpConfig } from '@/components/dialogs/HttpNodeDialog'
 
 interface WorkflowNode {
   id: string
-  type: 'start' | 'end' | 'python' | 'typescript' | 'http' | 'file' | 'condition' | 'database' | 'llm' | 'foreach' | 'endloop' | 'markdown' | 'html' | 'embedding'
+  type: 'start' | 'end' | 'python' | 'typescript' | 'http' | 'file' | 'condition' | 'database' | 'llm' | 'foreach' | 'endloop' | 'markdown' | 'html' | 'json' | 'embedding'
   title: string
   description?: string
   code?: string
@@ -301,6 +302,9 @@ export function SimpleWorkflowBuilder() {
   const [showHtmlViewer, setShowHtmlViewer] = useState(false)
   const [htmlContent, setHtmlContent] = useState('')
   const [htmlTitle, setHtmlTitle] = useState('')
+  const [showJsonViewer, setShowJsonViewer] = useState(false)
+  const [jsonContent, setJsonContent] = useState('')
+  const [jsonTitle, setJsonTitle] = useState('')
   const [executionResults, setExecutionResults] = useState<Map<string, any>>(new Map())
   const canvasRef = useRef<WorkflowCanvasRef>(null)
 
@@ -1054,6 +1058,10 @@ export function SimpleWorkflowBuilder() {
       newNode.config = {
         content_key: 'content'
       }
+    } else if (type === 'json') {
+      newNode.config = {
+        content_key: 'content'
+      }
     } else if (type === 'embedding') {
       newNode.config = {
         model: 'all-MiniLM-L6-v2',
@@ -1082,6 +1090,7 @@ export function SimpleWorkflowBuilder() {
       case 'embedding': return 'Embedding'
       case 'markdown': return 'Markdown Viewer'
       case 'html': return 'HTML Viewer'
+      case 'json': return 'JSON Viewer'
       default: return 'Unknown Node'
     }
   }
@@ -1290,6 +1299,58 @@ export function SimpleWorkflowBuilder() {
           setHtmlTitle(node.title)
         }
         setShowHtmlViewer(true)
+      } else if (node.type === 'json') {
+        // Try to find JSON content from node's execution output
+        let nodeResult = executionResults.get(nodeId)
+        
+        // If not found in executionResults, try to find it in timeline entries
+        if (!nodeResult || !nodeResult.output || !nodeResult.output.content) {
+          // First try non-forEach timeline entries
+          let timelineEntry = timelineEntries
+            .filter(e => e.nodeId === nodeId && !e.isForEachResult && e.output)
+            .sort((a, b) => b.timestamp.getTime() - a.timestamp.getTime())[0]
+          
+          // If still not found, check all entries (including forEach results) but prefer the latest
+          if (!timelineEntry || !timelineEntry.output || !timelineEntry.output.content) {
+            timelineEntry = timelineEntries
+              .filter(e => e.nodeId === nodeId && e.output && e.output.content)
+              .sort((a, b) => b.timestamp.getTime() - a.timestamp.getTime())[0]
+          }
+          
+          if (timelineEntry && timelineEntry.output && timelineEntry.output.content) {
+            nodeResult = {
+              output: timelineEntry.output
+            }
+          }
+        }
+        
+        // If still not found, check if we can get it from the last iteration of a for-each loop
+        if (!nodeResult || !nodeResult.output || !nodeResult.output.content) {
+          // Look for the JSON viewer in the last for-each iteration
+          const forEachResults = timelineEntries
+            .filter(e => e.isForEachResult && e.nodeId === nodeId && e.output && e.output.content)
+            .sort((a, b) => (b.forEachIteration ?? 0) - (a.forEachIteration ?? 0))
+          
+          if (forEachResults.length > 0) {
+            const lastIteration = forEachResults[0]
+            if (lastIteration.output && lastIteration.output.content) {
+              nodeResult = {
+                output: lastIteration.output
+              }
+            }
+          }
+        }
+        
+        if (nodeResult && nodeResult.output && nodeResult.output.content) {
+          setJsonContent(nodeResult.output.content)
+          const detectedKey = nodeResult.output.detected_key || 'auto-detected'
+          setJsonTitle(`${node.title} (from ${detectedKey})`)
+        } else {
+          // Show helpful message if no execution results yet
+          setJsonContent('{\n  "message": "JSON content will appear here after workflow execution.",\n  "description": "The JSON viewer automatically detects and formats JSON content in any variable passed from upstream nodes.",\n  "how_it_works": [\n    "The node scans all variables from upstream",\n    "Detects JSON objects and arrays automatically",\n    "Formats and displays the JSON with syntax highlighting"\n  ]\n}')
+          setJsonTitle(node.title)
+        }
+        setShowJsonViewer(true)
       } else {
         setShowEditorModal(true)
       }
@@ -1983,6 +2044,12 @@ export function SimpleWorkflowBuilder() {
         title={htmlTitle}
         html={htmlContent}
         onLinkClick={handleMarkdownLinkClick}
+      />
+      <JsonViewerModal
+        isOpen={showJsonViewer}
+        onClose={() => setShowJsonViewer(false)}
+        title={jsonTitle}
+        json={jsonContent}
       />
 
       {/* Workflow Delete Confirmation Dialog */}
