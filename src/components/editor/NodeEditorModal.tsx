@@ -65,6 +65,9 @@ export function NodeEditorModal({
   // Track the previous nodeId to detect when we're editing a different node
   const prevNodeIdRef = useRef<string | null>(null)
   const prevIsOpenRef = useRef<boolean>(false)
+  // Track the last synced code/config to prevent unnecessary resets
+  const lastSyncedCodeRef = useRef<string | undefined>(code)
+  const lastSyncedConfigRef = useRef<any>(config)
 
   const isCodeNode = nodeType === 'python' || nodeType === 'typescript'
   const isConfigNode = !isCodeNode && nodeType !== 'start' && nodeType !== 'end' && nodeType !== 'endloop'
@@ -134,15 +137,19 @@ export function NodeEditorModal({
     const nodeChanged = prevNodeIdRef.current !== nodeId
     const modalJustOpened = !prevIsOpenRef.current && isOpen
     
+    // Only reset if modal just opened or node changed
+    // Don't reset if code/config props changed while editing the same node
     if (isOpen && (modalJustOpened || nodeChanged)) {
       setEditedCode(code || '')
       setEditedConfig(config ? JSON.stringify(config, null, 2) : '')
       setSkipExecution(skipDuringExecution || false)
       prevNodeIdRef.current = nodeId
+      lastSyncedCodeRef.current = code
+      lastSyncedConfigRef.current = config
     }
     
     prevIsOpenRef.current = isOpen
-  }, [isOpen, nodeId, code, config, skipDuringExecution])
+  }, [isOpen, nodeId]) // Removed code, config, skipDuringExecution from dependencies
 
   const cancelMakeCustom = () => {
     setShowMakeCustomDialog(false)
@@ -392,11 +399,16 @@ export function NodeEditorModal({
             <div className="flex-1 min-h-0">
               {isCodeNode ? (
                 <Editor
-                  key={nodeId}
+                  key={`${nodeId}-code`}
                   height="100%"
                   language={nodeType === 'python' ? 'python' : 'typescript'}
                   value={editedCode}
-                  onChange={(value) => setEditedCode(value || '')}
+                  onChange={(value) => {
+                    // Immediately update state to prevent cursor issues
+                    if (value !== undefined) {
+                      setEditedCode(value)
+                    }
+                  }}
                   theme={isDark ? 'vs-dark' : 'vs-light'}
                   options={{
                     minimap: { enabled: false },
@@ -413,7 +425,12 @@ export function NodeEditorModal({
                   height="100%"
                   language="json"
                   value={editedConfig}
-                  onChange={(value) => setEditedConfig(value || '{}')}
+                  onChange={(value) => {
+                    // Immediately update state to prevent cursor issues
+                    if (value !== undefined) {
+                      setEditedConfig(value || '{}')
+                    }
+                  }}
                   theme={isDark ? 'vs-dark' : 'vs-light'}
                   options={{
                     minimap: { enabled: false },
