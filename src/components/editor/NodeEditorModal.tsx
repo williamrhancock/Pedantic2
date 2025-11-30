@@ -158,6 +158,32 @@ export function NodeEditorModal({
       }
     }
   }, [])
+  
+  // Prevent React Flow from capturing space key when modal is open
+  // React Flow uses space key for panning, but we need it for typing in the editor
+  useEffect(() => {
+    if (!isOpen) return
+    
+    const handleKeyDown = (e: KeyboardEvent) => {
+      // If space key is pressed and the target is within the modal, prevent React Flow from handling it
+      if (e.key === ' ' || e.key === 'Space') {
+        const target = e.target as HTMLElement
+        const modal = document.querySelector('[data-modal="node-editor"]') as HTMLElement
+        if (modal && (modal.contains(target) || target.closest('[data-modal="node-editor"]'))) {
+          // Stop the event from reaching React Flow
+          e.stopImmediatePropagation()
+          // Don't prevent default - let Monaco Editor handle it normally
+        }
+      }
+    }
+    
+    // Use capture phase to intercept before React Flow
+    document.addEventListener('keydown', handleKeyDown, true)
+    
+    return () => {
+      document.removeEventListener('keydown', handleKeyDown, true)
+    }
+  }, [isOpen])
 
   const cancelMakeCustom = () => {
     setShowMakeCustomDialog(false)
@@ -216,6 +242,7 @@ export function NodeEditorModal({
 
       {/* Modal */}
       <div
+        data-modal="node-editor"
         className="fixed inset-4 z-50 glass-card p-6 flex flex-col"
         onClick={(e) => e.stopPropagation()}
         onKeyDown={(e) => {
