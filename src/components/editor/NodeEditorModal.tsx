@@ -218,6 +218,14 @@ export function NodeEditorModal({
       <div
         className="fixed inset-4 z-50 glass-card p-6 flex flex-col"
         onClick={(e) => e.stopPropagation()}
+        onKeyDown={(e) => {
+          // Allow space key to work normally in the editor
+          // Only prevent default for Escape key to close modal
+          if (e.key === 'Escape') {
+            onClose()
+          }
+          // Don't prevent default for other keys, especially space
+        }}
       >
         {/* Header */}
         <div className="flex items-center justify-between mb-6">
@@ -438,6 +446,10 @@ export function NodeEditorModal({
                     scrollBeyondLastLine: false,
                     wordWrap: 'on',
                     automaticLayout: true,
+                    readOnly: isLocked,
+                    // Ensure space key works normally
+                    acceptSuggestionOnCommitCharacter: true,
+                    quickSuggestions: true,
                   }}
                 />
               ) : (
@@ -473,6 +485,10 @@ export function NodeEditorModal({
                     scrollBeyondLastLine: false,
                     wordWrap: 'on',
                     automaticLayout: true,
+                    readOnly: isLocked,
+                    // Ensure space key works normally
+                    acceptSuggestionOnCommitCharacter: true,
+                    quickSuggestions: true,
                   }}
                 />
               )}
