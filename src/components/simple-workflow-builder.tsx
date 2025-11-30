@@ -10,12 +10,14 @@ import { NodeEditorModal } from '@/components/editor/NodeEditorModal'
 import { SaveAsDialog } from '@/components/dialogs/SaveAsDialog'
 import { DbMaintenanceModal } from '@/components/dialogs/DbMaintenanceModal'
 import { LlmNodeDialog } from '@/components/dialogs/LlmNodeDialog'
+import { HttpNodeDialog } from '@/components/dialogs/HttpNodeDialog'
 import { MarkdownViewerModal } from '@/components/dialogs/MarkdownViewerModal'
 import { HtmlViewerModal } from '@/components/dialogs/HtmlViewerModal'
 import { useTheme } from '@/contexts/ThemeContext'
 import type { NodeType } from '@/components/toolbar/ModernToolbar'
 import { workflowNodeToCustomData } from '@/lib/custom-nodes'
 import { createDefaultLlmConfig, normalizeLlmConfig, type LlmConfig } from '@/lib/llm'
+import type { HttpConfig } from '@/components/dialogs/HttpNodeDialog'
 
 interface WorkflowNode {
   id: string
@@ -1739,7 +1741,7 @@ export function SimpleWorkflowBuilder() {
       </div>
 
       {/* Node Editor Modal */}
-      {showEditorModal && selectedNodeData && selectedNodeData.type !== 'llm' && (
+      {showEditorModal && selectedNodeData && selectedNodeData.type !== 'llm' && selectedNodeData.type !== 'http' && (
         <NodeEditorModal
           isOpen={showEditorModal}
           onClose={() => {
@@ -1771,6 +1773,29 @@ export function SimpleWorkflowBuilder() {
           nodeId={selectedNodeData.id}
           nodeTitle={selectedNodeData.title}
           rawConfig={selectedNodeData.config as LlmConfig | undefined}
+          onClose={() => {
+            setShowEditorModal(false)
+            setSelectedNode(null)
+          }}
+          onSave={(newConfig) => {
+            if (!selectedNode) return
+            const updatedNodes = nodes.map((node) =>
+              node.id === selectedNode ? { ...node, config: newConfig } : node
+            )
+            setNodes(updatedNodes)
+            markAsChanged()
+          }}
+        />
+      )}
+
+      {/* HTTP Node Dialog */}
+      {showEditorModal && selectedNodeData && selectedNodeData.type === 'http' && (
+        <HttpNodeDialog
+          isOpen={showEditorModal}
+          isLocked={isLocked}
+          nodeId={selectedNodeData.id}
+          nodeTitle={selectedNodeData.title}
+          rawConfig={selectedNodeData.config as HttpConfig | undefined}
           onClose={() => {
             setShowEditorModal(false)
             setSelectedNode(null)
