@@ -330,8 +330,49 @@ export function NodeEditorModal({
                   {nodeType === 'foreach' && 'Configure loop settings: items array (if not from upstream), execution mode (serial/parallel), max concurrency, and items_key to extract array from upstream input. If upstream input contains an array or has the specified key, it will be used. Otherwise, use the items array in config.'}
                   {nodeType === 'markdown' && 'The markdown node automatically detects markdown content in any variable passed from upstream. It scans all variables and displays the first one containing markdown patterns (headers, lists, links, code blocks, etc.). Optionally specify a content_key to prioritize a specific variable.'}
                   {nodeType === 'html' && 'The HTML node automatically detects HTML content in any variable passed from upstream. It scans all variables and displays the first one containing HTML tags. Optionally specify a content_key to prioritize a specific variable.'}
-                  {nodeType === 'json' && 'The JSON viewer automatically detects and formats JSON content in any variable passed from upstream. It scans all variables and displays the first one containing JSON objects or arrays. Optionally specify a content_key to prioritize a specific variable.'}
+                  {nodeType === 'json' && 'The JSON viewer automatically detects and formats JSON content in any variable passed from upstream. It scans all variables and displays the first one containing JSON objects or arrays. Optionally specify a content_key to prioritize a specific variable (supports nested paths like "output.data").'}
                   {nodeType === 'embedding' && 'Configure embedding generation: model (default: all-MiniLM-L6-v2), input_field (field name to extract text from, default: content), output_field (field name for embedding output, default: embedding), format (blob for SQLite BLOB or array for JSON array, default: blob).'}
+                </p>
+              </div>
+            )}
+
+            {nodeType === 'json' && (
+              <div className="mt-4">
+                <label className="text-sm font-semibold text-foreground mb-1 block">
+                  Content Key (optional)
+                </label>
+                <input
+                  type="text"
+                  className="w-full px-3 py-2 rounded-lg bg-white/5 border border-white/10 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-purple-500"
+                  placeholder="data or output.data"
+                  value={(() => {
+                    try {
+                      const parsed = editedConfig ? JSON.parse(editedConfig) : {}
+                      return parsed.content_key || ''
+                    } catch {
+                      return ''
+                    }
+                  })()}
+                  disabled={isLocked}
+                  onChange={(e) => {
+                    try {
+                      const currentConfig = editedConfig ? JSON.parse(editedConfig) : {}
+                      const newConfig = {
+                        ...currentConfig,
+                        content_key: e.target.value.trim() || undefined
+                      }
+                      // Remove content_key if empty
+                      if (!e.target.value.trim()) {
+                        delete newConfig.content_key
+                      }
+                      setEditedConfig(JSON.stringify(newConfig, null, 2))
+                    } catch (err) {
+                      console.error('Error updating content_key:', err)
+                    }
+                  }}
+                />
+                <p className="text-xs text-muted-foreground mt-1">
+                  Specify the key path to extract JSON from (e.g., &quot;data&quot; or &quot;output.data&quot; for nested paths). Leave empty to auto-detect.
                 </p>
               </div>
             )}

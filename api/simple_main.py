@@ -1533,10 +1533,30 @@ async def execute_json_viewer(config: Dict[str, Any], input_data: Any) -> Dict[s
             except:
                 return False
         
-        # Priority 1: Try the specified content_key if provided
-        if isinstance(input_data, dict):
-            if content_key in input_data:
-                candidate = input_data[content_key]
+        # Helper function to get value from nested dict using dot notation (e.g., 'output.data')
+        def get_nested_value(obj: Any, key_path: str) -> Any:
+            """Get value from nested dict using dot notation"""
+            if not key_path or not isinstance(obj, dict):
+                return None
+            keys = key_path.split('.')
+            current = obj
+            for key in keys:
+                if isinstance(current, dict) and key in current:
+                    current = current[key]
+                else:
+                    return None
+            return current
+        
+        # Priority 1: Try the specified content_key if provided (supports nested paths)
+        if isinstance(input_data, dict) and content_key:
+            # Try nested path first (e.g., 'output.data')
+            if '.' in content_key:
+                candidate = get_nested_value(input_data, content_key)
+            else:
+                # Try direct key access
+                candidate = input_data.get(content_key) if content_key in input_data else None
+            
+            if candidate is not None:
                 # If it's already a dict/list, use it directly
                 if isinstance(candidate, (dict, list)):
                     json_content = candidate
@@ -1546,8 +1566,14 @@ async def execute_json_viewer(config: Dict[str, Any], input_data: Any) -> Dict[s
                     json_content = json.loads(candidate)
                     detected_key = content_key
         
-        # Priority 2: If no JSON found in specified key, scan all variables
-        if json_content is None and isinstance(input_data, dict):
+        # Priority 2: Only auto-detect if:
+        # - content_key is not set (empty/None) OR
+        # - content_key is the default 'content' (meaning user didn't customize it) OR  
+        # - content_key was set but we didn't find anything (fallback to auto-detect)
+        should_auto_detect = (not content_key or content_key == 'content' or json_content is None)
+        
+        # Priority 3: If no JSON found in specified key and auto-detect is enabled, scan all variables
+        if should_auto_detect and json_content is None and isinstance(input_data, dict):
             for key, value in input_data.items():
                 # If it's already a dict/list, use it
                 if isinstance(value, (dict, list)):
@@ -1560,8 +1586,8 @@ async def execute_json_viewer(config: Dict[str, Any], input_data: Any) -> Dict[s
                     detected_key = key
                     break
         
-        # Priority 3: Try common key names
-        if json_content is None and isinstance(input_data, dict):
+        # Priority 4: Try common key names (only if auto-detect is enabled)
+        if should_auto_detect and json_content is None and isinstance(input_data, dict):
             common_keys = ['json', 'data', 'content', 'body', 'output', 'result', 'response']
             for key in common_keys:
                 if key in input_data:
@@ -1575,8 +1601,8 @@ async def execute_json_viewer(config: Dict[str, Any], input_data: Any) -> Dict[s
                         detected_key = key
                         break
         
-        # Priority 4: If input_data itself is a dict/list, use it
-        if json_content is None:
+        # Priority 5: If input_data itself is a dict/list, use it (only if auto-detect is enabled)
+        if should_auto_detect and json_content is None:
             if isinstance(input_data, (dict, list)):
                 json_content = input_data
                 detected_key = 'input'
