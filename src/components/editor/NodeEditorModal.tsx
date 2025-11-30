@@ -65,9 +65,9 @@ export function NodeEditorModal({
   // Track the previous nodeId to detect when we're editing a different node
   const prevNodeIdRef = useRef<string | null>(null)
   const prevIsOpenRef = useRef<boolean>(false)
-  // Track the last synced code/config to prevent unnecessary resets
-  const lastSyncedCodeRef = useRef<string | undefined>(code)
-  const lastSyncedConfigRef = useRef<any>(config)
+  // Track if user is actively typing to prevent state resets
+  const isTypingRef = useRef<boolean>(false)
+  const typingTimeoutRef = useRef<NodeJS.Timeout | null>(null)
 
   const isCodeNode = nodeType === 'python' || nodeType === 'typescript'
   const isConfigNode = !isCodeNode && nodeType !== 'start' && nodeType !== 'end' && nodeType !== 'endloop'
@@ -139,17 +139,25 @@ export function NodeEditorModal({
     
     // Only reset if modal just opened or node changed
     // Don't reset if code/config props changed while editing the same node
-    if (isOpen && (modalJustOpened || nodeChanged)) {
+    // Also don't reset if user is actively typing
+    if (isOpen && (modalJustOpened || nodeChanged) && !isTypingRef.current) {
       setEditedCode(code || '')
       setEditedConfig(config ? JSON.stringify(config, null, 2) : '')
       setSkipExecution(skipDuringExecution || false)
       prevNodeIdRef.current = nodeId
-      lastSyncedCodeRef.current = code
-      lastSyncedConfigRef.current = config
     }
     
     prevIsOpenRef.current = isOpen
   }, [isOpen, nodeId]) // Removed code, config, skipDuringExecution from dependencies
+  
+  // Cleanup typing timeout on unmount
+  useEffect(() => {
+    return () => {
+      if (typingTimeoutRef.current) {
+        clearTimeout(typingTimeoutRef.current)
+      }
+    }
+  }, [])
 
   const cancelMakeCustom = () => {
     setShowMakeCustomDialog(false)
@@ -404,10 +412,23 @@ export function NodeEditorModal({
                   language={nodeType === 'python' ? 'python' : 'typescript'}
                   value={editedCode}
                   onChange={(value) => {
-                    // Immediately update state to prevent cursor issues
+                    // Mark that user is typing
+                    isTypingRef.current = true
+                    
+                    // Clear existing timeout
+                    if (typingTimeoutRef.current) {
+                      clearTimeout(typingTimeoutRef.current)
+                    }
+                    
+                    // Update state immediately
                     if (value !== undefined) {
                       setEditedCode(value)
                     }
+                    
+                    // Reset typing flag after 500ms of no typing
+                    typingTimeoutRef.current = setTimeout(() => {
+                      isTypingRef.current = false
+                    }, 500)
                   }}
                   theme={isDark ? 'vs-dark' : 'vs-light'}
                   options={{
@@ -421,15 +442,28 @@ export function NodeEditorModal({
                 />
               ) : (
                 <Editor
-                  key={nodeId}
+                  key={`${nodeId}-config`}
                   height="100%"
                   language="json"
                   value={editedConfig}
                   onChange={(value) => {
-                    // Immediately update state to prevent cursor issues
+                    // Mark that user is typing
+                    isTypingRef.current = true
+                    
+                    // Clear existing timeout
+                    if (typingTimeoutRef.current) {
+                      clearTimeout(typingTimeoutRef.current)
+                    }
+                    
+                    // Update state immediately
                     if (value !== undefined) {
                       setEditedConfig(value || '{}')
                     }
+                    
+                    // Reset typing flag after 500ms of no typing
+                    typingTimeoutRef.current = setTimeout(() => {
+                      isTypingRef.current = false
+                    }, 500)
                   }}
                   theme={isDark ? 'vs-dark' : 'vs-light'}
                   options={{
