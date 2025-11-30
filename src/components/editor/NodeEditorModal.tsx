@@ -219,13 +219,19 @@ export function NodeEditorModal({
         className="fixed inset-4 z-50 glass-card p-6 flex flex-col"
         onClick={(e) => e.stopPropagation()}
         onKeyDown={(e) => {
-          // Allow space key to work normally in the editor
+          // Stop propagation for all keys to prevent React Flow from capturing them
+          // This is especially important for space key which React Flow uses for panning
+          e.stopPropagation()
+          
           // Only prevent default for Escape key to close modal
           if (e.key === 'Escape') {
+            e.preventDefault()
             onClose()
           }
-          // Don't prevent default for other keys, especially space
+          // For all other keys (including space), allow default behavior but stop propagation
+          // This ensures the Monaco Editor receives the key events
         }}
+        tabIndex={-1}
       >
         {/* Header */}
         <div className="flex items-center justify-between mb-6">
@@ -412,7 +418,18 @@ export function NodeEditorModal({
                 {isCodeNode && nodeType === 'typescript' && 'Must have an "async run(input)" function that returns output'}
               </p>
             </div>
-            <div className="flex-1 min-h-0">
+            <div 
+              className="flex-1 min-h-0"
+              onKeyDown={(e) => {
+                // Stop propagation to prevent React Flow from capturing keyboard events
+                // This is critical for space key which React Flow uses for panning
+                e.stopPropagation()
+              }}
+              onKeyUp={(e) => {
+                // Also stop propagation on key up
+                e.stopPropagation()
+              }}
+            >
               {isCodeNode ? (
                 <Editor
                   key={`${nodeId}-code`}
