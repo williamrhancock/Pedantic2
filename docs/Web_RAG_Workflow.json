@@ -137,8 +137,16 @@
       "python_format": {
         "type": "python",
         "title": "Format Context",
-        "code": "def run(input):\n    results = input.get('data', [])\n    \n    # Get user query - prioritize user_query over query\n    query = input.get('user_query', input.get('query', 'What is this about?'))\n    \n    # If query still looks like SQL, use fallback\n    if 'SELECT' in str(query) or 'FROM' in str(query):\n        query = 'What is this about?'\n    \n    # Format retrieved documents as context with sources\n    context_parts = []\n    for i, row in enumerate(results):\n        if isinstance(row, dict):\n            content = row.get('content', '')\n            distance = row.get('distance', 0)\n            source = row.get('source_url', 'unknown')\n            similarity = 1 - distance  # Convert distance to similarity\n            context_parts.append(f\"[Document {i+1}] (similarity: {similarity:.3f}, source: {source})\\n{content}\")\n    \n    context = '\\n\\n'.join(context_parts)\n    \n    return {\n        'query': query,\n        'user_query': query,\n        'context': context,\n        'retrieved_count': len(results),\n        'sources': [r.get('source_url', 'unknown') for r in results if isinstance(r, dict)]\n    }",
+        "code": "def run(input):\n    results = input.get('data', [])\n    \n    # Get user query - prioritize user_query over query\n    query = input.get('user_query', input.get('query', 'What is this about?'))\n    \n    # If query still looks like SQL, use fallback\n    if 'SELECT' in str(query) or 'FROM' in str(query):\n        query = 'What is this about?'\n    \n    # Format retrieved documents as context with sources\n    context_parts = []\n    for i, row in enumerate(results):\n        if isinstance(row, dict):\n            content = row.get('content', '')\n            distance = row.get('distance', 0)\n            source = row.get('source_url', 'unknown')\n            similarity = 1 - distance  # Convert distance to similarity\n            context_parts.append(f\"[Document {i+1}] (similarity: {similarity:.3f}, source: {source})\\n{content}\")\n    \n    context = '\\n\\n'.join(context_parts)\n    \n    # Create markdown-formatted context for display\n    markdown_context = f\"# Retrieved Context from Vector Database\\n\\n**Query:** {query}\\n\\n**Retrieved {len(results)} document(s):**\\n\\n\"\n    for i, row in enumerate(results):\n        if isinstance(row, dict):\n            content = row.get('content', '')\n            distance = row.get('distance', 0)\n            source = row.get('source_url', 'unknown')\n            similarity = 1 - distance\n            markdown_context += f\"## Document {i+1}\\n\\n\"\n            markdown_context += f\"- **Similarity:** {similarity:.3f}\\n\"\n            markdown_context += f\"- **Source:** {source}\\n\\n\"\n            markdown_context += f\"{content}\\n\\n---\\n\\n\"\n    \n    return {\n        'query': query,\n        'user_query': query,\n        'context': context,\n        'context_markdown': markdown_context,\n        'retrieved_count': len(results),\n        'sources': [r.get('source_url', 'unknown') for r in results if isinstance(r, dict)]\n    }",
         "position": { "x": 2900, "y": 200 }
+      },
+      "markdown_context": {
+        "type": "markdown",
+        "title": "View Retrieved Context",
+        "config": {
+          "content_key": "context_markdown"
+        },
+        "position": { "x": 3100, "y": 100 }
       },
       "llm_answer": {
         "type": "llm",
@@ -152,7 +160,7 @@
           "user": "Question: {query}\\n\\nContext from website:\\n{context}\\n\\nAnswer:",
           "api_key_name": "OPENROUTER_API_KEY"
         },
-        "position": { "x": 3100, "y": 200 }
+        "position": { "x": 3300, "y": 200 }
       },
       "markdown_output": {
         "type": "markdown",
@@ -160,12 +168,12 @@
         "config": {
           "content_key": "content"
         },
-        "position": { "x": 3300, "y": 200 }
+        "position": { "x": 3500, "y": 200 }
       },
       "end": {
         "type": "end",
         "title": "End",
-        "position": { "x": 3500, "y": 200 }
+        "position": { "x": 3700, "y": 200 }
       }
     },
     "connections": {
@@ -253,6 +261,12 @@
         "sourceOutput": "output",
         "targetInput": "input"
       },
+      "format_to_markdown_context": {
+        "source": "python_format",
+        "target": "markdown_context",
+        "sourceOutput": "output",
+        "targetInput": "input"
+      },
       "format_to_llm": {
         "source": "python_format",
         "target": "llm_answer",
@@ -273,7 +287,7 @@
       }
     },
     "metadata": {
-      "nodeCount": 18,
+      "nodeCount": 19,
       "lastModified": "2025-01-27T00:00:00.000Z"
     }
   }
