@@ -1,6 +1,6 @@
 'use client'
 
-import React, { useState, useEffect } from 'react'
+import React, { useState, useEffect, useRef } from 'react'
 import Editor from '@monaco-editor/react'
 import { X, Trash2 } from 'lucide-react'
 import { useTheme } from '@/contexts/ThemeContext'
@@ -61,6 +61,10 @@ export function NodeEditorModal({
   const [exportFilenameInput, setExportFilenameInput] = useState(
     (customName || nodeTitle || 'custom_node') + '.json'
   )
+
+  // Track the previous nodeId to detect when we're editing a different node
+  const prevNodeIdRef = useRef<string | null>(null)
+  const prevIsOpenRef = useRef<boolean>(false)
 
   const isCodeNode = nodeType === 'python' || nodeType === 'typescript'
   const isConfigNode = !isCodeNode && nodeType !== 'start' && nodeType !== 'end' && nodeType !== 'endloop'
@@ -124,14 +128,21 @@ export function NodeEditorModal({
     setShowMakeCustomDialog(true)
   }
 
-  // Update state when modal opens or props change
+  // Update state only when modal opens or node changes (not on every prop change)
+  // This prevents interrupting the user while they're typing
   useEffect(() => {
-    if (isOpen) {
+    const nodeChanged = prevNodeIdRef.current !== nodeId
+    const modalJustOpened = !prevIsOpenRef.current && isOpen
+    
+    if (isOpen && (modalJustOpened || nodeChanged)) {
       setEditedCode(code || '')
       setEditedConfig(config ? JSON.stringify(config, null, 2) : '')
       setSkipExecution(skipDuringExecution || false)
+      prevNodeIdRef.current = nodeId
     }
-  }, [isOpen, code, config, skipDuringExecution])
+    
+    prevIsOpenRef.current = isOpen
+  }, [isOpen, nodeId, code, config, skipDuringExecution])
 
   const cancelMakeCustom = () => {
     setShowMakeCustomDialog(false)
@@ -381,6 +392,7 @@ export function NodeEditorModal({
             <div className="flex-1 min-h-0">
               {isCodeNode ? (
                 <Editor
+                  key={nodeId}
                   height="100%"
                   language={nodeType === 'python' ? 'python' : 'typescript'}
                   value={editedCode}
@@ -392,10 +404,12 @@ export function NodeEditorModal({
                     lineNumbers: 'on',
                     scrollBeyondLastLine: false,
                     wordWrap: 'on',
+                    automaticLayout: true,
                   }}
                 />
               ) : (
                 <Editor
+                  key={nodeId}
                   height="100%"
                   language="json"
                   value={editedConfig}
@@ -407,6 +421,7 @@ export function NodeEditorModal({
                     lineNumbers: 'on',
                     scrollBeyondLastLine: false,
                     wordWrap: 'on',
+                    automaticLayout: true,
                   }}
                 />
               )}
