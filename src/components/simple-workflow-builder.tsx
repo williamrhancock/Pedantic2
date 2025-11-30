@@ -1300,9 +1300,84 @@ export function SimpleWorkflowBuilder() {
         }
         setShowHtmlViewer(true)
       } else if (node.type === 'json') {
-        // JSON nodes should open the editor to configure content_key
-        // The viewer can be accessed after execution by clicking the node again
-        setShowEditorModal(true)
+        // Try to find JSON content from node's execution output
+        let nodeResult = executionResults.get(nodeId)
+        
+        // If not found in executionResults, try to find it in timeline entries
+        if (!nodeResult || !nodeResult.output || !nodeResult.output.content) {
+          // First try non-forEach timeline entries
+          let timelineEntry = timelineEntries
+            .filter(e => e.nodeId === nodeId && !e.isForEachResult && e.output)
+            .sort((a, b) => b.timestamp.getTime() - a.timestamp.getTime())[0]
+          
+          // If still not found, check all entries (including forEach results) but prefer the latest
+          if (!timelineEntry || !timelineEntry.output || !timelineEntry.output.content) {
+            timelineEntry = timelineEntries
+              .filter(e => e.nodeId === nodeId && e.output && e.output.content)
+              .sort((a, b) => b.timestamp.getTime() - a.timestamp.getTime())[0]
+          }
+          
+          if (timelineEntry && timelineEntry.output && timelineEntry.output.content) {
+            nodeResult = {
+              output: timelineEntry.output
+            }
+          }
+        }
+        
+        // If still not found, check if we can get it from the last iteration of a for-each loop
+        if (!nodeResult || !nodeResult.output || !nodeResult.output.content) {
+          // Look for the JSON viewer in the last for-each iteration
+          const forEachResults = timelineEntries
+            .filter(e => e.isForEachResult && e.nodeId === nodeId && e.output && e.output.content)
+            .sort((a, b) => (b.forEachIteration ?? 0) - (a.forEachIteration ?? 0))
+          
+          if (forEachResults.length > 0) {
+            const lastIteration = forEachResults[0]
+            if (lastIteration.output && lastIteration.output.content) {
+              nodeResult = {
+                output: lastIteration.output
+              }
+            }
+          }
+          
+          // Also check executionResults for for-each nodes and extract from their results
+          if (!nodeResult || !nodeResult.output || !nodeResult.output.content) {
+            Array.from(executionResults.entries()).forEach(([resultNodeId, result]) => {
+              // Check if this is a for-each node result
+              if (result.output && result.output.results && Array.isArray(result.output.results)) {
+                // Find the last successful iteration that has node_executions
+                for (let i = result.output.results.length - 1; i >= 0; i--) {
+                  const iteration = result.output.results[i]
+                  if (iteration.node_executions && Array.isArray(iteration.node_executions)) {
+                    // Find the JSON viewer in this iteration
+                    const jsonExec = iteration.node_executions.find(
+                      (exec: any) => exec.node_id === nodeId && exec.output && exec.output.content
+                    )
+                    if (jsonExec) {
+                      nodeResult = {
+                        output: jsonExec.output
+                      }
+                      return
+                    }
+                  }
+                }
+              }
+            })
+          }
+        }
+        
+        if (nodeResult && nodeResult.output && nodeResult.output.content) {
+          // Display the detected JSON content
+          setJsonContent(nodeResult.output.content)
+          const detectedKey = nodeResult.output.detected_key || 'auto-detected'
+          const contentKey = nodeResult.output.content_key || ''
+          const titleSuffix = contentKey ? ` (content_key: ${contentKey})` : ` (from ${detectedKey})`
+          setJsonTitle(`${node.title}${titleSuffix}`)
+          setShowJsonViewer(true)
+        } else {
+          // No execution results yet, open editor to configure
+          setShowEditorModal(true)
+        }
       } else {
         setShowEditorModal(true)
       }
