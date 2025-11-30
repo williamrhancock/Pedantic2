@@ -1589,6 +1589,10 @@ async def execute_json_viewer(config: Dict[str, Any], input_data: Any) -> Dict[s
                 elif isinstance(candidate, str) and is_json_string(candidate):
                     json_content = json.loads(candidate)
                     detected_key = content_key
+                # If it's a primitive value (number, bool, None), wrap it in a dict for JSON display
+                elif isinstance(candidate, (int, float, bool)) or candidate is None:
+                    json_content = {"value": candidate, "path": content_key}
+                    detected_key = content_key
             else:
                 # Key was explicitly set but not found - return error message
                 return {
