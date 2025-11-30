@@ -1056,7 +1056,48 @@ Database nodes support loading SQLite extensions for vector search capabilities.
 }
 ```
 
-See [Embedding Node](#embedding-node) and [Local_RAG_Workflow.json](../Local_RAG_Workflow.json) for complete RAG workflow examples.
+**Loading Full Documents:**
+
+SQLite TEXT fields can store up to 1GB per field, so you can load full documents. Here are common patterns:
+
+**Load from Files:**
+```python
+# In a Python node
+from pathlib import Path
+docs_dir = Path('/tmp/workflow_files/documents')
+documents = []
+for file_path in docs_dir.glob('*.txt'):  # or .md, .json, etc.
+    with open(file_path, 'r', encoding='utf-8') as f:
+        content = f.read()
+        documents.append({
+            'id': len(documents) + 1,
+            'filename': file_path.name,
+            'content': content  # Can be very large
+        })
+return {'documents': documents}
+```
+
+**Chunk Large Documents (Recommended for RAG):**
+For better semantic search results, consider chunking large documents:
+```python
+# Split document into overlapping chunks
+chunk_size = 1000  # characters
+chunk_overlap = 200
+chunks = []
+start = 0
+while start < len(content):
+    end = start + chunk_size
+    chunks.append({
+        'content': content[start:end],
+        'chunk_index': len(chunks)
+    })
+    start = end - chunk_overlap
+```
+
+**Load from HTTP/URLs:**
+Use an HTTP node to fetch documents, then process in a Python node.
+
+See [Embedding Node](#embedding-node), [Local_RAG_Workflow.json](../Local_RAG_Workflow.json), and [Load_Full_Documents_Example.json](../Load_Full_Documents_Example.json) for complete RAG workflow examples.
 
 ---
 
@@ -1209,6 +1250,13 @@ Embeddings are typically used with vector databases for semantic search:
 2. **Store in SQLite with sqlite-vec** extension (see Database node)
 3. **Search similar vectors** using SQL queries with `MATCH` operator
 4. **Use in RAG workflows** with LLM nodes
+
+**Handling Large Documents:**
+
+- **Full documents**: SQLite TEXT fields support up to 1GB, so you can store entire documents
+- **Chunking recommended**: For better search results, chunk large documents (500-2000 characters) with overlap (100-200 characters)
+- **Metadata**: Store filename, chunk_index, and other metadata alongside content for better context in search results
+- **Example**: See [Load_Full_Documents_Example.json](../Load_Full_Documents_Example.json) for a complete workflow
 
 See the [Local RAG Workflow example](../Local_RAG_Workflow.json) for a complete implementation.
 
