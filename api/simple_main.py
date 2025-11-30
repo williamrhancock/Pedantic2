@@ -1187,7 +1187,7 @@ async def execute_markdown_viewer(config: Dict[str, Any], input_data: Any) -> Di
         
         # If still no markdown found, try common key names
         if not markdown_content and isinstance(input_data, dict):
-            common_keys = ['content', 'markdown', 'text', 'body', 'message', 'output', 'result', 'markdown_report']
+            common_keys = ['content', 'answer', 'markdown', 'text', 'body', 'message', 'output', 'result', 'markdown_report']
             for key in common_keys:
                 if key in input_data:
                     candidate = input_data[key]
@@ -1202,15 +1202,22 @@ async def execute_markdown_viewer(config: Dict[str, Any], input_data: Any) -> Di
                 markdown_content = input_data
                 detected_key = 'input'
         
-        # Final fallback: convert to string
+        # Final fallback: find the longest string value (likely the answer/content)
         if not markdown_content:
             if isinstance(input_data, dict):
-                # Try to find any string value
-                for key, value in input_data.items():
-                    if isinstance(value, str) and len(value.strip()) > 0:
-                        markdown_content = value
-                        detected_key = key
-                        break
+                # Find all string values and pick the longest one (likely the main content)
+                string_values = [(key, value) for key, value in input_data.items() 
+                               if isinstance(value, str) and len(value.strip()) > 0]
+                if string_values:
+                    # Sort by length (descending) and take the longest
+                    string_values.sort(key=lambda x: len(x[1]), reverse=True)
+                    markdown_content = string_values[0][1]
+                    detected_key = string_values[0][0]
+                else:
+                    # Last resort: convert to JSON string (formatted)
+                    import json
+                    markdown_content = json.dumps(input_data, indent=2)
+                    detected_key = 'json'
             else:
                 markdown_content = str(input_data)
                 detected_key = 'input'
