@@ -164,7 +164,9 @@ Headless? POST to `/run` with workflow JSON. Or `npm run run-workflow -- 42` (ID
 
 ## 🧠 Deep Dives (For When READMEs Lie)
 
-- [Do you want to do this the easy way?](docs/WORKFLOW_NODES_GUIDE.md), or the hardway (YOLO).
+- [Complete Workflow Nodes Guide](docs/WORKFLOW_NODES_GUIDE.md) - Detailed documentation for all node types
+- [Workflow Examples](docs/WORKFLOW_EXAMPLES.md) - Comprehensive guide to all example workflows
+- [LLM Workflow Generation Guide](docs/LLM_WORKFLOW_GENERATION_GUIDE.md) - For LLMs generating workflows
 
 
 DB woes? Maintenance panel: Delete, backup, compact. Because SQLite bloat is real.
