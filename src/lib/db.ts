@@ -241,6 +241,15 @@ export const workflowQueries = {
   },
   
   createWorkflow: async (name: string, data: string): Promise<number> => {
+    // Final safety check at database level - prevent "Untitled" workflows
+    const isUntitled = 
+      name.toLowerCase() === 'untitled' || 
+      name.toLowerCase() === 'untitled workflow'
+    
+    if (isUntitled) {
+      throw new Error('Cannot create workflow with the default Untitled name. Please choose a name.')
+    }
+    
     const result = await dbRun(`
       INSERT INTO workflows (name, data)
       VALUES (?, ?)
@@ -409,6 +418,15 @@ export const workflowQueries = {
   },
   
   duplicateWorkflow: async (id: number, newName: string): Promise<number> => {
+    // Prevent duplicating with "Untitled" names
+    const isUntitled = 
+      newName.toLowerCase() === 'untitled' || 
+      newName.toLowerCase() === 'untitled workflow'
+    
+    if (isUntitled) {
+      throw new Error('Cannot duplicate workflow with the default Untitled name. Please choose a name.')
+    }
+    
     const original = await workflowQueries.getWorkflow(id)
     if (!original) {
       throw new Error('Workflow not found')
@@ -640,47 +658,12 @@ export const customNodeQueries = {
 }
 
 // Ensure we have at least one workflow
+// NOTE: This function is disabled to prevent creating "Untitled" workflows.
+// Users should create workflows explicitly via the UI.
 export async function ensureDefaultWorkflow() {
-  const existing = await workflowQueries.getWorkflow(1)
-  
-  if (!existing) {
-    const defaultWorkflow = {
-      nodes: {
-        start: {
-          type: 'start',
-          position: [100, 100],
-          title: 'Start'
-        },
-        python1: {
-          type: 'python',
-          position: [300, 100],
-          title: 'Python Code',
-          code: 'def run(input):\n    return input'
-        },
-        end: {
-          type: 'end',
-          position: [500, 100],
-          title: 'End'
-        }
-      },
-      connections: {
-        conn1: {
-          source: 'start',
-          target: 'python1',
-          sourceOutput: 'output',
-          targetInput: 'input'
-        },
-        conn2: {
-          source: 'python1',
-          target: 'end',
-          sourceOutput: 'output',
-          targetInput: 'input'
-        }
-      }
-    }
-    
-    await workflowQueries.createWorkflow('Untitled', JSON.stringify(defaultWorkflow))
-  }
+  // Disabled - no longer creating default "Untitled" workflows
+  // The app should start with an empty state, and users create workflows via Save As
+  return
 }
 
 // Initialize database and default workflow on startup

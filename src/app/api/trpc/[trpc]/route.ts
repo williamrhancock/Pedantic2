@@ -140,6 +140,15 @@ const appRouter = createTRPCRouter({
       name: z.string().min(1)
     }))
     .mutation(async ({ input }) => {
+      // Prevent duplicating with "Untitled" names
+      const isUntitled = 
+        input.name.toLowerCase() === 'untitled' || 
+        input.name.toLowerCase() === 'untitled workflow'
+      
+      if (isUntitled) {
+        throw new Error('Cannot duplicate workflow with the default Untitled name. Please choose a name.')
+      }
+      
       const id = await workflowQueries.duplicateWorkflow(input.id, input.name)
       return { id, success: true }
     }),
