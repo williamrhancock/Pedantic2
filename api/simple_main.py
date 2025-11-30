@@ -2408,7 +2408,48 @@ async def run_workflow(request: dict):
         
         print(f"Processing {len(nodes_data)} nodes and {len(connections_data)} connections")
         
-        # Simple execution order based on node list (skip topological sort for now)
+        # Topological sort to execute nodes in dependency order
+        def topological_sort_nodes(nodes_data: dict, connections_data: dict) -> List[str]:
+            """Sort nodes topologically based on connections"""
+            # Build graph: node_id -> list of target node_ids
+            graph = {node_id: [] for node_id in nodes_data.keys()}
+            in_degree = {node_id: 0 for node_id in nodes_data.keys()}
+            
+            # Build adjacency list and calculate in-degrees
+            for conn_id, conn_data in connections_data.items():
+                source_id = conn_data.get('source')
+                target_id = conn_data.get('target')
+                if source_id in nodes_data and target_id in nodes_data:
+                    graph[source_id].append(target_id)
+                    in_degree[target_id] += 1
+            
+            # Find nodes with no incoming edges (can execute first)
+            queue = [node_id for node_id, degree in in_degree.items() if degree == 0]
+            result = []
+            
+            while queue:
+                node_id = queue.pop(0)
+                result.append(node_id)
+                
+                # Remove this node and update in-degrees of its targets
+                for target_id in graph[node_id]:
+                    in_degree[target_id] -= 1
+                    if in_degree[target_id] == 0:
+                        queue.append(target_id)
+            
+            # If we didn't process all nodes, there might be cycles (or isolated nodes)
+            # Add any remaining nodes (they might be isolated or part of cycles)
+            remaining = set(nodes_data.keys()) - set(result)
+            if remaining:
+                print(f"Warning: {len(remaining)} nodes not in dependency graph (isolated or cycles): {remaining}")
+                result.extend(remaining)
+            
+            return result
+        
+        # Get execution order using topological sort
+        execution_order = topological_sort_nodes(nodes_data, connections_data)
+        print(f"Execution order (topological sort): {execution_order}")
+        
         node_results = []
         node_outputs = {}
         
@@ -2420,8 +2461,11 @@ async def run_workflow(request: dict):
                 nodes_to_skip.update(downstream)
                 print(f"ForEach node {node_id} has downstream nodes: {downstream}")
         
-        # Execute nodes in the order they appear
-        for node_id, node_data in nodes_data.items():
+        # Execute nodes in topological order
+        for node_id in execution_order:
+            if node_id not in nodes_data:
+                continue
+            node_data = nodes_data[node_id]
             # Skip nodes that are downstream from foreach (they execute inside the foreach)
             if node_id in nodes_to_skip:
                 print(f"Skipping node {node_id} (executes inside foreach loop)")
