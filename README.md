@@ -161,6 +161,11 @@ Manual Python drama? `cd api; python -m venv venv; source venv/bin/activate; pip
 
 Prefer containers? There's a single Docker image that runs **both** the Next.js frontend and the FastAPI backend.
 
+**Platform support:**  
+- Image is built and tested for **Linux x86_64/amd64** (including Docker Desktop on macOS/Windows using a linux/amd64 engine).  
+- Vector DB (sqlite-vec) inside Docker uses the **Linux x86_64 loadable extension** only.  
+- Native Linux arm64 (aarch64) containers are **not guaranteed** to have a working sqlite-vec extension yet. Everything else (Browser, OCR, HTTP, LLM, etc.) still works on arm64, but vector search may be disabled or noisy there.
+
 ### Build the image
 
 From the repo root:
@@ -216,6 +221,7 @@ That will:
 - All file operations still live under `/tmp/workflow_files/` **inside the container**. With volumes, that data persists across restarts.
 - SQLite DBs live under `/tmp/workflow_dbs/` when using the DB node. Again, volumes keep them around.
 - API keys and provider settings are still controlled via environment variables (`OPENROUTER_API_KEY`, `OPENAI_API_KEY`, etc.) – never bake secrets into images.
+
 
 ## 📖 Quickstart: From Blank Canvas to "Eureka!" (or "Why Me?")
 
