@@ -58,7 +58,7 @@ Every node must have:
 
 Additional fields depend on node type:
 - **Code nodes** (Python, TypeScript): `code` (string)
-- **Config nodes** (HTTP, File, Condition, Database, LLM, Embedding, Markdown, HTML, ForEach): `config` (object)
+- **Config nodes** (HTTP, File, Condition, Database, LLM, Embedding, Markdown, HTML, JSON, Image, Browser, OCR, ForEach): `config` (object)
 - **Start/End nodes**: No additional fields
 - **All nodes** (except Start/End): `skipDuringExecution` (boolean, optional) - When `true`, node is skipped during execution
 
@@ -97,6 +97,10 @@ Connections define data flow:
 | `endloop` | Control | ForEach results | Aggregated results | No |
 | `markdown` | Config | Any | Markdown content | Optional |
 | `html` | Config | Any | HTML content | Optional |
+| `json` | Config | Any | JSON content | Optional |
+| `image` | Config | Any | Image content | Optional |
+| `browser` | Config | Any | Browser output (HTML/screenshot/PDF/JSON) | Yes |
+| `ocr` | Config | Any | Extracted text from images | Yes |
 
 **Note**: All nodes (except `start` and `end`) support `skipDuringExecution` property. When set to `true`, the node is skipped during execution and input data is passed through unchanged.
 
@@ -868,6 +872,275 @@ Analyze this product: Laptop
 ❌ Edit HTML content (read-only viewer)  
 ❌ Execute JavaScript in HTML (security restriction)  
 ❌ Access files directly (must receive content via input)  
+
+---
+
+### JSON Viewer Node
+
+#### Structure
+```json
+{
+  "type": "json",
+  "title": "JSON Viewer",
+  "config": {
+    "content_key": "data"
+  },
+  "position": { "x": 100, "y": 100 }
+}
+```
+
+#### Input
+- **Source**: Output from previous node
+- **Behavior**: Automatically detects JSON content in any variable
+
+#### Output Structure
+```json
+{
+  "json_data": { /* parsed JSON object */ },
+  "detected_key": "data",
+  "content_key": "data",
+  "source": { /* original input */ }
+}
+```
+
+#### Detection Priority
+1. If `content_key` is specified and exists in input → use it
+2. Scan all input variables for JSON patterns
+3. Try common keys: `data`, `json`, `content`, `output`, `result`, `response`
+4. If input is a string → try to parse as JSON
+5. Fallback: convert input to JSON
+
+#### What JSON Viewer Nodes CAN Do
+✅ Automatically detect JSON in any variable  
+✅ Specify preferred key via `content_key`  
+✅ Display JSON with syntax highlighting and formatting  
+✅ Filter/full view tabs for large JSON objects  
+✅ Handle nested JSON structures  
+
+#### What JSON Viewer Nodes CANNOT Do
+❌ Edit JSON content (read-only viewer)  
+❌ Validate JSON schema  
+❌ Transform JSON structure (use Python node)  
+❌ Access files directly (must receive content via input)  
+
+---
+
+### Image Viewer Node
+
+#### Structure
+```json
+{
+  "type": "image",
+  "title": "Image Viewer",
+  "config": {
+    "content_key": "screenshot"
+  },
+  "position": { "x": 100, "y": 100 }
+}
+```
+
+#### Input
+- **Source**: Output from previous node
+- **Behavior**: Automatically detects image data (base64, data URIs, file paths, URLs)
+
+#### Output Structure
+```json
+{
+  "image_data": "data:image/png;base64,iVBORw0KGgo...",
+  "image_type": "base64",
+  "detected_key": "screenshot",
+  "content_key": "screenshot"
+}
+```
+
+#### Supported Image Formats
+- PNG, JPEG/JPG, GIF, WebP, SVG, BMP
+
+#### Detection Priority
+1. If `content_key` is specified and exists in input → use it
+2. Scan all input variables for image data patterns
+3. Try common keys: `screenshot`, `image`, `image_data`, `photo`, `picture`
+4. Check for base64 encoded images or data URIs
+5. Check for file paths or URLs
+
+#### What Image Viewer Nodes CAN Do
+✅ Automatically detect images in any variable  
+✅ Display images with zoom/pan controls  
+✅ Support base64, data URIs, file paths, and URLs  
+✅ Download images  
+✅ Fullscreen viewing  
+
+#### What Image Viewer Nodes CANNOT Do
+❌ Edit images (read-only viewer)  
+❌ Convert image formats (use Python node)  
+❌ Process images (use OCR node for text extraction)  
+❌ Access files outside `/tmp/workflow_files/` (security restriction)  
+
+---
+
+### Browser Node
+
+#### Structure
+```json
+{
+  "type": "browser",
+  "title": "Visit Website",
+  "config": {
+    "url": "https://example.com",
+    "headless": true,
+    "stealth_mode": false,
+    "wait_for": "network_idle",
+    "wait_selector": "",
+    "wait_timeout": 30000,
+    "output_formats": ["html", "screenshot"],
+    "json_extraction": {
+      "method": "css",
+      "selectors": {},
+      "ai_prompt": ""
+    },
+    "session_id": "default",
+    "viewport": {
+      "width": 1920,
+      "height": 1080
+    },
+    "user_agent": "default",
+    "custom_user_agent": "",
+    "timeout": 60000
+  },
+  "position": { "x": 100, "y": 100 }
+}
+```
+
+#### Input
+- **Source**: Output from previous node (optional)
+- **Template Placeholders**: Use `{variable_name}` in URL and config fields
+
+#### Output Structure
+```json
+{
+  "html": "<html>...</html>",
+  "screenshot": "data:image/png;base64,iVBORw0KGgo...",
+  "pdf": "data:application/pdf;base64,...",
+  "json": { /* extracted data */ },
+  "url": "https://example.com",
+  "status": "success"
+}
+```
+
+#### Parameters
+- **`url`** (string, required): URL to visit (supports template placeholders)
+- **`headless`** (boolean): Run browser in headless mode (default: true)
+- **`stealth_mode`** (boolean): Enable stealth mode to avoid detection (default: false)
+- **`wait_for`** (string): Wait condition - `"selector"`, `"network_idle"`, `"both"`, or `"none"`
+- **`wait_selector`** (string): CSS selector to wait for (if `wait_for` is `"selector"` or `"both"`)
+- **`wait_timeout`** (number): Timeout in milliseconds (default: 30000)
+- **`output_formats`** (array): Output formats - `["html", "screenshot", "pdf", "json"]`
+- **`json_extraction`** (object): JSON extraction config (see below)
+- **`session_id`** (string): Session ID for cookie persistence (default: "default")
+- **`viewport`** (object): Browser viewport size
+- **`user_agent`** (string): `"default"` or `"custom"`
+- **`custom_user_agent`** (string): Custom user agent string (if `user_agent` is `"custom"`)
+- **`timeout`** (number): Overall timeout in milliseconds (default: 60000)
+
+#### JSON Extraction Methods
+
+**CSS Selectors:**
+```json
+{
+  "method": "css",
+  "selectors": {
+    "title": "h1",
+    "items": ".item"
+  }
+}
+```
+
+**AI-Assisted (requires upstream LLM node):**
+```json
+{
+  "method": "ai",
+  "ai_prompt": "Extract the product name, price, and description"
+}
+```
+
+#### What Browser Nodes CAN Do
+✅ Visit websites and capture content  
+✅ Take screenshots and generate PDFs  
+✅ Extract data using CSS selectors or AI  
+✅ Maintain session cookies across requests  
+✅ Use stealth mode to avoid detection  
+✅ Wait for specific elements or network idle  
+✅ Support template placeholders in URLs  
+
+#### What Browser Nodes CANNOT Do
+❌ Execute JavaScript (security restriction)  
+❌ Interact with forms (read-only)  
+❌ Handle authentication flows (use HTTP node)  
+❌ Access localhost-only sites (security restriction)  
+
+#### Requirements
+- **Playwright** must be installed: `pip install playwright && playwright install`
+
+---
+
+### OCR Node
+
+#### Structure
+```json
+{
+  "type": "ocr",
+  "title": "Extract Text",
+  "config": {
+    "content_key": "screenshot",
+    "language": "eng",
+    "psm": 6
+  },
+  "position": { "x": 100, "y": 100 }
+}
+```
+
+#### Input
+- **Source**: Output from previous node containing image data
+- **Behavior**: Automatically detects image data (base64, data URIs, file paths, URLs)
+
+#### Output Structure
+```json
+{
+  "text": "Extracted text content from the image...",
+  "confidence": 95.5,
+  "language": "eng",
+  "psm": 6,
+  "word_count": 42
+}
+```
+
+#### Parameters
+- **`content_key`** (string, optional): The key containing image data (auto-detected if not specified)
+- **`language`** (string): Tesseract language code (e.g., `"eng"`, `"spa"`, `"fra"`)
+- **`psm`** (integer): Page Segmentation Mode (0-13). Common values:
+  - `6`: Uniform block of text (good for most screenshots)
+  - `7`: Single text line
+  - `11`: Sparse text
+  - `13`: Raw line (no layout analysis)
+
+#### What OCR Nodes CAN Do
+✅ Extract text from images (screenshots, scanned documents)  
+✅ Support multiple languages (with language packs)  
+✅ Provide confidence scores  
+✅ Auto-detect image data in input  
+✅ Process base64, data URIs, file paths, and URLs  
+
+#### What OCR Nodes CANNOT Do
+❌ Extract text from PDFs directly (convert to image first)  
+❌ Handwriting recognition (limited support)  
+❌ Complex layout analysis (use appropriate PSM mode)  
+❌ Real-time video OCR  
+
+#### Requirements
+- **Tesseract OCR** must be installed:
+  - macOS: `brew install tesseract`
+  - Linux: `sudo apt-get install tesseract-ocr`
+  - Windows: Download from https://github.com/UB-Mannheim/tesseract/wiki
 
 ---
 
