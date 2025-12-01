@@ -1713,15 +1713,16 @@ async def execute_json_viewer(config: Dict[str, Any], input_data: Any) -> Dict[s
         
         # Store viewer_data inside output so it's preserved when stored in node_outputs
         # But also keep the extracted keys as the main data for downstream nodes
+        # IMPORTANT: Only store JSON strings, not objects, to avoid circular references
         if isinstance(output_data, dict):
             output_data['_viewer_data'] = {
                 'content': json_string,  # Formatted JSON string for display (filtered)
-                'json_data': json_content,  # Parsed JSON data (filtered)
-                'full_json': full_json_string,  # Full input for "Full JSON" tab
-                'full_json_data': input_data,  # Full input data object
+                'json_data': json_content,  # Parsed JSON data (filtered) - this is safe as it's the extracted content
+                'full_json': full_json_string,  # Full input for "Full JSON" tab (JSON string, not object)
+                'full_json_data': full_json_string,  # Store as string to avoid circular references
                 'detected_key': detected_key,
                 'content_key': content_key,
-                'source': input_data
+                'source': full_json_string  # Store as string to avoid circular references
             }
         else:
             # If output_data is not a dict (e.g., a list or primitive), wrap it
@@ -1731,10 +1732,10 @@ async def execute_json_viewer(config: Dict[str, Any], input_data: Any) -> Dict[s
                     'content': json_string,
                     'json_data': json_content,
                     'full_json': full_json_string,
-                    'full_json_data': input_data,
+                    'full_json_data': full_json_string,  # Store as string to avoid circular references
                     'detected_key': detected_key,
                     'content_key': content_key,
-                    'source': input_data
+                    'source': full_json_string  # Store as string to avoid circular references
                 }
             }
         
