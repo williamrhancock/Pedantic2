@@ -213,11 +213,13 @@ Connections define data flow:
 ✅ Process data transformations  
 ✅ Generate arrays for ForEach loops  
 ✅ Call `markdown_to_html()` helper function  
+✅ Write files and create directories using safe file helpers (see below)  
 ✅ Use datetime, random, json, math, etc.  
 ✅ Return complex nested structures  
 
 #### What Python Nodes CANNOT Do
-❌ Access files outside `/tmp/workflow_files/`  
+❌ Access files outside `/tmp/workflow_files/` (security restriction)  
+❌ Use `open()` or `os.makedirs()` directly (use safe file helpers instead)  
 ❌ Make network requests (use HTTP node instead)  
 ❌ Import arbitrary modules (only whitelisted modules)  
 ❌ Access system resources (file system, environment variables beyond allowed)  
@@ -260,10 +262,33 @@ The following modules are whitelisted and can be imported in Python nodes:
 
 **Note:** These modules are explicitly whitelisted for security. Attempting to import any other module will raise an `ImportError`.
 
-#### Special Helper Function
-- `markdown_to_html(md_text: str) -> str`: Converts markdown to HTML (uses `markdown` library if available, fallback regex otherwise)
+#### Special Helper Functions
 
-#### Example
+**`markdown_to_html(md_text: str) -> str`**
+- Converts markdown text to HTML
+- Uses `markdown` library if available, fallback regex otherwise
+- Example: `html = markdown_to_html("# Hello\n**World**")`
+
+**`safe_makedirs(path: str, exist_ok: bool = False) -> str`**
+- Safely create directories within `/tmp/workflow_files/`
+- Automatically creates parent directories if needed
+- Returns the absolute path of the created directory
+- Raises `PermissionError` if path is outside `/tmp/workflow_files/`
+- Example: `folder = safe_makedirs("/tmp/workflow_files/archives/2025", exist_ok=True)`
+
+**`safe_write_file(path: str, content: str | bytes, mode: str = 'w', encoding: str = 'utf-8') -> str`**
+- Safely write files within `/tmp/workflow_files/`
+- Automatically creates parent directories if needed
+- Supports text mode (`'w'`) and binary mode (`'wb'`)
+- Returns the absolute path of the written file
+- Raises `PermissionError` if path is outside `/tmp/workflow_files/`
+- Examples:
+  - Text: `safe_write_file("/tmp/workflow_files/data.txt", "Hello World", mode='w', encoding='utf-8')`
+  - Binary: `safe_write_file("/tmp/workflow_files/image.png", image_bytes, mode='wb')`
+
+#### Examples
+
+**Basic Data Processing:**
 ```python
 def run(input):
     # Process input data
@@ -275,6 +300,34 @@ def run(input):
         'total': total,
         'count': len(items)
     }
+```
+
+**File Operations with Safe Helpers:**
+```python
+import base64, datetime
+
+def run(input):
+    # Create timestamped archive folder
+    ts = datetime.datetime.now().strftime('%Y%m%d_%H%M%S')
+    safe_title = ''.join(c if c.isalnum() or c in '-_' else '_' for c in input.get('title', 'page')[:60])
+    folder = f"/tmp/workflow_files/archives/{ts}_{safe_title}"
+    
+    # Create directory
+    safe_makedirs(folder, exist_ok=True)
+    
+    # Write HTML file
+    safe_write_file(f"{folder}/page.html", input.get('html', ''), mode='w', encoding='utf-8')
+    
+    # Write binary file (screenshot)
+    if input.get('screenshot'):
+        img_b64 = input['screenshot'].split(',')[1]  # Remove data:image/png;base64, prefix
+        img_bytes = base64.b64decode(img_b64)
+        safe_write_file(f"{folder}/screenshot.png", img_bytes, mode='wb')
+    
+    # Write markdown file
+    safe_write_file(f"{folder}/SUMMARY.md", input.get('content', '# No summary'), mode='w', encoding='utf-8')
+    
+    return {**input, "saved_to": folder}
 ```
 
 ---

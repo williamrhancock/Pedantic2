@@ -141,6 +141,56 @@ def execute_python_code(code: str, input_data: Any) -> Dict[str, Any]:
             pass
         restricted_globals['_write_'] = _write_handler
         
+        # Add safe file operations (only allow /tmp/workflow_files/)
+        def safe_makedirs(path, exist_ok=False):
+            """Safely create directories, only within /tmp/workflow_files/"""
+            safe_base = Path('/tmp/workflow_files')
+            path_obj = Path(path)
+            
+            # Resolve to absolute path
+            if not path_obj.is_absolute():
+                path_obj = safe_base / path_obj
+            else:
+                # Ensure it's within safe_base
+                try:
+                    path_obj.resolve().relative_to(safe_base.resolve())
+                except ValueError:
+                    raise PermissionError(f"Path must be within /tmp/workflow_files/: {path}")
+            
+            path_obj.mkdir(parents=True, exist_ok=exist_ok)
+            return str(path_obj)
+        
+        def safe_write_file(file_path, content, mode='w', encoding='utf-8'):
+            """Safely write files, only within /tmp/workflow_files/"""
+            safe_base = Path('/tmp/workflow_files')
+            path_obj = Path(file_path)
+            
+            # Resolve to absolute path
+            if not path_obj.is_absolute():
+                path_obj = safe_base / path_obj
+            else:
+                # Ensure it's within safe_base
+                try:
+                    path_obj.resolve().relative_to(safe_base.resolve())
+                except ValueError:
+                    raise PermissionError(f"Path must be within /tmp/workflow_files/: {file_path}")
+            
+            # Create parent directories if needed
+            path_obj.parent.mkdir(parents=True, exist_ok=True)
+            
+            # Write file
+            if 'b' in mode:
+                with open(path_obj, mode) as f:
+                    f.write(content)
+            else:
+                with open(path_obj, mode, encoding=encoding) as f:
+                    f.write(content)
+            
+            return str(path_obj)
+        
+        restricted_globals['safe_makedirs'] = safe_makedirs
+        restricted_globals['safe_write_file'] = safe_write_file
+        
         # Add essential built-in types and functions
         restricted_globals['dict'] = dict
         restricted_globals['list'] = list
