@@ -370,7 +370,7 @@ export function NodeEditorModal({
               </div>
             )}
 
-            {nodeType === 'json' && !jsonViewerData && (
+            {nodeType === 'json' && (
               <div className="mt-4">
                 <label className="text-sm font-semibold text-foreground mb-1 block">
                   Content Key (optional)
