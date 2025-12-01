@@ -11,8 +11,11 @@ This comprehensive guide covers all node types available in the Visual Agentic W
 3. [Configuration-Based Nodes](#configuration-based-nodes)
    - [HTTP API Call Node](#http-api-call-node)
    - [File Operations Node](#file-operations-node)
+   - [Browser Node](#browser-node)
    - [Markdown Viewer Node](#markdown-viewer-node)
    - [HTML Viewer Node](#html-viewer-node)
+   - [JSON Viewer Node](#json-viewer-node)
+   - [Image Viewer Node](#image-viewer-node)
    - [Conditional Logic Node](#conditional-logic-node)
    - [Database Query Node](#database-query-node)
    - [Embedding Node](#embedding-node)
@@ -38,8 +41,11 @@ The Visual Agentic Workflow Builder supports multiple node types for building so
 **Configuration-Based Nodes** (configure via JSON):
 - 🌐 **HTTP API Calls** - Make requests to external APIs and web services
 - 📁 **File Operations** - Read, write, and manipulate files
+- 🌍 **Browser Node** - Playwright automation with headless/headful, stealth mode, and multiple output formats
 - 📄 **Markdown Viewer** - Display markdown content from upstream nodes
 - 🌐 **HTML Viewer** - Display HTML content from upstream nodes
+- 📋 **JSON Viewer** - Display and format JSON with filtered/full view tabs
+- 🖼️ **Image Viewer** - Display images with zoom/pan controls
 - 🔀 **Conditional Logic** - Branch workflows based on data conditions
 - 🗄️ **Database Queries** - Execute SQLite queries and operations
 - 🤖 **LLM AI Assistant** - Integrate large language models into workflows
@@ -559,6 +565,23 @@ For workflows that require authentication, see the [Bearer Token Authentication 
 
 See [Bearer Token Authentication Guide](../docs/BEARER_TOKEN_AUTH_GUIDE.md) for detailed patterns and best practices.
 
+#### When to Use HTTP vs Browser Node
+
+- **Use HTTP Node** for:
+  - REST API calls
+  - Simple GET/POST requests
+  - JSON/XML data exchange
+  - Fast, lightweight requests
+  
+- **Use Browser Node** for:
+  - JavaScript-heavy websites
+  - Screenshot capture
+  - PDF generation
+  - Web scraping with CSS selectors
+  - Sites that require browser rendering
+  - Session/cookie management
+  - Form automation
+
 #### Examples
 
 **GET Request with Query Parameters:**
@@ -814,6 +837,171 @@ After workflow execution:
 
 ---
 
+### Browser Node
+
+The Browser node uses Playwright to automate web browsers, enabling web scraping, screenshot capture, PDF generation, and AI-assisted data extraction. It's the #1 most requested feature for local automation tools.
+
+#### Basic Configuration
+
+```json
+{
+  "url": "https://example.com",
+  "headless": true,
+  "stealth_mode": false,
+  "wait_for": "network_idle",
+  "wait_selector": "",
+  "wait_timeout": 30000,
+  "output_formats": ["html", "screenshot"],
+  "json_extraction": {
+    "method": "css",
+    "selectors": {},
+    "ai_prompt": ""
+  },
+  "session_id": "default",
+  "viewport": {
+    "width": 1920,
+    "height": 1080
+  },
+  "user_agent": "default",
+  "custom_user_agent": "",
+  "timeout": 60000
+}
+```
+
+#### Parameters
+
+- **`url`** (string, required): The URL to visit. Supports template placeholders like `{url}` from upstream nodes.
+- **`headless`** (boolean): Run browser in headless mode (default: `true`). Set to `false` to see the browser window.
+- **`stealth_mode`** (boolean): Enable stealth mode to reduce bot detection (default: `false`). Randomizes user agent, hides automation flags, and adds realistic headers.
+- **`wait_for`** (string): Wait condition - `"none"`, `"selector"`, `"network_idle"`, or `"both"` (default: `"none"`).
+- **`wait_selector`** (string): CSS selector to wait for (required if `wait_for` is `"selector"` or `"both"`).
+- **`wait_timeout`** (number): Timeout in milliseconds for wait conditions (default: `30000`).
+- **`output_formats`** (array): Output formats to generate - `["html", "screenshot", "pdf", "json"]` (default: `["html"]`).
+- **`json_extraction`** (object): JSON extraction configuration:
+  - **`method`** (string): `"css"` for CSS selectors or `"ai"` for AI-assisted extraction.
+  - **`selectors`** (object): Key-value pairs of field names to CSS selectors (e.g., `{"title": "h1", "items": ".item"}`).
+  - **`ai_prompt`** (string): Prompt for AI extraction (uses upstream LLM node output if available).
+- **`session_id`** (string): Session ID for cookie persistence (default: `"default"`). Cookies are saved/loaded from `/tmp/workflow_files/browser_sessions/{session_id}/`.
+- **`viewport`** (object): Browser viewport dimensions:
+  - **`width`** (number): Viewport width in pixels (default: `1920`).
+  - **`height`** (number): Viewport height in pixels (default: `1080`).
+- **`user_agent`** (string): User agent type - `"default"` or `"custom"` (default: `"default"`).
+- **`custom_user_agent`** (string): Custom user agent string (required if `user_agent` is `"custom"`).
+- **`timeout`** (number): Page navigation timeout in milliseconds (default: `60000`).
+
+#### Output Structure
+
+The browser node outputs data based on selected `output_formats`:
+
+```json
+{
+  "html": "<html>...</html>",  // If "html" in output_formats
+  "screenshot": "base64_encoded_image",  // If "screenshot" in output_formats
+  "screenshot_path": "/tmp/workflow_files/browser_sessions/default/screenshot_1234567890.png",
+  "pdf": "base64_encoded_pdf",  // If "pdf" in output_formats
+  "pdf_path": "/tmp/workflow_files/browser_sessions/default/page_1234567890.pdf",
+  "json": {  // If "json" in output_formats
+    "title": "Page Title",
+    "items": ["Item 1", "Item 2"]
+  }
+}
+```
+
+#### Examples
+
+**Basic Web Scraping:**
+```json
+{
+  "url": "https://example.com",
+  "headless": true,
+  "stealth_mode": true,
+  "wait_for": "network_idle",
+  "output_formats": ["html", "screenshot"],
+  "json_extraction": {
+    "method": "css",
+    "selectors": {
+      "title": "h1",
+      "description": ".description"
+    }
+  }
+}
+```
+
+**AI-Assisted Extraction:**
+Connect an LLM node before the browser node, then use AI extraction:
+
+```json
+{
+  "url": "{url}",
+  "output_formats": ["html", "json"],
+  "json_extraction": {
+    "method": "ai",
+    "ai_prompt": "Extract the product name, price, and description from this page. Use {llm_output} for context."
+  }
+}
+```
+
+**Session Persistence:**
+```json
+{
+  "url": "https://example.com/login",
+  "session_id": "user_session_123",
+  "output_formats": ["html"]
+}
+```
+
+Cookies are automatically saved and loaded for subsequent runs with the same `session_id`.
+
+**Using Template Placeholders:**
+```json
+{
+  "url": "https://api.example.com/users/{user_id}",
+  "wait_for": "selector",
+  "wait_selector": ".user-profile"
+}
+```
+
+The `{user_id}` placeholder is replaced with the value from the upstream node's output.
+
+#### Best Practices
+
+1. **Use Stealth Mode**: Enable `stealth_mode` for sites that detect automation
+2. **Wait Conditions**: Use `wait_for: "network_idle"` for dynamic content that loads via JavaScript
+3. **Session Persistence**: Use unique `session_id` values for different user sessions
+4. **Output Formats**: Only select formats you need to reduce execution time
+5. **CSS Selectors**: Test selectors in browser DevTools before using in workflows
+6. **AI Extraction**: Connect an LLM node before browser node for AI-assisted extraction
+
+#### Common Use Cases
+
+- **Web Scraping**: Extract data from websites using CSS selectors
+- **Screenshot Capture**: Take screenshots for documentation or monitoring
+- **PDF Generation**: Convert web pages to PDF files
+- **Form Automation**: Fill and submit forms (with session persistence)
+- **Content Monitoring**: Check for changes on websites
+- **E2E Testing**: Automated testing of web applications
+
+#### Requirements
+
+- **Playwright Package**: Automatically installed via `pip install playwright` (included in `requirements.txt`)
+- **Browser Binaries** (REQUIRED): After installing the Playwright package, you **must** run:
+  ```bash
+  playwright install
+  ```
+  This command downloads the browser binaries (Chromium, Firefox, WebKit) needed for automation. **The browser node will fail without this step.**
+  
+  **Installation Steps:**
+  1. Install Playwright: `pip install playwright`
+  2. Install browser binaries: `playwright install`
+  3. (Optional) Install only Chromium: `playwright install chromium`
+
+#### See Also
+
+- [Browser Node Test Workflow](../Browser_Node_Test_Workflow.json) - Complete example workflow
+- [Bearer Token Authentication Workflow](../Bearer_Token_Authentication_Workflow.json) - Authentication patterns
+
+---
+
 ### HTML Viewer Node
 
 The HTML Viewer node automatically detects and displays HTML content from upstream nodes. It's similar to the Markdown Viewer but renders HTML instead of markdown. Perfect for displaying HTML reports, web content, or formatted HTML output.
@@ -913,6 +1101,216 @@ After workflow execution:
 - **Markdown Viewer**: Renders markdown-formatted text, converts markdown to HTML
 
 Use HTML Viewer when you have HTML content directly, and Markdown Viewer when you have markdown that needs to be converted to HTML.
+
+---
+
+### JSON Viewer Node
+
+The JSON Viewer node automatically detects and formats JSON content from upstream nodes. It provides a filtered view (showing selected keys) and a full view (showing the entire JSON object) with syntax highlighting.
+
+#### Basic Configuration
+
+```json
+{
+  "content_key": "data"
+}
+```
+
+#### Parameters
+
+- **`content_key`** (string, optional): The key path(s) to extract from input data. Supports:
+  - Single key: `"data"`
+  - Nested paths: `"output.data"`
+  - Multiple keys (comma-separated): `"data.userId, data.title"`
+  - Leave empty to auto-detect JSON content
+
+#### How It Works
+
+1. **Automatic Detection**: If no `content_key` is specified, the node scans all variables for JSON objects or arrays
+2. **Key Extraction**: If `content_key` is specified, extracts the value(s) at that path
+3. **Multiple Keys**: Comma-separated keys extract multiple values into a single object
+4. **Display**: Shows filtered view (selected keys) and full view (entire input) in tabs
+
+#### Output Structure
+
+The JSON viewer outputs the extracted keys as the main output, with viewer data stored in `_viewer_data`:
+
+```json
+{
+  "userId": 123,
+  "title": "Example",
+  "_viewer_data": {
+    "content": "{\"userId\": 123, \"title\": \"Example\"}",
+    "json_data": "{\"userId\": 123, \"title\": \"Example\"}",
+    "full_json": "{\"userId\": 123, \"title\": \"Example\", \"other\": \"data\"}",
+    "detected_key": "data",
+    "content_key": "data.userId, data.title"
+  }
+}
+```
+
+#### Examples
+
+**Extract Specific Keys:**
+```json
+{
+  "content_key": "data.userId, data.title"
+}
+```
+
+**Auto-Detect:**
+```json
+{}
+```
+
+The node will automatically find JSON content in the input.
+
+**Nested Paths:**
+```json
+{
+  "content_key": "response.data.items"
+}
+```
+
+Extracts `input.response.data.items`.
+
+#### Viewing JSON
+
+After workflow execution:
+1. Click on the JSON Viewer node
+2. The node editor opens with two tabs:
+   - **Filtered**: Shows the extracted keys (from `content_key`)
+   - **Full JSON**: Shows the entire input object
+3. Both views are read-only with syntax highlighting
+
+#### Best Practices
+
+1. **Use Specific Keys**: Specify `content_key` when you know which fields to extract
+2. **Multiple Keys**: Use comma-separated keys to extract multiple related fields
+3. **Nested Paths**: Use dot notation for nested objects (e.g., `"output.data.userId"`)
+4. **Auto-Detection**: Leave `content_key` empty for automatic JSON detection
+
+#### Differences from Other Viewers
+
+- **JSON Viewer**: Formats and displays JSON with filtered/full tabs
+- **Markdown Viewer**: Renders markdown-formatted text
+- **HTML Viewer**: Renders HTML content
+- **Image Viewer**: Displays images with zoom/pan
+
+---
+
+### Image Viewer Node
+
+The Image Viewer node automatically detects and displays image data (base64, file paths, or URLs) from upstream nodes. It provides zoom, pan, download, and fullscreen controls for viewing images.
+
+#### Basic Configuration
+
+```json
+{
+  "content_key": "screenshot"
+}
+```
+
+#### Parameters
+
+- **`content_key`** (string, optional): The key containing image data. Supports:
+  - Direct keys: `"screenshot"`
+  - Nested paths: `"output.screenshot"`
+  - Leave empty to auto-detect image data
+
+#### How It Works
+
+1. **Automatic Detection**: Scans all variables for image data:
+   - Base64 encoded images (with magic byte validation)
+   - Data URIs (`data:image/png;base64,...`)
+   - File paths (checks if file exists)
+   - Image URLs (validates URL format)
+2. **Priority Selection**:
+   - First checks the specified `content_key` (if provided)
+   - Then scans common image field names (`screenshot`, `image`, `image_data`, etc.)
+   - Finally scans all string values for image data
+3. **Display**: Opens image in a viewer modal with zoom/pan controls
+
+#### Supported Image Formats
+
+- PNG
+- JPEG/JPG
+- GIF
+- WebP
+- SVG
+- BMP
+
+#### Output Structure
+
+The image viewer outputs image data as a data URI for easy display:
+
+```json
+{
+  "image_data": "data:image/png;base64,iVBORw0KGgo...",
+  "image_type": "base64",
+  "detected_key": "screenshot",
+  "content_key": "screenshot"
+}
+```
+
+#### Examples
+
+**View Browser Screenshot:**
+Connect a Browser node (with `"screenshot"` in `output_formats`) to an Image Viewer:
+
+```json
+{
+  "content_key": "screenshot"
+}
+```
+
+**Auto-Detect Image:**
+```json
+{}
+```
+
+The node will automatically find image data in the input.
+
+**From File Path:**
+If upstream node outputs a file path:
+```json
+{
+  "content_key": "screenshot_path"
+}
+```
+
+The image viewer will read the file and convert it to a data URI.
+
+#### Viewing Images
+
+After workflow execution:
+1. Click on the Image Viewer node
+2. The image opens in a viewer modal with:
+   - **Zoom Controls**: Zoom in/out (25% to 500%)
+   - **Pan/Drag**: Drag to pan when zoomed in
+   - **Reset Zoom**: Return to 100% zoom
+   - **Download**: Save image to disk
+   - **Fullscreen**: Maximize viewing area
+   - **Keyboard Shortcuts**: Ctrl/Cmd + Scroll to zoom
+
+#### Best Practices
+
+1. **Use Specific Keys**: Specify `content_key` when you know which field contains the image
+2. **Browser Integration**: Use `"screenshot"` key for browser node screenshots
+3. **File Paths**: Ensure file paths are accessible (within `/tmp/workflow_files/` or absolute paths)
+4. **Base64 Images**: Browser node outputs base64 screenshots - perfect for image viewer
+
+#### Common Use Cases
+
+- **Browser Screenshots**: View screenshots captured by Browser nodes
+- **Generated Images**: Display images created by Python/TypeScript nodes
+- **File Images**: View images from file operations
+- **URL Images**: Display images fetched from URLs
+
+#### See Also
+
+- [Browser Node](#browser-node) - Capture screenshots for viewing
+- [Browser Node Test Workflow](../Browser_Node_Test_Workflow.json) - Complete example with image viewer
 
 ---
 

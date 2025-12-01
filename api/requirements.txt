@@ -13,6 +13,9 @@ python-dotenv==1.0.0
 markdown==3.5.1
 beautifulsoup4==4.12.2
 sentence-transformers==2.2.2
+playwright==1.40.0
+# IMPORTANT: After installing playwright, you MUST run "playwright install" to download browser binaries
+# The browser node will not work without this step: pip install playwright && playwright install
 # pysqlite3-binary: Optional - enables SQLite extension loading for vector databases
 # Install manually if needed: pip install pysqlite3-binary
 # Note: May not be available for all Python versions/platforms

@@ -13,6 +13,7 @@ This document provides comprehensive documentation for all example workflows inc
 7. [Mixed Python TypeScript Workflow](#mixed-python-typescript-workflow)
 8. [Simple Mixed Workflow Demo](#simple-mixed-workflow-demo)
 9. [Bearer Token Authentication Workflow](#bearer-token-authentication-workflow)
+10. [Browser Node Test Workflow](#browser-node-test-workflow)
 
 ---
 
@@ -622,6 +623,179 @@ None (no external APIs)
 
 ---
 
+## Bearer Token Authentication Workflow
+
+**File**: `Bearer_Token_Authentication_Workflow.json`
+
+### Overview
+
+Demonstrates how to authenticate with credentials and use the returned bearer token for subsequent API requests. Perfect for OAuth2, API key exchange, or username/password authentication workflows.
+
+### What It Does
+
+1. **Prepare Credentials**: Sets up authentication credentials (username/password or API keys)
+2. **Authenticate**: Sends credentials to authentication endpoint
+3. **Extract Token**: Extracts bearer token from authentication response
+4. **Use Token**: Makes authenticated API request using the bearer token
+
+### Workflow Structure
+
+```
+Start → Prepare Credentials → Authenticate → Extract Token → Use Token → End
+```
+
+### Key Nodes
+
+- **Prepare Credentials (Python)**: Sets up credentials for authentication
+- **Authenticate (HTTP)**: POST request to authentication endpoint
+- **Extract Token (Python)**: Extracts bearer token from response
+- **View Token Info (JSON)**: Displays token information
+
+### Requirements
+
+- Authentication endpoint URL
+- Valid credentials (username/password or API keys)
+
+### How to Use
+
+1. Import the workflow
+2. Update credentials in "Prepare Credentials" node
+3. Update authentication URL in "Authenticate" node
+4. Execute the workflow
+5. View token information in JSON viewer
+
+### Learning Points
+
+- OAuth2 authentication patterns
+- Bearer token extraction and usage
+- Template placeholder replacement
+- Secure credential handling
+
+### See Also
+
+- [Bearer Token Authentication Guide](BEARER_TOKEN_AUTH_GUIDE.md) - Complete guide to authentication patterns
+
+---
+
+## Browser Node Test Workflow
+
+**File**: `Browser_Node_Test_Workflow.json`
+
+### Overview
+
+A simple workflow to test the browser node functionality. Demonstrates web automation, screenshot capture, content extraction, and image viewing. Perfect for learning how to use Playwright automation in workflows.
+
+### What It Does
+
+1. **Prepare URL**: Sets up the test URL (httpbin.org/html)
+2. **Visit Website**: Browser node visits the URL with Playwright
+3. **View Browser Output**: JSON viewer displays extracted content
+4. **View Screenshot**: Image viewer displays the captured screenshot
+
+### Workflow Structure
+
+```
+Start → Prepare URL → Browser Visit → JSON Viewer (output) → End
+                                    → Image Viewer (screenshot) → End
+```
+
+### Key Nodes
+
+- **Prepare URL (Python)**: Sets the test URL for the browser
+- **Visit Website (Browser)**: 
+  - Visits httpbin.org/html
+  - Runs in headless mode
+  - Waits for network idle
+  - Outputs HTML, screenshot, and JSON
+  - Extracts title and paragraph using CSS selectors
+- **View Browser Output (JSON)**: Displays extracted JSON data and HTML
+- **View Screenshot (Image)**: Displays the captured screenshot with zoom/pan
+
+### Browser Node Configuration
+
+```json
+{
+  "url": "{url}",
+  "headless": true,
+  "stealth_mode": false,
+  "wait_for": "network_idle",
+  "output_formats": ["html", "screenshot", "json"],
+  "json_extraction": {
+    "method": "css",
+    "selectors": {
+      "title": "h1",
+      "paragraph": "p"
+    }
+  }
+}
+```
+
+### Requirements
+
+- **Playwright Package**: Automatically installed via `pip install playwright` (included in `requirements.txt`)
+- **Browser Binaries** (REQUIRED): After installing Playwright, you **must** run:
+  ```bash
+  playwright install
+  ```
+  This downloads the browser binaries (Chromium, Firefox, WebKit). **The browser node will not work without this step.**
+
+### How to Use
+
+1. **Install Playwright and browser binaries** (if not already done):
+   ```bash
+   pip install playwright
+   playwright install
+   ```
+   ⚠️ **Important**: The `playwright install` command is **required** - it downloads the actual browser binaries needed for automation.
+2. Import the workflow from `docs/Browser_Node_Test_Workflow.json`
+3. Execute the workflow
+4. Click on "View Browser Output" to see extracted content
+5. Click on "View Screenshot" to see the captured screenshot
+
+### Expected Output
+
+- **HTML**: Full page HTML content
+- **Screenshot**: Base64-encoded PNG image
+- **JSON**: Extracted data using CSS selectors:
+  ```json
+  {
+    "title": "Herman Melville - Moby Dick",
+    "paragraph": "Call me Ishmael..."
+  }
+  ```
+
+### Learning Points
+
+- Browser automation with Playwright
+- Screenshot capture
+- CSS selector extraction
+- Image viewer integration
+- Template placeholder usage (`{url}`)
+- Session persistence (cookies saved/loaded)
+
+### Customization
+
+- **Change URL**: Update the Python node to visit different websites
+- **Add More Selectors**: Add more CSS selectors to extract additional data
+- **Enable Stealth Mode**: Set `stealth_mode: true` for sites that detect automation
+- **Use AI Extraction**: Change `json_extraction.method` to `"ai"` and connect an LLM node
+- **Headful Mode**: Set `headless: false` to see the browser window
+
+### Use Cases
+
+- Web scraping
+- Screenshot capture for documentation
+- Content monitoring
+- Form automation
+- E2E testing
+
+### See Also
+
+- [Browser Node](#browser-node) in WORKFLOW_NODES_GUIDE.md - Complete browser node documentation
+- [Image Viewer Node](#image-viewer-node) in WORKFLOW_NODES_GUIDE.md - Image viewer documentation
+
+---
+
 ## General Workflow Tips
 
 ### Importing Workflows
@@ -661,6 +835,13 @@ None (no external APIs)
 - **Import Errors**: Ensure all Python modules are in `requirements.txt`
 - **Data Loss**: Use EndLoop nodes properly in ForEach loops
 - **Timeout Errors**: Increase timeout values in HTTP nodes
+- **Playwright Not Installed**: 
+  - Install package: `pip install playwright`
+  - **Then install browser binaries**: `playwright install` (this is a separate, required step)
+- **Browser Node Fails**: 
+  - Most common cause: Browser binaries not installed. Run `playwright install` after `pip install playwright`
+  - Check that Playwright browser binaries are installed: `playwright install`
+  - Verify installation: `playwright --version` should show version info
 
 ---
 

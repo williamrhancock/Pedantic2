@@ -19,6 +19,9 @@ Why "Pedantic2"? Because the first one was *too* forgiving. This version nags yo
 - **Database maintenance panel**: Workflow/node management, backup, and optimization
 - **Custom nodes**: Save, reuse, export, and import node templates
 - **HTML Viewer**: Auto-detect and render HTML content (similar to Markdown Viewer)
+- **JSON Viewer**: Auto-detect and format JSON with filtered/full view tabs
+- **Image Viewer**: Auto-detect and display images (base64, files, URLs) with zoom/pan controls
+- **Browser Node**: Playwright automation with headless/headful, stealth mode, session persistence, and multiple output formats
 - **Improved execution timeline**: Real-time status with execution times
 - **Case-insensitive workflow names**: Workflow name matching is now case-insensitive
 - **Vector Database Support**: SQLite with sqlite-vec extension for local RAG workflows
@@ -38,6 +41,9 @@ Why "Pedantic2"? Because the first one was *too* forgiving. This version nags yo
 - Embedding Node: Generate vector embeddings using sentence-transformers for semantic search and RAG.
 - Markdown Viewer: Auto-detect and render markdown with anchor support.
 - HTML Viewer: Auto-detect and render HTML content.
+- JSON Viewer: Auto-detect and format JSON with filtered/full view tabs and content key selection.
+- Image Viewer: Auto-detect and display images (base64, files, URLs) with zoom/pan controls and download.
+- Browser Node: Playwright automation with headless/headful toggle, stealth mode, session persistence, wait conditions, and multiple output formats (HTML, screenshot, PDF, JSON).
 - Vector Database Support: SQLite with sqlite-vec extension for local vector search (RAG workflows). Requires `pysqlite3-binary` and sqlite-vec extension file.
 - **Fancy Bits**: 
   - **Skip During Execution**: Mark nodes to skip during execution (useful for debugging or temporary disabling)
@@ -115,6 +121,13 @@ Pro Tip: Custom nodes? Save configs as templates. Reuse that "scrape cat memes" 
    After installation, restart the FastAPI server. The code will automatically detect and use the extension-capable sqlite3 module.
    
    **Note**: If extension loading isn't available, regular database operations still work. Only vector database features (sqlite-vec) require extension support.
+   
+   **Note for Browser Node**: Playwright requires browser binaries to be installed separately:
+   ```bash
+   pip install playwright
+   playwright install
+   ```
+   The `playwright install` command downloads browser binaries (Chromium, Firefox, WebKit) needed for browser automation. This is a **required step** - the browser node will not work without it.
 
 4. **Set up API keys** (required for LLM and external API nodes):
    ```bash

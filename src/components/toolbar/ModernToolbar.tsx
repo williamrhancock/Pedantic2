@@ -19,10 +19,11 @@ import {
   GitBranch,
   HelpCircle,
   Eye,
+  Globe,
 } from 'lucide-react'
 import type { CustomNodeTemplate } from '@/lib/custom-nodes'
 
-export type NodeType = 'python' | 'typescript' | 'http' | 'file' | 'condition' | 'database' | 'llm' | 'foreach' | 'endloop' | 'markdown' | 'html' | 'json' | 'embedding'
+export type NodeType = 'python' | 'typescript' | 'http' | 'file' | 'condition' | 'database' | 'llm' | 'foreach' | 'endloop' | 'markdown' | 'html' | 'json' | 'embedding' | 'browser' | 'image'
 
 interface ModernToolbarProps {
   activeNodeType?: NodeType | null
@@ -59,6 +60,8 @@ const nodeTypes: { type: NodeType; label: string; color: string }[] = [
   { type: 'markdown', label: 'Markdown', color: 'from-violet-500 to-violet-600' },
   { type: 'html', label: 'HTML', color: 'from-teal-500 to-teal-600' },
   { type: 'json', label: 'JSON', color: 'from-slate-500 to-slate-600' },
+  { type: 'image', label: 'Image', color: 'from-rose-500 to-rose-600' },
+  { type: 'browser', label: 'Browser', color: 'from-emerald-500 to-emerald-600' },
 ]
 
 const nodeGroups = [
@@ -76,6 +79,7 @@ const nodeGroups = [
     items: [
       { type: 'http' as NodeType, label: 'HTTP' },
       { type: 'file' as NodeType, label: 'File' },
+      { type: 'browser' as NodeType, label: 'Browser' },
     ],
   },
   {
@@ -103,6 +107,7 @@ const nodeGroups = [
       { type: 'markdown' as NodeType, label: 'Markdown Viewer' },
       { type: 'html' as NodeType, label: 'HTML Viewer' },
       { type: 'json' as NodeType, label: 'JSON Viewer' },
+      { type: 'image' as NodeType, label: 'Image Viewer' },
     ],
   },
 ]

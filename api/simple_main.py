@@ -1750,6 +1750,711 @@ async def execute_json_viewer(config: Dict[str, Any], input_data: Any) -> Dict[s
             'stderr': str(e)
         }
 
+async def execute_image_viewer(config: Dict[str, Any], input_data: Any) -> Dict[str, Any]:
+    """Execute image viewer node - automatically detects image data (base64, file paths, URLs)"""
+    try:
+        import base64
+        import re
+        from urllib.parse import urlparse
+        
+        content_key = config.get('content_key', '')
+        content_key_explicitly_set = bool(content_key and content_key.strip())
+        image_data = None
+        image_type = None  # 'base64', 'file', 'url', 'data_uri'
+        detected_key = None
+        
+        # Helper function to check if string is base64 encoded
+        def is_base64_image(text: str) -> bool:
+            if not isinstance(text, str) or len(text.strip()) == 0:
+                return False
+            # Check for data URI format: data:image/png;base64,...
+            if text.strip().startswith('data:image/'):
+                return True
+            # Check if it's a valid base64 string (long enough and contains base64 chars)
+            text_stripped = text.strip()
+            if len(text_stripped) > 100:  # Base64 images are typically long
+                try:
+                    # Try to decode - if it works, it's likely base64
+                    decoded = base64.b64decode(text_stripped, validate=True)
+                    # Check if decoded data looks like an image (starts with image magic bytes)
+                    if len(decoded) > 4:
+                        # PNG: 89 50 4E 47
+                        # JPEG: FF D8 FF
+                        # GIF: 47 49 46 38
+                        # WebP: 52 49 46 46 ... 57 45 42 50
+                        magic_bytes = decoded[:4]
+                        if (magic_bytes[0:4] == b'\x89PNG' or
+                            magic_bytes[0:2] == b'\xFF\xD8' or
+                            magic_bytes[0:4] == b'GIF8' or
+                            decoded[0:4] == b'RIFF' and b'WEBP' in decoded[0:20]):
+                            return True
+                except:
+                    pass
+            return False
+        
+        # Helper function to check if string is a valid URL
+        def is_valid_url(text: str) -> bool:
+            if not isinstance(text, str):
+                return False
+            try:
+                result = urlparse(text.strip())
+                return all([result.scheme, result.netloc]) and result.scheme in ['http', 'https']
+            except:
+                return False
+        
+        # Helper function to check if string is a file path
+        def is_file_path(text: str) -> bool:
+            if not isinstance(text, str):
+                return False
+            path_obj = Path(text.strip())
+            # Check if it's an absolute path and file exists
+            if path_obj.is_absolute() and path_obj.exists() and path_obj.is_file():
+                return True
+            # Check relative paths in safe directory
+            safe_base = Path('/tmp/workflow_files')
+            if str(path_obj).startswith('/tmp/workflow_files/') and path_obj.exists() and path_obj.is_file():
+                return True
+            return False
+        
+        # Helper function to get value from nested dict using dot notation
+        def get_nested_value(obj: Any, key_path: str) -> Any:
+            if not key_path or not isinstance(obj, dict):
+                return None
+            keys = key_path.split('.')
+            current = obj
+            for key in keys:
+                if isinstance(current, dict) and key in current:
+                    current = current[key]
+                else:
+                    return None
+            return current
+        
+        # Priority 1: Try the specified content_key if provided
+        if isinstance(input_data, dict) and content_key_explicitly_set:
+            if not input_data:
+                return {
+                    'status': 'error',
+                    'error': 'Image viewer: input_data is empty',
+                    'output': {
+                        'image_data': None,
+                        'image_type': None,
+                        'detected_key': None,
+                        'content_key': content_key,
+                        'error': 'Input data is empty'
+                    },
+                    'stdout': 'Image viewer: input_data is empty',
+                    'stderr': f'No data received from upstream node. Expected content_key: "{content_key}"',
+                    'execution_time': 0.0
+                }
+            
+            # Try nested path first
+            if '.' in content_key:
+                candidate = get_nested_value(input_data, content_key)
+            else:
+                candidate = input_data.get(content_key) if content_key in input_data else None
+            
+            if candidate is not None:
+                candidate_str = str(candidate) if not isinstance(candidate, str) else candidate
+                
+                # Check data URI
+                if candidate_str.strip().startswith('data:image/'):
+                    image_data = candidate_str
+                    image_type = 'data_uri'
+                    detected_key = content_key
+                # Check base64
+                elif is_base64_image(candidate_str):
+                    # If it's base64 without data URI prefix, add it
+                    if not candidate_str.startswith('data:image/'):
+                        # Try to detect image format from base64
+                        try:
+                            decoded = base64.b64decode(candidate_str.strip(), validate=True)
+                            if decoded[0:2] == b'\xFF\xD8':
+                                mime_type = 'image/jpeg'
+                            elif decoded[0:4] == b'\x89PNG':
+                                mime_type = 'image/png'
+                            elif decoded[0:4] == b'GIF8':
+                                mime_type = 'image/gif'
+                            elif b'WEBP' in decoded[0:20]:
+                                mime_type = 'image/webp'
+                            else:
+                                mime_type = 'image/png'  # Default
+                            image_data = f'data:{mime_type};base64,{candidate_str.strip()}'
+                        except:
+                            image_data = f'data:image/png;base64,{candidate_str.strip()}'
+                    else:
+                        image_data = candidate_str
+                    image_type = 'base64'
+                    detected_key = content_key
+                # Check file path
+                elif is_file_path(candidate_str):
+                    # Read file and convert to base64 data URI
+                    try:
+                        file_path = Path(candidate_str.strip())
+                        async with aiofiles.open(file_path, 'rb') as f:
+                            file_bytes = await f.read()
+                            file_base64 = base64.b64encode(file_bytes).decode('utf-8')
+                            # Detect MIME type from file extension
+                            ext = file_path.suffix.lower()
+                            mime_types = {
+                                '.png': 'image/png',
+                                '.jpg': 'image/jpeg',
+                                '.jpeg': 'image/jpeg',
+                                '.gif': 'image/gif',
+                                '.webp': 'image/webp',
+                                '.svg': 'image/svg+xml',
+                                '.bmp': 'image/bmp'
+                            }
+                            mime_type = mime_types.get(ext, 'image/png')
+                            image_data = f'data:{mime_type};base64,{file_base64}'
+                            image_type = 'file'
+                            detected_key = content_key
+                    except Exception as e:
+                        return {
+                            'status': 'error',
+                            'error': f'Failed to read image file: {str(e)}',
+                            'output': {
+                                'image_data': None,
+                                'image_type': None,
+                                'detected_key': None,
+                                'content_key': content_key,
+                                'error': f'File read error: {str(e)}'
+                            },
+                            'stdout': '',
+                            'stderr': str(e),
+                            'execution_time': 0.0
+                        }
+                # Check URL
+                elif is_valid_url(candidate_str):
+                    image_data = candidate_str.strip()
+                    image_type = 'url'
+                    detected_key = content_key
+                else:
+                    return {
+                        'status': 'error',
+                        'error': f'Image viewer: content_key "{content_key}" does not contain valid image data',
+                        'output': {
+                            'image_data': None,
+                            'image_type': None,
+                            'detected_key': None,
+                            'content_key': content_key,
+                            'error': f'Value at "{content_key}" is not a valid image (base64, file path, or URL)'
+                        },
+                        'stdout': '',
+                        'stderr': f'Invalid image data at key: {content_key}',
+                        'execution_time': 0.0
+                    }
+            else:
+                return {
+                    'status': 'error',
+                    'error': f'Image viewer: content_key "{content_key}" not found in input data',
+                    'output': {
+                        'image_data': None,
+                        'image_type': None,
+                        'detected_key': None,
+                        'content_key': content_key,
+                        'error': f'Key "{content_key}" not found in input data'
+                    },
+                    'stdout': '',
+                    'stderr': f'Key not found: {content_key}',
+                    'execution_time': 0.0
+                }
+        
+        # Priority 2: Auto-detect image data in common fields
+        if not image_data and isinstance(input_data, dict):
+            # Check common image field names
+            common_keys = ['screenshot', 'screenshot_path', 'image', 'image_data', 'image_url', 'photo', 'picture', 'img']
+            for key in common_keys:
+                if key in input_data:
+                    candidate = input_data[key]
+                    candidate_str = str(candidate) if not isinstance(candidate, str) else candidate
+                    
+                    if candidate_str.strip().startswith('data:image/'):
+                        image_data = candidate_str
+                        image_type = 'data_uri'
+                        detected_key = key
+                        break
+                    elif is_base64_image(candidate_str):
+                        if not candidate_str.startswith('data:image/'):
+                            try:
+                                decoded = base64.b64decode(candidate_str.strip(), validate=True)
+                                if decoded[0:2] == b'\xFF\xD8':
+                                    mime_type = 'image/jpeg'
+                                elif decoded[0:4] == b'\x89PNG':
+                                    mime_type = 'image/png'
+                                elif decoded[0:4] == b'GIF8':
+                                    mime_type = 'image/gif'
+                                elif b'WEBP' in decoded[0:20]:
+                                    mime_type = 'image/webp'
+                                else:
+                                    mime_type = 'image/png'
+                                image_data = f'data:{mime_type};base64,{candidate_str.strip()}'
+                            except:
+                                image_data = f'data:image/png;base64,{candidate_str.strip()}'
+                        else:
+                            image_data = candidate_str
+                        image_type = 'base64'
+                        detected_key = key
+                        break
+                    elif is_file_path(candidate_str):
+                        try:
+                            file_path = Path(candidate_str.strip())
+                            async with aiofiles.open(file_path, 'rb') as f:
+                                file_bytes = await f.read()
+                                file_base64 = base64.b64encode(file_bytes).decode('utf-8')
+                                ext = file_path.suffix.lower()
+                                mime_types = {
+                                    '.png': 'image/png',
+                                    '.jpg': 'image/jpeg',
+                                    '.jpeg': 'image/jpeg',
+                                    '.gif': 'image/gif',
+                                    '.webp': 'image/webp',
+                                    '.svg': 'image/svg+xml',
+                                    '.bmp': 'image/bmp'
+                                }
+                                mime_type = mime_types.get(ext, 'image/png')
+                                image_data = f'data:{mime_type};base64,{file_base64}'
+                                image_type = 'file'
+                                detected_key = key
+                                break
+                        except Exception:
+                            continue
+                    elif is_valid_url(candidate_str):
+                        image_data = candidate_str.strip()
+                        image_type = 'url'
+                        detected_key = key
+                        break
+        
+        # Priority 3: Scan all string values for image data
+        if not image_data and isinstance(input_data, dict):
+            for key, value in input_data.items():
+                if isinstance(value, str) and len(value.strip()) > 100:  # Images are typically long strings
+                    if value.strip().startswith('data:image/'):
+                        image_data = value
+                        image_type = 'data_uri'
+                        detected_key = key
+                        break
+                    elif is_base64_image(value):
+                        if not value.startswith('data:image/'):
+                            try:
+                                decoded = base64.b64decode(value.strip(), validate=True)
+                                if decoded[0:2] == b'\xFF\xD8':
+                                    mime_type = 'image/jpeg'
+                                elif decoded[0:4] == b'\x89PNG':
+                                    mime_type = 'image/png'
+                                elif decoded[0:4] == b'GIF8':
+                                    mime_type = 'image/gif'
+                                elif b'WEBP' in decoded[0:20]:
+                                    mime_type = 'image/webp'
+                                else:
+                                    mime_type = 'image/png'
+                                image_data = f'data:{mime_type};base64,{value.strip()}'
+                            except:
+                                image_data = f'data:image/png;base64,{value.strip()}'
+                        else:
+                            image_data = value
+                        image_type = 'base64'
+                        detected_key = key
+                        break
+                    elif is_file_path(value):
+                        try:
+                            file_path = Path(value.strip())
+                            async with aiofiles.open(file_path, 'rb') as f:
+                                file_bytes = await f.read()
+                                file_base64 = base64.b64encode(file_bytes).decode('utf-8')
+                                ext = file_path.suffix.lower()
+                                mime_types = {
+                                    '.png': 'image/png',
+                                    '.jpg': 'image/jpeg',
+                                    '.jpeg': 'image/jpeg',
+                                    '.gif': 'image/gif',
+                                    '.webp': 'image/webp',
+                                    '.svg': 'image/svg+xml',
+                                    '.bmp': 'image/bmp'
+                                }
+                                mime_type = mime_types.get(ext, 'image/png')
+                                image_data = f'data:{mime_type};base64,{file_base64}'
+                                image_type = 'file'
+                                detected_key = key
+                                break
+                        except Exception:
+                            continue
+                    elif is_valid_url(value):
+                        image_data = value.strip()
+                        image_type = 'url'
+                        detected_key = key
+                        break
+        
+        # If no image found
+        if not image_data:
+            return {
+                'status': 'error',
+                'error': 'Image viewer: No image data detected in input',
+                'output': {
+                    'image_data': None,
+                    'image_type': None,
+                    'detected_key': None,
+                    'content_key': content_key,
+                    'error': 'No valid image data found (base64, file path, or URL)'
+                },
+                'stdout': 'Image viewer: No image data detected',
+                'stderr': 'Could not find image data in input. Expected base64 string, file path, or URL.',
+                'execution_time': 0.0
+            }
+        
+        return {
+            'status': 'success',
+            'output': {
+                'image_data': image_data,  # Always as data URI for easy display
+                'image_type': image_type,  # Original type (base64, file, url, data_uri)
+                'detected_key': detected_key,
+                'content_key': content_key,
+                'source': input_data
+            },
+            'stdout': f'Image viewer detected image from key: {detected_key} (type: {image_type})',
+            'stderr': '',
+            'execution_time': 0.0
+        }
+    except Exception as e:
+        return {
+            'status': 'error',
+            'error': f'Image viewer failed: {str(e)}',
+            'output': {
+                'image_data': None,
+                'image_type': None,
+                'detected_key': None,
+                'error': str(e)
+            },
+            'stdout': '',
+            'stderr': str(e),
+            'execution_time': 0.0
+        }
+
+async def execute_browser_node(config: Dict[str, Any], input_data: Any, node_outputs_ref: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
+    """Execute browser automation using Playwright"""
+    try:
+        from playwright.async_api import async_playwright, Browser, BrowserContext, Page
+        import base64
+        import random
+    except ImportError:
+        return {
+            'status': 'error',
+            'error': 'Playwright is not installed. Please run: pip install playwright && playwright install',
+            'output': None,
+            'stdout': '',
+            'stderr': 'Playwright import failed'
+        }
+    
+    try:
+        # Parse configuration
+        url = config.get('url', '')
+        headless = config.get('headless', True)
+        stealth_mode = config.get('stealth_mode', False)
+        wait_for = config.get('wait_for', 'none')  # 'none', 'selector', 'network_idle', 'both'
+        wait_selector = config.get('wait_selector', '')
+        wait_timeout = config.get('wait_timeout', 30000)
+        output_formats = config.get('output_formats', ['html'])  # ['html', 'screenshot', 'pdf', 'json']
+        json_extraction = config.get('json_extraction', {})
+        session_id = config.get('session_id', 'default')
+        viewport_config = config.get('viewport', {})
+        viewport_width = viewport_config.get('width', 1920)
+        viewport_height = viewport_config.get('height', 1080)
+        user_agent_type = config.get('user_agent', 'default')  # 'default' or 'custom'
+        custom_user_agent = config.get('custom_user_agent', '')
+        timeout = config.get('timeout', 60000)
+        
+        # Replace placeholders in URL with input data
+        def replace_placeholders(obj, data):
+            if isinstance(obj, str):
+                try:
+                    import re
+                    for key, value in (data.items() if isinstance(data, dict) else {}):
+                        obj = obj.replace(f'{{{key}}}', str(value))
+                    return obj
+                except:
+                    return obj
+            elif isinstance(obj, dict):
+                return {k: replace_placeholders(v, data) for k, v in obj.items()}
+            elif isinstance(obj, list):
+                return [replace_placeholders(item, data) for item in obj]
+            return obj
+        
+        processed_url = replace_placeholders(url, input_data)
+        
+        if not processed_url:
+            return {
+                'status': 'error',
+                'error': 'URL is required',
+                'output': None,
+                'stdout': '',
+                'stderr': 'URL not provided'
+            }
+        
+        start_time = time.time()
+        
+        # Session persistence paths
+        session_dir = Path(f'/tmp/workflow_files/browser_sessions/{session_id}')
+        cookies_file = session_dir / 'cookies.json'
+        session_dir.mkdir(parents=True, exist_ok=True)
+        
+        # Common user agents for stealth mode
+        user_agents = [
+            'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+            'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+            'Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:121.0) Gecko/20100101 Firefox/121.0',
+            'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.1 Safari/605.1.15',
+        ]
+        
+        async with async_playwright() as p:
+            # Launch browser
+            browser = await p.chromium.launch(headless=headless)
+            
+            # Configure context options
+            context_options = {
+                'viewport': {'width': viewport_width, 'height': viewport_height},
+                'user_agent': custom_user_agent if user_agent_type == 'custom' and custom_user_agent else (random.choice(user_agents) if stealth_mode else None),
+            }
+            
+            # Add stealth mode headers
+            if stealth_mode:
+                context_options['extra_http_headers'] = {
+                    'Accept-Language': 'en-US,en;q=0.9',
+                    'Accept-Encoding': 'gzip, deflate, br',
+                    'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
+                    'Connection': 'keep-alive',
+                    'Upgrade-Insecure-Requests': '1',
+                }
+            
+            # Create browser context
+            context = await browser.new_context(**context_options)
+            
+            # Load cookies if session exists
+            if cookies_file.exists():
+                try:
+                    async with aiofiles.open(cookies_file, 'r') as f:
+                        cookies_data = await f.read()
+                        cookies = json.loads(cookies_data)
+                        await context.add_cookies(cookies)
+                except Exception as e:
+                    print(f"Warning: Failed to load cookies: {e}")
+            
+            # Create page
+            page = await context.new_page()
+            
+            # Stealth mode: inject scripts to hide automation
+            if stealth_mode:
+                await page.add_init_script("""
+                    Object.defineProperty(navigator, 'webdriver', {
+                        get: () => undefined
+                    });
+                    window.chrome = {
+                        runtime: {}
+                    };
+                    Object.defineProperty(navigator, 'plugins', {
+                        get: () => [1, 2, 3, 4, 5]
+                    });
+                    Object.defineProperty(navigator, 'languages', {
+                        get: () => ['en-US', 'en']
+                    });
+                """)
+            
+            # Navigate to URL
+            await page.goto(processed_url, wait_until='domcontentloaded', timeout=timeout)
+            
+            # Wait conditions
+            if wait_for in ('selector', 'both'):
+                if wait_selector:
+                    try:
+                        await page.wait_for_selector(wait_selector, timeout=wait_timeout)
+                    except Exception as e:
+                        print(f"Warning: Selector wait failed: {e}")
+            
+            if wait_for in ('network_idle', 'both'):
+                try:
+                    await page.wait_for_load_state('networkidle', timeout=wait_timeout)
+                except Exception as e:
+                    print(f"Warning: Network idle wait failed: {e}")
+            
+            # Collect outputs
+            output_data = {}
+            
+            # HTML output
+            if 'html' in output_formats:
+                html_content = await page.content()
+                output_data['html'] = html_content
+            
+            # Screenshot output
+            if 'screenshot' in output_formats:
+                screenshot_bytes = await page.screenshot(full_page=True)
+                screenshot_base64 = base64.b64encode(screenshot_bytes).decode('utf-8')
+                output_data['screenshot'] = screenshot_base64
+                # Also save to file
+                screenshot_path = session_dir / f'screenshot_{int(time.time())}.png'
+                async with aiofiles.open(screenshot_path, 'wb') as f:
+                    await f.write(screenshot_bytes)
+                output_data['screenshot_path'] = str(screenshot_path)
+            
+            # PDF output
+            if 'pdf' in output_formats:
+                pdf_bytes = await page.pdf(format='A4')
+                pdf_base64 = base64.b64encode(pdf_bytes).decode('utf-8')
+                output_data['pdf'] = pdf_base64
+                # Also save to file
+                pdf_path = session_dir / f'page_{int(time.time())}.pdf'
+                async with aiofiles.open(pdf_path, 'wb') as f:
+                    await f.write(pdf_bytes)
+                output_data['pdf_path'] = str(pdf_path)
+            
+            # JSON extraction
+            if 'json' in output_formats:
+                extraction_method = json_extraction.get('method', 'css')
+                
+                if extraction_method == 'css':
+                    # CSS selector extraction
+                    selectors = json_extraction.get('selectors', {})
+                    extracted_data = {}
+                    
+                    for key, selector in selectors.items():
+                        try:
+                            elements = await page.query_selector_all(selector)
+                            if len(elements) == 1:
+                                # Single element - get text or attribute
+                                text = await elements[0].inner_text()
+                                extracted_data[key] = text.strip()
+                            elif len(elements) > 1:
+                                # Multiple elements - get all texts
+                                texts = []
+                                for elem in elements:
+                                    text = await elem.inner_text()
+                                    texts.append(text.strip())
+                                extracted_data[key] = texts
+                            else:
+                                extracted_data[key] = None
+                        except Exception as e:
+                            print(f"Warning: Selector '{selector}' failed: {e}")
+                            extracted_data[key] = None
+                    
+                    output_data['json'] = extracted_data
+                
+                elif extraction_method == 'ai':
+                    # AI-assisted extraction
+                    ai_prompt = json_extraction.get('ai_prompt', '')
+                    html_content = await page.content()
+                    
+                    # Check if input_data contains LLM output from upstream node
+                    llm_content = None
+                    if isinstance(input_data, dict):
+                        # Check for LLM node output structure
+                        if 'content' in input_data:
+                            llm_content = input_data['content']
+                        elif isinstance(input_data.get('output'), dict) and 'content' in input_data.get('output', {}):
+                            llm_content = input_data['output']['content']
+                    
+                    # Construct extraction prompt
+                    if ai_prompt:
+                        # Replace placeholders in ai_prompt with LLM content if available
+                        extraction_prompt = ai_prompt
+                        if llm_content:
+                            extraction_prompt = extraction_prompt.replace('{llm_output}', llm_content)
+                        
+                        # Create full prompt for LLM
+                        full_prompt = f"""Extract structured data from the following HTML page based on this instruction:
+
+{extraction_prompt}
+
+HTML Content:
+{html_content[:50000]}  # Limit to avoid token limits
+
+Return ONLY valid JSON, no markdown formatting, no explanations. The JSON should match the structure requested in the instruction."""
+                    else:
+                        # Default extraction prompt
+                        full_prompt = f"""Extract all meaningful structured data from this HTML page and return it as JSON. Include:
+- Page title
+- Main headings
+- Links and their text
+- Any tables or lists
+- Key content sections
+
+HTML Content:
+{html_content[:50000]}
+
+Return ONLY valid JSON, no markdown formatting, no explanations."""
+                    
+                    # Call LLM for extraction
+                    # Use the same LLM infrastructure as execute_llm_request
+                    # For now, we'll use a simple approach: try to use environment LLM config
+                    try:
+                        # Try to use OpenRouter or fallback to environment
+                        llm_config = {
+                            'provider': 'openrouter',
+                            'model': 'gpt-4o-mini',
+                            'user': full_prompt,
+                            'system': 'You are a data extraction assistant. Extract structured data from HTML and return ONLY valid JSON.',
+                            'temperature': 0.1,
+                            'max_tokens': 2000
+                        }
+                        
+                        # Call LLM
+                        llm_result = await execute_llm_request(llm_config, {})
+                        
+                        if llm_result['status'] == 'success' and llm_result.get('output'):
+                            llm_response = llm_result['output'].get('content', '')
+                            
+                            # Try to parse JSON from response
+                            # Remove markdown code blocks if present
+                            json_str = llm_response.strip()
+                            if json_str.startswith('```'):
+                                # Extract JSON from code block
+                                lines = json_str.split('\n')
+                                json_str = '\n'.join(lines[1:-1]) if lines[-1].startswith('```') else '\n'.join(lines[1:])
+                            
+                            try:
+                                extracted_json = json.loads(json_str)
+                                output_data['json'] = extracted_json
+                            except json.JSONDecodeError:
+                                # If JSON parsing fails, return the raw response
+                                output_data['json'] = {'raw_response': llm_response}
+                        else:
+                            output_data['json'] = {'error': 'LLM extraction failed', 'details': llm_result.get('error', 'Unknown error')}
+                    except Exception as e:
+                        output_data['json'] = {'error': f'AI extraction failed: {str(e)}'}
+            
+            # Save cookies for session persistence
+            if session_id:
+                try:
+                    cookies = await context.cookies()
+                    async with aiofiles.open(cookies_file, 'w') as f:
+                        await f.write(json.dumps(cookies, indent=2))
+                except Exception as e:
+                    print(f"Warning: Failed to save cookies: {e}")
+            
+            # Close browser
+            await browser.close()
+            
+            execution_time = time.time() - start_time
+            
+            # Merge with input data for downstream nodes
+            if isinstance(input_data, dict):
+                for key, value in input_data.items():
+                    if key not in output_data:
+                        output_data[key] = value
+            
+            return {
+                'status': 'success',
+                'output': output_data,
+                'stdout': f'Browser automation completed: {processed_url}',
+                'stderr': '',
+                'execution_time': execution_time
+            }
+            
+    except Exception as e:
+        return {
+            'status': 'error',
+            'error': f'Browser automation failed: {str(e)}',
+            'output': None,
+            'stdout': '',
+            'stderr': str(e)
+        }
+
 async def execute_llm_request(config: Dict[str, Any], input_data: Any) -> Dict[str, Any]:
     """Execute LLM request via OpenRouter, OpenAI-style providers, or Ollama.
 
@@ -2100,6 +2805,12 @@ async def execute_sub_workflow(
             elif node_type == 'json':
                 config = node_data.get('config', {})
                 result = await execute_json_viewer(config, input_data)
+            elif node_type == 'image':
+                config = node_data.get('config', {})
+                result = await execute_image_viewer(config, input_data)
+            elif node_type == 'browser':
+                config = node_data.get('config', {})
+                result = await execute_browser_node(config, input_data, node_outputs_ref)
             elif node_type == 'embedding':
                 config = node_data.get('config', {})
                 result = await execute_embedding_node(config, input_data)
@@ -2658,6 +3369,10 @@ async def run_workflow(request: dict):
                 config = node_data.get('config', {})
                 result = await execute_llm_request(config, input_data)
                 
+            elif node_type == 'browser':
+                config = node_data.get('config', {})
+                result = await execute_browser_node(config, input_data, node_outputs)
+                
             elif node_type == 'foreach':
                 config = node_data.get('config', {})
                 result = await execute_foreach_loop(config, input_data, node_id, nodes_data, connections_data)
@@ -2715,6 +3430,10 @@ async def run_workflow(request: dict):
             elif node_type == 'json':
                 config = node_data.get('config', {})
                 result = await execute_json_viewer(config, input_data)
+                
+            elif node_type == 'image':
+                config = node_data.get('config', {})
+                result = await execute_image_viewer(config, input_data)
                 
             elif node_type == 'embedding':
                 config = node_data.get('config', {})

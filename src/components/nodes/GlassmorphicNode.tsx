@@ -16,10 +16,12 @@ import {
   BookOpen,
   FileCode,
   Layers,
-  Braces
+  Braces,
+  Monitor,
+  Image as ImageIcon
 } from 'lucide-react'
 
-export type NodeType = 'start' | 'end' | 'python' | 'typescript' | 'http' | 'file' | 'condition' | 'database' | 'llm' | 'foreach' | 'endloop' | 'markdown' | 'html' | 'json' | 'embedding'
+export type NodeType = 'start' | 'end' | 'python' | 'typescript' | 'http' | 'file' | 'condition' | 'database' | 'llm' | 'foreach' | 'endloop' | 'markdown' | 'html' | 'json' | 'embedding' | 'browser' | 'image'
 
 interface GlassmorphicNodeProps {
   id: string
@@ -53,6 +55,8 @@ const nodeIcons = {
   markdown: BookOpen,
   html: FileCode,
   json: Braces,
+  image: ImageIcon,
+  browser: Monitor,
 }
 
 const nodeColors = {
@@ -71,6 +75,8 @@ const nodeColors = {
   markdown: 'from-violet-500 to-violet-600',
   html: 'from-teal-500 to-teal-600',
   json: 'from-slate-500 to-slate-600',
+  image: 'from-rose-500 to-rose-600',
+  browser: 'from-emerald-500 to-emerald-600',
 }
 
 export const GlassmorphicNode = React.memo(function GlassmorphicNode({

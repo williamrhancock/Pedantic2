@@ -1,0 +1,113 @@
+{
+  "format": "pedantic-workflow-v1",
+  "metadata": {
+    "name": "Browser Node Test",
+    "description": "Simple workflow to test the browser node - visits a website and extracts content",
+    "tags": ["browser", "test", "playwright", "automation"],
+    "exportedAt": "2025-01-27T00:00:00.000Z",
+    "version": "1.0.0"
+  },
+  "workflow": {
+    "nodes": {
+      "start_1": {
+        "type": "start",
+        "title": "Start",
+        "position": { "x": 100, "y": 300 }
+      },
+      "python_prepare_url": {
+        "type": "python",
+        "title": "Prepare URL",
+        "code": "def run(input):\n    # Simple test URL - using httpbin.org which is a great testing service\n    # You can change this to any URL you want to test\n    return {\n        'url': 'https://httpbin.org/html',\n        'test_name': 'Browser Node Test'\n    }",
+        "position": { "x": 300, "y": 300 }
+      },
+      "browser_visit": {
+        "type": "browser",
+        "title": "Visit Website",
+        "config": {
+          "url": "{url}",
+          "headless": true,
+          "stealth_mode": false,
+          "wait_for": "network_idle",
+          "wait_selector": "",
+          "wait_timeout": 30000,
+          "output_formats": ["html", "screenshot", "json"],
+          "json_extraction": {
+            "method": "css",
+            "selectors": {
+              "title": "h1",
+              "paragraph": "p"
+            },
+            "ai_prompt": ""
+          },
+          "session_id": "test_session",
+          "viewport": {
+            "width": 1920,
+            "height": 1080
+          },
+          "user_agent": "default",
+          "custom_user_agent": "",
+          "timeout": 60000
+        },
+        "position": { "x": 500, "y": 300 }
+      },
+      "json_view_output": {
+        "type": "json",
+        "title": "View Browser Output",
+        "config": {
+          "content_key": "json, html"
+        },
+        "position": { "x": 700, "y": 300 }
+      },
+      "image_view_screenshot": {
+        "type": "image",
+        "title": "View Screenshot",
+        "config": {
+          "content_key": "screenshot"
+        },
+        "position": { "x": 700, "y": 500 }
+      },
+      "end_1": {
+        "type": "end",
+        "title": "End",
+        "position": { "x": 900, "y": 300 }
+      }
+    },
+    "connections": {
+      "conn_1": {
+        "source": "start_1",
+        "target": "python_prepare_url",
+        "sourceOutput": "output",
+        "targetInput": "input"
+      },
+      "conn_2": {
+        "source": "python_prepare_url",
+        "target": "browser_visit",
+        "sourceOutput": "output",
+        "targetInput": "input"
+      },
+      "conn_3": {
+        "source": "browser_visit",
+        "target": "json_view_output",
+        "sourceOutput": "output",
+        "targetInput": "input"
+      },
+      "conn_4": {
+        "source": "json_view_output",
+        "target": "end_1",
+        "sourceOutput": "output",
+        "targetInput": "input"
+      },
+      "conn_5": {
+        "source": "browser_visit",
+        "target": "image_view_screenshot",
+        "sourceOutput": "output",
+        "targetInput": "input"
+      }
+    },
+    "metadata": {
+      "nodeCount": 6,
+      "lastModified": "2025-01-27T00:00:00.000Z"
+    }
+  }
+}
+

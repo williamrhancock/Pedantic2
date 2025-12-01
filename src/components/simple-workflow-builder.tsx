@@ -11,18 +11,21 @@ import { SaveAsDialog } from '@/components/dialogs/SaveAsDialog'
 import { DbMaintenanceModal } from '@/components/dialogs/DbMaintenanceModal'
 import { LlmNodeDialog } from '@/components/dialogs/LlmNodeDialog'
 import { HttpNodeDialog } from '@/components/dialogs/HttpNodeDialog'
+import { BrowserNodeDialog } from '@/components/dialogs/BrowserNodeDialog'
 import { MarkdownViewerModal } from '@/components/dialogs/MarkdownViewerModal'
 import { HtmlViewerModal } from '@/components/dialogs/HtmlViewerModal'
 import { JsonViewerModal } from '@/components/dialogs/JsonViewerModal'
+import { ImageViewerModal } from '@/components/dialogs/ImageViewerModal'
 import { useTheme } from '@/contexts/ThemeContext'
 import type { NodeType } from '@/components/toolbar/ModernToolbar'
 import { workflowNodeToCustomData } from '@/lib/custom-nodes'
 import { createDefaultLlmConfig, normalizeLlmConfig, type LlmConfig } from '@/lib/llm'
 import type { HttpConfig } from '@/components/dialogs/HttpNodeDialog'
+import type { BrowserConfig } from '@/components/dialogs/BrowserNodeDialog'
 
 interface WorkflowNode {
   id: string
-  type: 'start' | 'end' | 'python' | 'typescript' | 'http' | 'file' | 'condition' | 'database' | 'llm' | 'foreach' | 'endloop' | 'markdown' | 'html' | 'json' | 'embedding'
+  type: 'start' | 'end' | 'python' | 'typescript' | 'http' | 'file' | 'condition' | 'database' | 'llm' | 'foreach' | 'endloop' | 'markdown' | 'html' | 'json' | 'embedding' | 'browser' | 'image'
   title: string
   description?: string
   code?: string
@@ -59,7 +62,7 @@ function WorkflowBrowser({ isOpen, onClose, onSelect }: WorkflowBrowserProps) {
   const [searchTerm, setSearchTerm] = useState('')
   const { isDark } = useTheme()
   const [workflowToDelete, setWorkflowToDelete] = useState<any | null>(null)
-
+  
   const { data: workflowsData, isLoading, refetch } = trpc.listWorkflows.useQuery({
     search: searchTerm,
     category: 'my-workflows',
@@ -91,7 +94,7 @@ function WorkflowBrowser({ isOpen, onClose, onSelect }: WorkflowBrowserProps) {
         className="glass-card p-6 w-full max-w-4xl max-h-[80vh] overflow-hidden flex flex-col"
       >
         <div className="flex justify-between items-center mb-4">
-          <h2 className="text-xl font-semibold text-foreground">Open Workflow</h2>
+            <h2 className="text-xl font-semibold text-foreground">Open Workflow</h2>
           <button
             onClick={onClose}
               className="p-2 rounded-lg hover:bg-white/10 transition-colors"
@@ -167,12 +170,12 @@ function WorkflowBrowser({ isOpen, onClose, onSelect }: WorkflowBrowserProps) {
                       </span>
                     ))}
                   </div>
-            <div className="text-xs text-muted-foreground">
+                    <div className="text-xs text-muted-foreground">
               Updated:{' '}
               {workflow.updated_at
                 ? new Date(`${workflow.updated_at}Z`).toLocaleString()
                 : 'unknown'}
-            </div>
+                  </div>
                 </div>
               ))}
             </div>
@@ -305,6 +308,10 @@ export function SimpleWorkflowBuilder() {
   const [showJsonViewer, setShowJsonViewer] = useState(false)
   const [jsonContent, setJsonContent] = useState('')
   const [jsonTitle, setJsonTitle] = useState('')
+  const [showImageViewer, setShowImageViewer] = useState(false)
+  const [imageContent, setImageContent] = useState<string | null>(null)
+  const [imageTitle, setImageTitle] = useState('')
+  const [imageType, setImageType] = useState<'base64' | 'file' | 'url' | 'data_uri' | undefined>(undefined)
   const [executionResults, setExecutionResults] = useState<Map<string, any>>(new Map())
   const canvasRef = useRef<WorkflowCanvasRef>(null)
 
@@ -327,13 +334,13 @@ export function SimpleWorkflowBuilder() {
         variables.name.toLowerCase() === 'untitled workflow'
       
       if (!isUntitled) {
-        setWorkflowMetadata(prev => ({
-          ...prev,
-          id: data.id,
+      setWorkflowMetadata(prev => ({
+        ...prev,
+        id: data.id,
           name: variables.name, // Update with the actual saved name
-          lastSaved: new Date()
-        }))
-        setHasUnsavedChanges(false)
+        lastSaved: new Date()
+      }))
+      setHasUnsavedChanges(false)
       }
     },
     onError: (error) => {
@@ -473,9 +480,9 @@ export function SimpleWorkflowBuilder() {
         return {
           id,
           type,
-          title: nodeData.title,
+        title: nodeData.title,
           description: nodeData.description,
-          code: nodeData.code,
+        code: nodeData.code,
           config,
           position: nodeData.position || { x: 100 + Math.random() * 200, y: 100 + Math.random() * 200 },
           customNodeId: nodeData.customNodeId,
@@ -723,11 +730,11 @@ export function SimpleWorkflowBuilder() {
                   ...entry,
                   status: finalStatus,
                   nodeTitle: `${nodeTitle} (${nodeResult.output.total} iterations)`,
-                  output: nodeResult.output,
-                  error: nodeResult.error,
-                  stdout: nodeResult.stdout,
-                  stderr: nodeResult.stderr,
-                  executionTime: nodeResult.execution_time,
+          output: nodeResult.output,
+          error: nodeResult.error,
+          stdout: nodeResult.stdout,
+          stderr: nodeResult.stderr,
+          executionTime: nodeResult.execution_time,
                   timestamp: forEachEndTimestamp,
                 }
               : entry
@@ -993,7 +1000,7 @@ export function SimpleWorkflowBuilder() {
       id: `${type}_${Date.now()}`,
       type,
       title: getNodeTitle(type),
-      position: {
+      position: { 
         x: defaultPosition.x,
         y: defaultPosition.y,
       }
@@ -1062,12 +1069,39 @@ export function SimpleWorkflowBuilder() {
       newNode.config = {
         content_key: 'content'
       }
+    } else if (type === 'image') {
+      newNode.config = {
+        content_key: 'screenshot'
+      }
     } else if (type === 'embedding') {
       newNode.config = {
         model: 'all-MiniLM-L6-v2',
         input_field: 'content',
         output_field: 'embedding',
         format: 'blob'
+      }
+    } else if (type === 'browser') {
+      newNode.config = {
+        url: 'https://example.com',
+        headless: true,
+        stealth_mode: false,
+        wait_for: 'none',
+        wait_selector: '',
+        wait_timeout: 30000,
+        output_formats: ['html'],
+        json_extraction: {
+          method: 'css',
+          selectors: {},
+          ai_prompt: ''
+        },
+        session_id: 'default',
+        viewport: {
+          width: 1920,
+          height: 1080
+        },
+        user_agent: 'default',
+        custom_user_agent: '',
+        timeout: 60000
       }
     }
 
@@ -1091,6 +1125,8 @@ export function SimpleWorkflowBuilder() {
       case 'markdown': return 'Markdown Viewer'
       case 'html': return 'HTML Viewer'
       case 'json': return 'JSON Viewer'
+      case 'image': return 'Image Viewer'
+      case 'browser': return 'Browser'
       default: return 'Unknown Node'
     }
   }
@@ -1122,7 +1158,7 @@ export function SimpleWorkflowBuilder() {
   const handleNodeClick = (nodeId: string) => {
     const node = nodes.find(n => n.id === nodeId)
     if (node) {
-      setSelectedNode(nodeId)
+    setSelectedNode(nodeId)
       // If it's a markdown node, show markdown viewer instead of editor
       if (node.type === 'markdown') {
         // Try to find markdown content from node's execution output
@@ -1299,12 +1335,75 @@ export function SimpleWorkflowBuilder() {
           setHtmlTitle(node.title)
         }
         setShowHtmlViewer(true)
+      } else if (node.type === 'image') {
+        // Try to find image content from node's execution output
+        let nodeResult = executionResults.get(nodeId)
+        
+        // If not found in executionResults, try to find it in timeline entries
+        if (!nodeResult || !nodeResult.output || !nodeResult.output.image_data) {
+          let timelineEntry = timelineEntries
+            .filter(e => e.nodeId === nodeId && !e.isForEachResult && e.output)
+            .sort((a, b) => b.timestamp.getTime() - a.timestamp.getTime())[0]
+          
+          if (timelineEntry && timelineEntry.output && timelineEntry.output.image_data) {
+            nodeResult = {
+              output: timelineEntry.output
+            }
+          }
+        }
+        
+        // Check for-each results
+        if (!nodeResult || !nodeResult.output || !nodeResult.output.image_data) {
+          const forEachResults = timelineEntries
+            .filter(e => e.isForEachResult && e.nodeId === nodeId && e.output)
+            .sort((a, b) => (b.forEachIteration ?? 0) - (a.forEachIteration ?? 0))
+          
+          if (forEachResults.length > 0 && forEachResults[0].output && forEachResults[0].output.image_data) {
+            nodeResult = {
+              output: forEachResults[0].output
+            }
+          }
+        }
+        
+        // Check executionResults for for-each nodes
+        if (!nodeResult || !nodeResult.output || !nodeResult.output.image_data) {
+          Array.from(executionResults.entries()).forEach(([resultNodeId, result]) => {
+            if (result.output && result.output.results && Array.isArray(result.output.results)) {
+              for (let i = result.output.results.length - 1; i >= 0; i--) {
+                const iteration = result.output.results[i]
+                if (iteration.node_executions && Array.isArray(iteration.node_executions)) {
+                  const imageExec = iteration.node_executions.find(
+                    (exec: any) => exec.node_id === nodeId && exec.output && exec.output.image_data
+                  )
+                  if (imageExec) {
+                    nodeResult = {
+                      output: imageExec.output
+                    }
+                    return
+                  }
+                }
+              }
+            }
+          })
+        }
+        
+        if (nodeResult && nodeResult.output && nodeResult.output.image_data) {
+          setImageContent(nodeResult.output.image_data)
+          setImageType(nodeResult.output.image_type)
+          const detectedKey = nodeResult.output.detected_key || 'auto-detected'
+          setImageTitle(`${node.title} (from ${detectedKey})`)
+        } else {
+          // Show placeholder if no execution results yet
+          setImageContent(null)
+          setImageTitle(node.title)
+        }
+        setShowImageViewer(true)
       } else if (node.type === 'json') {
         // Always open editor for JSON nodes
         // The editor will show a toggle button to switch between edit and view modes
         setShowEditorModal(true)
       } else {
-        setShowEditorModal(true)
+    setShowEditorModal(true)
       }
     }
   }
@@ -1388,10 +1487,10 @@ export function SimpleWorkflowBuilder() {
       const updatedNodes = nodes.map(node => {
         if (node.id === selectedNode) {
           const updated: WorkflowNode = { ...node }
-          if (code !== undefined) {
+      if (code !== undefined) {
             updated.code = code
-          }
-          if (config !== undefined) {
+      }
+      if (config !== undefined) {
             updated.config = config
           }
           if (skipDuringExecution !== undefined) {
@@ -1663,8 +1762,8 @@ export function SimpleWorkflowBuilder() {
         activeNodeType={activeNodeType}
         onNodeTypeClick={(type) => {
           if (!isLocked) {
-            setActiveNodeType(type)
-            addNode(type)
+          setActiveNodeType(type)
+          addNode(type)
           }
         }}
         isLocked={isLocked}
@@ -1745,13 +1844,13 @@ export function SimpleWorkflowBuilder() {
               markAsChanged()
             }}
           />
-        </div>
+            </div>
 
         {/* Execution Timeline */}
         <div className="w-80 border-l border-white/10 flex-shrink-0 h-full flex flex-col overflow-hidden">
           <ExecutionTimeline entries={timelineEntries} />
+          </div>
         </div>
-      </div>
 
       {/* Node Editor Modal */}
       {showEditorModal && selectedNodeData && selectedNodeData.type !== 'llm' && selectedNodeData.type !== 'http' && (
@@ -1911,6 +2010,29 @@ export function SimpleWorkflowBuilder() {
           nodeId={selectedNodeData.id}
           nodeTitle={selectedNodeData.title}
           rawConfig={selectedNodeData.config as HttpConfig | undefined}
+          onClose={() => {
+            setShowEditorModal(false)
+            setSelectedNode(null)
+          }}
+          onSave={(newConfig) => {
+            if (!selectedNode) return
+            const updatedNodes = nodes.map((node) =>
+              node.id === selectedNode ? { ...node, config: newConfig } : node
+            )
+            setNodes(updatedNodes)
+            markAsChanged()
+          }}
+        />
+      )}
+
+      {/* Browser Node Dialog */}
+      {showEditorModal && selectedNodeData && selectedNodeData.type === 'browser' && (
+        <BrowserNodeDialog
+          isOpen={showEditorModal}
+          isLocked={isLocked}
+          nodeId={selectedNodeData.id}
+          nodeTitle={selectedNodeData.title}
+          rawConfig={selectedNodeData.config as BrowserConfig | undefined}
           onClose={() => {
             setShowEditorModal(false)
             setSelectedNode(null)
@@ -2104,6 +2226,13 @@ export function SimpleWorkflowBuilder() {
         onClose={() => setShowJsonViewer(false)}
         title={jsonTitle}
         json={jsonContent}
+      />
+      <ImageViewerModal
+        isOpen={showImageViewer}
+        onClose={() => setShowImageViewer(false)}
+        title={imageTitle}
+        imageData={imageContent}
+        imageType={imageType}
       />
 
       {/* Workflow Delete Confirmation Dialog */}

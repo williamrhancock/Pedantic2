@@ -5,7 +5,7 @@ import Editor from '@monaco-editor/react'
 import { X, Trash2, Edit, Eye } from 'lucide-react'
 import { useTheme } from '@/contexts/ThemeContext'
 
-export type NodeType = 'start' | 'end' | 'python' | 'typescript' | 'http' | 'file' | 'condition' | 'database' | 'llm' | 'foreach' | 'endloop' | 'markdown' | 'html' | 'json' | 'embedding'
+export type NodeType = 'start' | 'end' | 'python' | 'typescript' | 'http' | 'file' | 'condition' | 'database' | 'llm' | 'foreach' | 'endloop' | 'markdown' | 'html' | 'json' | 'embedding' | 'browser' | 'image'
 
 interface NodeEditorModalProps {
   isOpen: boolean
@@ -380,12 +380,13 @@ export function NodeEditorModal({
                   {nodeType === 'markdown' && 'The markdown node automatically detects markdown content in any variable passed from upstream. It scans all variables and displays the first one containing markdown patterns (headers, lists, links, code blocks, etc.). Optionally specify a content_key to prioritize a specific variable.'}
                   {nodeType === 'html' && 'The HTML node automatically detects HTML content in any variable passed from upstream. It scans all variables and displays the first one containing HTML tags. Optionally specify a content_key to prioritize a specific variable.'}
                   {nodeType === 'json' && 'The JSON viewer automatically detects and formats JSON content in any variable passed from upstream. It scans all variables and displays the first one containing JSON objects or arrays. Optionally specify a content_key to prioritize a specific variable (supports nested paths like "output.data").'}
+                  {nodeType === 'image' && 'The image viewer automatically detects image data (base64, file paths, or URLs) in any variable passed from upstream. It scans all variables and displays the first one containing image data. Optionally specify a content_key to prioritize a specific variable (e.g., "screenshot" for browser node outputs).'}
                   {nodeType === 'embedding' && 'Configure embedding generation: model (default: all-MiniLM-L6-v2), input_field (field name to extract text from, default: content), output_field (field name for embedding output, default: embedding), format (blob for SQLite BLOB or array for JSON array, default: blob).'}
                 </p>
               </div>
             )}
 
-            {nodeType === 'json' && (
+            {(nodeType === 'json' || nodeType === 'image') && (
               <div className="mt-4">
                 <label className="text-sm font-semibold text-foreground mb-1 block">
                   Content Key (optional)
@@ -393,7 +394,7 @@ export function NodeEditorModal({
                 <input
                   type="text"
                   className="w-full px-3 py-2 rounded-lg bg-white/5 border border-white/10 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-purple-500"
-                  placeholder="data.userId, data.title (comma-separated for multiple keys)"
+                  placeholder={nodeType === 'image' ? 'screenshot, image_data (e.g., from browser node)' : 'data.userId, data.title (comma-separated for multiple keys)'}
                   value={(() => {
                     try {
                       const parsed = editedConfig ? JSON.parse(editedConfig) : {}
@@ -421,7 +422,9 @@ export function NodeEditorModal({
                   }}
                 />
                 <p className="text-xs text-muted-foreground mt-1">
-                  Specify key paths to extract (e.g., &quot;data.userId&quot; or &quot;data.userId, data.title&quot; for multiple keys). Separate multiple keys with commas. Leave empty to auto-detect.
+                  {nodeType === 'image' 
+                    ? 'Specify the key containing image data (e.g., "screenshot" for browser node outputs). Leave empty to auto-detect.'
+                    : 'Specify key paths to extract (e.g., "data.userId" or "data.userId, data.title" for multiple keys). Separate multiple keys with commas. Leave empty to auto-detect.'}
                 </p>
               </div>
             )}
