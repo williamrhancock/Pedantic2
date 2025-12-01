@@ -1783,6 +1783,11 @@ export function SimpleWorkflowBuilder() {
               console.log('JSON Viewer - Looking for execution results:', {
                 nodeId: selectedNodeData.id,
                 hasExecutionResults: !!nodeResult,
+                nodeResult: nodeResult,
+                nodeResultKeys: nodeResult ? Object.keys(nodeResult) : [],
+                hasOutput: !!(nodeResult?.output),
+                outputType: nodeResult?.output ? typeof nodeResult.output : 'none',
+                outputKeys: nodeResult?.output && typeof nodeResult.output === 'object' ? Object.keys(nodeResult.output) : [],
                 executionResultsSize: executionResults.size,
                 executionResultsKeys: Array.from(executionResults.keys()),
                 timelineEntriesCount: timelineEntries.length
@@ -1851,7 +1856,8 @@ export function SimpleWorkflowBuilder() {
                   hasViewerData: !!nodeResult.output._viewer_data,
                   hasViewerDataAlt: !!nodeResult.output.viewer_data,
                   outputType: typeof nodeResult.output,
-                  outputSample: JSON.stringify(nodeResult.output).substring(0, 200)
+                  outputSample: JSON.stringify(nodeResult.output).substring(0, 200),
+                  fullOutput: nodeResult.output
                 })
                 
                 // Check if output has _viewer_data (new structure from backend)
@@ -1892,7 +1898,12 @@ export function SimpleWorkflowBuilder() {
                   output: nodeResult.output
                 })
               }
-              console.log('JSON Viewer - No output found')
+              console.log('JSON Viewer - No output found', {
+                nodeResult: nodeResult,
+                hasNodeResult: !!nodeResult,
+                nodeResultType: typeof nodeResult,
+                nodeResultKeys: nodeResult ? Object.keys(nodeResult) : []
+              })
               return undefined
             }
             return undefined
