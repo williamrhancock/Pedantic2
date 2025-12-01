@@ -11,6 +11,7 @@ Why "Pedantic2"? Because the first one was *too* forgiving. This version nags yo
 **TL;DR**: Visual drag-and-drop for agents, code for the masochists, all offline. Deploy? Pfft, as if.
 
 **New in Latest Version**:
+- **Simple Docker Launch**: That is if you want to go that way. [Blamo!](#the-super-easy-way)
 - **Skip During Execution**: Mark any node to skip during workflow execution while preserving data flow
 - **EndLoop nodes**: Proper ForEach loop termination and data aggregation
 - **Auto-arrange**: Column-based layout (5 nodes per column) with special handling for ForEach loops
