@@ -12,20 +12,23 @@ import { DbMaintenanceModal } from '@/components/dialogs/DbMaintenanceModal'
 import { LlmNodeDialog } from '@/components/dialogs/LlmNodeDialog'
 import { HttpNodeDialog } from '@/components/dialogs/HttpNodeDialog'
 import { BrowserNodeDialog } from '@/components/dialogs/BrowserNodeDialog'
+import { OcrNodeDialog } from '@/components/dialogs/OcrNodeDialog'
 import { MarkdownViewerModal } from '@/components/dialogs/MarkdownViewerModal'
 import { HtmlViewerModal } from '@/components/dialogs/HtmlViewerModal'
 import { JsonViewerModal } from '@/components/dialogs/JsonViewerModal'
 import { ImageViewerModal } from '@/components/dialogs/ImageViewerModal'
+import { OcrViewerModal } from '@/components/dialogs/OcrViewerModal'
 import { useTheme } from '@/contexts/ThemeContext'
 import type { NodeType } from '@/components/toolbar/ModernToolbar'
 import { workflowNodeToCustomData } from '@/lib/custom-nodes'
 import { createDefaultLlmConfig, normalizeLlmConfig, type LlmConfig } from '@/lib/llm'
 import type { HttpConfig } from '@/components/dialogs/HttpNodeDialog'
 import type { BrowserConfig } from '@/components/dialogs/BrowserNodeDialog'
+import type { OcrConfig } from '@/components/dialogs/OcrNodeDialog'
 
 interface WorkflowNode {
   id: string
-  type: 'start' | 'end' | 'python' | 'typescript' | 'http' | 'file' | 'condition' | 'database' | 'llm' | 'foreach' | 'endloop' | 'markdown' | 'html' | 'json' | 'embedding' | 'browser' | 'image'
+  type: 'start' | 'end' | 'python' | 'typescript' | 'http' | 'file' | 'condition' | 'database' | 'llm' | 'foreach' | 'endloop' | 'markdown' | 'html' | 'json' | 'embedding' | 'browser' | 'image' | 'ocr'
   title: string
   description?: string
   code?: string
@@ -36,6 +39,8 @@ interface WorkflowNode {
   customNodeId?: number
   customNodeName?: string
   skipDuringExecution?: boolean
+  executionStartTime?: number // Timestamp when execution started
+  executionDuration?: number // Duration in seconds
 }
 
 interface Connection {
@@ -279,6 +284,8 @@ export function SimpleWorkflowBuilder() {
   const [showEditorModal, setShowEditorModal] = useState(false)
   const [isLocked, setIsLocked] = useState(false)
   const [showMarkdownViewer, setShowMarkdownViewer] = useState(false)
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false)
+  const [nodeToDelete, setNodeToDelete] = useState<string | null>(null)
   const [markdownContent, setMarkdownContent] = useState('')
   const [markdownTitle, setMarkdownTitle] = useState('')
   const [showHtmlViewer, setShowHtmlViewer] = useState(false)
@@ -291,6 +298,10 @@ export function SimpleWorkflowBuilder() {
   const [imageContent, setImageContent] = useState<string | null>(null)
   const [imageTitle, setImageTitle] = useState('')
   const [imageType, setImageType] = useState<'base64' | 'file' | 'url' | 'data_uri' | undefined>(undefined)
+  const [showOcrViewer, setShowOcrViewer] = useState(false)
+  const [ocrContent, setOcrContent] = useState('')
+  const [ocrTitle, setOcrTitle] = useState('')
+  const [ocrMetadata, setOcrMetadata] = useState<{ confidence?: number; language?: string; wordCount?: number }>({})
   const [executionResults, setExecutionResults] = useState<Map<string, any>>(new Map())
   const canvasRef = useRef<WorkflowCanvasRef>(null)
 
@@ -642,6 +653,13 @@ export function SimpleWorkflowBuilder() {
       // Clear previous execution timeline
       const workflowStartTime = Date.now()
       setTimelineEntries([])
+      
+      // Update start node with start time
+      setNodes(prev => prev.map(n => 
+        n.type === 'start'
+          ? { ...n, executionStartTime: workflowStartTime, executionDuration: undefined }
+          : { ...n, executionStartTime: undefined, executionDuration: undefined }
+      ))
 
       const result = await executeWorkflowMutation.mutateAsync({
         workflow: workflowData
@@ -670,9 +688,27 @@ export function SimpleWorkflowBuilder() {
         const nodeType = node?.type || ''
         const isForEachNode = node?.type === 'foreach'
         
-        // Skip Start and End nodes - they're control nodes, not executable
-        if (nodeType === 'start' || nodeType === 'end') {
-          // Still update node outputs for data flow, but don't show in timeline
+        // Handle Start and End nodes - they're control nodes, mark as success immediately
+        if (nodeType === 'start') {
+          // Update start node with start time display
+          const startTime = new Date(workflowStartTime).toLocaleTimeString()
+          setNodes(prev => prev.map(n => 
+            n.id === nodeResult.id
+              ? { ...n, isExecuting: false, executionStatus: 'success', title: `Started: ${startTime}` }
+              : n
+          ))
+          // Skip timeline entry for start node
+          continue
+        }
+        
+        if (nodeType === 'end') {
+          // Update end node status (duration will be set after all nodes are processed)
+          setNodes(prev => prev.map(n => 
+            n.id === nodeResult.id
+              ? { ...n, isExecuting: false, executionStatus: 'success' }
+              : n
+          ))
+          // Skip timeline entry for end node
           continue
         }
 
@@ -942,6 +978,20 @@ export function SimpleWorkflowBuilder() {
         }
         
         setTimelineEntries(prev => [...prev, summaryEntry])
+        
+        // Update end node with completion duration (after total time is calculated)
+        const durationSeconds = totalTime
+        const durationMinutes = Math.floor(durationSeconds / 60)
+        const remainingSeconds = (durationSeconds % 60).toFixed(1)
+        const durationText = durationMinutes > 0 
+          ? `${durationMinutes}m ${remainingSeconds}s`
+          : `${remainingSeconds}s`
+        
+        setNodes(prev => prev.map(n => 
+          n.type === 'end'
+            ? { ...n, executionDuration: durationSeconds, title: `Completed: ${durationText}` }
+            : n
+        ))
       }
 
       // Confetti on success
@@ -970,6 +1020,19 @@ export function SimpleWorkflowBuilder() {
       }])
     } finally {
       setIsExecuting(false)
+      
+      // Reset start/end node titles after a delay (so user can see the completion message)
+      setTimeout(() => {
+        setNodes(prev => prev.map(n => {
+          if (n.type === 'start') {
+            return { ...n, title: 'Start', executionStartTime: undefined }
+          }
+          if (n.type === 'end') {
+            return { ...n, title: 'End', executionDuration: undefined }
+          }
+          return n
+        }))
+      }, 5000) // Reset after 5 seconds
     }
   }
 
@@ -1055,6 +1118,12 @@ export function SimpleWorkflowBuilder() {
       newNode.config = {
         content_key: 'screenshot'
       }
+    } else if (type === 'ocr') {
+      newNode.config = {
+        content_key: 'screenshot',
+        language: 'eng',
+        psm: 6
+      }
     } else if (type === 'embedding') {
       newNode.config = {
         model: 'all-MiniLM-L6-v2',
@@ -1106,10 +1175,11 @@ export function SimpleWorkflowBuilder() {
       case 'embedding': return 'Embedding'
       case 'markdown': return 'Markdown Viewer'
       case 'html': return 'HTML Viewer'
-      case 'json': return 'JSON Viewer'
-      case 'image': return 'Image Viewer'
-      case 'browser': return 'Browser'
-      default: return 'Unknown Node'
+    case 'json': return 'JSON Viewer'
+    case 'image': return 'Image Viewer'
+    case 'ocr': return 'OCR'
+    case 'browser': return 'Browser'
+    default: return 'Unknown Node'
     }
   }
 
@@ -1380,6 +1450,54 @@ export function SimpleWorkflowBuilder() {
           setImageTitle(node.title)
         }
         setShowImageViewer(true)
+      } else if (node.type === 'ocr') {
+        // Try to find OCR content from node's execution output
+        let nodeResult = executionResults.get(nodeId)
+        
+        // If not found in executionResults, try to find it in timeline entries
+        if (!nodeResult || !nodeResult.output || !nodeResult.output.text) {
+          let timelineEntry = timelineEntries
+            .filter(e => e.nodeId === nodeId && !e.isForEachResult && e.output)
+            .sort((a, b) => b.timestamp.getTime() - a.timestamp.getTime())[0]
+          
+          if (timelineEntry && timelineEntry.output && timelineEntry.output.text) {
+            nodeResult = {
+              output: timelineEntry.output
+            }
+          }
+        }
+        
+        // Check for-each results
+        if (!nodeResult || !nodeResult.output || !nodeResult.output.text) {
+          const forEachResults = timelineEntries
+            .filter(e => e.isForEachResult && e.nodeId === nodeId && e.output)
+            .sort((a, b) => (b.forEachIteration ?? 0) - (a.forEachIteration ?? 0))
+          
+          if (forEachResults.length > 0) {
+            const lastIteration = forEachResults[0]
+            if (lastIteration.output && lastIteration.output.text) {
+              nodeResult = {
+                output: lastIteration.output
+              }
+            }
+          }
+        }
+        
+        if (nodeResult && nodeResult.output && nodeResult.output.text) {
+          setOcrContent(nodeResult.output.text || '')
+          setOcrMetadata({
+            confidence: nodeResult.output.confidence,
+            language: nodeResult.output.language,
+            wordCount: nodeResult.output.word_count
+          })
+          setOcrTitle(node.title)
+        } else {
+          // Show placeholder if no execution results yet
+          setOcrContent('No OCR text extracted yet. Run the workflow to extract text from images.')
+          setOcrMetadata({})
+          setOcrTitle(node.title)
+        }
+        setShowOcrViewer(true)
       } else if (node.type === 'json') {
         // Always open editor for JSON nodes
         // The editor will show a toggle button to switch between edit and view modes
@@ -1609,31 +1727,50 @@ export function SimpleWorkflowBuilder() {
     }
   }
 
-  const handleNodeDelete = () => {
-    if (!selectedNode) return
-
-    const nodeToDelete = nodes.find(n => n.id === selectedNode)
-    if (!nodeToDelete) return
+  const handleNodeDeleteRequest = (nodeId: string) => {
+    const node = nodes.find(n => n.id === nodeId)
+    if (!node) return
 
     // Prevent deleting start or end nodes
-    if (nodeToDelete.type === 'start' || nodeToDelete.type === 'end') {
-      // Start/End nodes are visually differentiated and not deletable; just ignore.
+    if (node.type === 'start' || node.type === 'end') {
+      return
+    }
+
+    setNodeToDelete(nodeId)
+    setShowDeleteConfirm(true)
+  }
+
+  const handleNodeDelete = () => {
+    if (!nodeToDelete) return
+
+    const node = nodes.find(n => n.id === nodeToDelete)
+    if (!node) return
+
+    // Prevent deleting start or end nodes
+    if (node.type === 'start' || node.type === 'end') {
       return
     }
 
     // Remove the node
-    const updatedNodes = nodes.filter(node => node.id !== selectedNode)
+    const updatedNodes = nodes.filter(node => node.id !== nodeToDelete)
     
     // Remove all connections to/from this node
     const updatedConnections = connections.filter(
-      conn => conn.from !== selectedNode && conn.to !== selectedNode
+      conn => conn.from !== nodeToDelete && conn.to !== nodeToDelete
     )
 
     setNodes(updatedNodes)
     setConnections(updatedConnections)
     setSelectedNode(null)
     setShowEditorModal(false)
+    setShowDeleteConfirm(false)
+    setNodeToDelete(null)
     markAsChanged()
+  }
+
+  const handleCancelDelete = () => {
+    setShowDeleteConfirm(false)
+    setNodeToDelete(null)
   }
 
   const selectedNodeData = nodes.find(n => n.id === selectedNode)
@@ -1793,6 +1930,7 @@ export function SimpleWorkflowBuilder() {
             nodes={nodes}
             connections={connections}
             onNodeClick={handleNodeClick}
+            onNodeDelete={handleNodeDeleteRequest}
             isExecuting={isExecuting}
             nodesDraggable={!isLocked}
             isLocked={isLocked}
@@ -2030,6 +2168,29 @@ export function SimpleWorkflowBuilder() {
         />
       )}
 
+      {/* OCR Node Dialog */}
+      {showEditorModal && selectedNodeData && selectedNodeData.type === 'ocr' && (
+        <OcrNodeDialog
+          isOpen={showEditorModal}
+          isLocked={isLocked}
+          nodeId={selectedNodeData.id}
+          nodeTitle={selectedNodeData.title}
+          rawConfig={selectedNodeData.config as OcrConfig | undefined}
+          onClose={() => {
+            setShowEditorModal(false)
+            setSelectedNode(null)
+          }}
+          onSave={(newConfig) => {
+            if (!selectedNode) return
+            const updatedNodes = nodes.map((node) =>
+              node.id === selectedNode ? { ...node, config: newConfig } : node
+            )
+            setNodes(updatedNodes)
+            markAsChanged()
+          }}
+        />
+      )}
+
       {/* Workflow Browser */}
       <WorkflowBrowser
         isOpen={showWorkflowBrowser}
@@ -2182,6 +2343,46 @@ export function SimpleWorkflowBuilder() {
         </>
       )}
 
+      {/* Delete Node Confirmation Dialog */}
+      {showDeleteConfirm && nodeToDelete && (
+        <>
+          <div
+            className="fixed inset-0 z-[60] backdrop-blur-md bg-black/70"
+            onClick={handleCancelDelete}
+          />
+          <div
+            className="fixed inset-0 z-[60] flex items-center justify-center p-4"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div
+              className="glass-card p-6 w-full max-w-md"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <h3 className="text-xl font-semibold text-foreground mb-2">
+                Delete Node?
+              </h3>
+              <p className="text-sm text-muted-foreground mb-6">
+                Are you sure you want to delete &quot;{nodes.find(n => n.id === nodeToDelete)?.title || 'this node'}&quot;? This will also remove all connections to and from this node. This action cannot be undone.
+              </p>
+              <div className="flex items-center justify-end gap-3">
+                <button
+                  onClick={handleCancelDelete}
+                  className="px-4 py-2 rounded-lg bg-white/5 hover:bg-white/10 transition-all hover:scale-105 active:scale-95"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={handleNodeDelete}
+                  className="px-6 py-2 rounded-lg bg-gradient-to-r from-red-500 to-red-600 text-white font-medium shadow-lg hover:scale-105 active:scale-95 transition-all"
+                >
+                  Delete
+                </button>
+              </div>
+            </div>
+          </div>
+        </>
+      )}
+
       {/* Database Maintenance Modal */}
       <DbMaintenanceModal
         isOpen={showDbMaintenance}
@@ -2215,6 +2416,15 @@ export function SimpleWorkflowBuilder() {
         title={imageTitle}
         imageData={imageContent}
         imageType={imageType}
+      />
+      <OcrViewerModal
+        isOpen={showOcrViewer}
+        onClose={() => setShowOcrViewer(false)}
+        title={ocrTitle}
+        text={ocrContent}
+        confidence={ocrMetadata.confidence}
+        language={ocrMetadata.language}
+        wordCount={ocrMetadata.wordCount}
       />
 
       {/* Workflow Delete Confirmation Dialog */}

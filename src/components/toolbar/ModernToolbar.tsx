@@ -23,7 +23,7 @@ import {
 } from 'lucide-react'
 import type { CustomNodeTemplate } from '@/lib/custom-nodes'
 
-export type NodeType = 'python' | 'typescript' | 'http' | 'file' | 'condition' | 'database' | 'llm' | 'foreach' | 'endloop' | 'markdown' | 'html' | 'json' | 'embedding' | 'browser' | 'image'
+export type NodeType = 'python' | 'typescript' | 'http' | 'file' | 'condition' | 'database' | 'llm' | 'foreach' | 'endloop' | 'markdown' | 'html' | 'json' | 'embedding' | 'browser' | 'image' | 'ocr'
 
 interface ModernToolbarProps {
   activeNodeType?: NodeType | null
@@ -61,6 +61,7 @@ const nodeTypes: { type: NodeType; label: string; color: string }[] = [
   { type: 'html', label: 'HTML', color: 'from-teal-500 to-teal-600' },
   { type: 'json', label: 'JSON', color: 'from-slate-500 to-slate-600' },
   { type: 'image', label: 'Image', color: 'from-rose-500 to-rose-600' },
+  { type: 'ocr', label: 'OCR', color: 'from-fuchsia-500 to-fuchsia-600' },
   { type: 'browser', label: 'Browser', color: 'from-emerald-500 to-emerald-600' },
 ]
 
@@ -108,6 +109,7 @@ const nodeGroups = [
       { type: 'html' as NodeType, label: 'HTML Viewer' },
       { type: 'json' as NodeType, label: 'JSON Viewer' },
       { type: 'image' as NodeType, label: 'Image Viewer' },
+      { type: 'ocr' as NodeType, label: 'OCR' },
     ],
   },
 ]

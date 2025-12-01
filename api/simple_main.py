@@ -1316,13 +1316,13 @@ async def execute_embedding_node(config: Dict[str, Any], input_data: Any) -> Dic
             try:
                 from sentence_transformers import SentenceTransformer
                 _embedding_model_cache[model_name] = SentenceTransformer(model_name)
-            except ImportError:
+            except ImportError as e:
                 return {
                     'status': 'error',
-                    'error': 'sentence-transformers not installed. Install with: pip install sentence-transformers',
+                    'error': f'sentence-transformers not installed or incompatible version. Install/upgrade with: pip install --upgrade sentence-transformers. Error: {str(e)}',
                     'output': None,
                     'stdout': '',
-                    'stderr': 'sentence-transformers module not found',
+                    'stderr': f'sentence-transformers module not found or import error: {str(e)}',
                     'execution_time': 0.0
                 }
             except Exception as e:
@@ -2129,6 +2129,193 @@ async def execute_image_viewer(config: Dict[str, Any], input_data: Any) -> Dict[
             'execution_time': 0.0
         }
 
+async def execute_ocr_node(config: Dict[str, Any], input_data: Any) -> Dict[str, Any]:
+    """Execute OCR node - extract text from images using Tesseract OCR"""
+    try:
+        import base64
+        import io
+        from pathlib import Path
+        from PIL import Image
+        import pytesseract
+        
+        content_key = config.get('content_key', '')
+        language = config.get('language', 'eng')  # Default to English
+        psm = config.get('psm', 6)  # Page segmentation mode (6 = uniform block of text)
+        
+        # Helper functions from image_viewer to detect and load images
+        def is_base64_image(text: str) -> bool:
+            if not isinstance(text, str) or len(text.strip()) == 0:
+                return False
+            if text.strip().startswith('data:image/'):
+                return True
+            text_stripped = text.strip()
+            if len(text_stripped) > 100:
+                try:
+                    decoded = base64.b64decode(text_stripped, validate=True)
+                    if len(decoded) > 4:
+                        magic_bytes = decoded[:4]
+                        if (magic_bytes[0:4] == b'\x89PNG' or
+                            magic_bytes[0:2] == b'\xFF\xD8' or
+                            magic_bytes[0:4] == b'GIF8' or
+                            decoded[0:4] == b'RIFF' and b'WEBP' in decoded[0:20]):
+                            return True
+                except:
+                    pass
+            return False
+        
+        def get_nested_value(obj: Any, key_path: str) -> Any:
+            if not key_path or not isinstance(obj, dict):
+                return None
+            keys = key_path.split('.')
+            current = obj
+            for key in keys:
+                if isinstance(current, dict) and key in current:
+                    current = current[key]
+                else:
+                    return None
+            return current
+        
+        # Find image data
+        image_data = None
+        image_bytes = None
+        
+        # Priority 1: Check specified content_key
+        if content_key and isinstance(input_data, dict):
+            candidate = get_nested_value(input_data, content_key)
+            if candidate:
+                image_data = str(candidate) if not isinstance(candidate, str) else candidate
+        else:
+            # Priority 2: Auto-detect in common fields
+            if isinstance(input_data, dict):
+                common_keys = ['screenshot', 'screenshot_path', 'image', 'image_data', 'image_url', 'photo', 'picture', 'img']
+                for key in common_keys:
+                    if key in input_data:
+                        candidate = input_data[key]
+                        candidate_str = str(candidate) if not isinstance(candidate, str) else candidate
+                        if is_base64_image(candidate_str) or candidate_str.strip().startswith('data:image/'):
+                            image_data = candidate_str
+                            break
+                        elif isinstance(candidate_str, str) and Path(candidate_str).exists():
+                            # File path
+                            try:
+                                with open(candidate_str, 'rb') as f:
+                                    image_bytes = f.read()
+                                break
+                            except:
+                                pass
+        
+        # Convert image_data to bytes if needed
+        if image_data and not image_bytes:
+            if image_data.startswith('data:image/'):
+                # Extract base64 from data URI
+                base64_data = image_data.split(',', 1)[1]
+                image_bytes = base64.b64decode(base64_data)
+            elif is_base64_image(image_data):
+                image_bytes = base64.b64decode(image_data.strip())
+        
+        if not image_bytes:
+            return {
+                'status': 'error',
+                'error': 'OCR node: No image data found',
+                'output': {
+                    'text': '',
+                    'confidence': 0,
+                    'language': language,
+                    'error': 'No image data found in input'
+                },
+                'stdout': '',
+                'stderr': 'No image data found. Provide screenshot, image, or image_data in input.',
+                'execution_time': 0.0
+            }
+        
+        # Load image with PIL
+        try:
+            image = Image.open(io.BytesIO(image_bytes))
+        except Exception as e:
+            return {
+                'status': 'error',
+                'error': f'OCR node: Failed to load image: {str(e)}',
+                'output': {
+                    'text': '',
+                    'confidence': 0,
+                    'language': language,
+                    'error': f'Failed to load image: {str(e)}'
+                },
+                'stdout': '',
+                'stderr': str(e),
+                'execution_time': 0.0
+            }
+        
+        # Perform OCR
+        try:
+            # Configure Tesseract
+            custom_config = f'--psm {psm} -l {language}'
+            
+            # Extract text
+            extracted_text = pytesseract.image_to_string(image, config=custom_config)
+            
+            # Get confidence data (if available)
+            try:
+                data = pytesseract.image_to_data(image, config=custom_config, output_type=pytesseract.Output.DICT)
+                confidences = [int(conf) for conf in data['conf'] if int(conf) > 0]
+                avg_confidence = sum(confidences) / len(confidences) if confidences else 0
+            except:
+                avg_confidence = 0
+            
+            return {
+                'status': 'success',
+                'output': {
+                    'text': extracted_text.strip(),
+                    'confidence': round(avg_confidence, 2),
+                    'language': language,
+                    'psm': psm,
+                    'word_count': len(extracted_text.split())
+                },
+                'stdout': f'OCR extracted {len(extracted_text.split())} words with {avg_confidence:.1f}% average confidence',
+                'stderr': '',
+                'execution_time': 0.0
+            }
+        except Exception as e:
+            return {
+                'status': 'error',
+                'error': f'OCR node: Tesseract OCR failed: {str(e)}',
+                'output': {
+                    'text': '',
+                    'confidence': 0,
+                    'language': language,
+                    'error': f'Tesseract OCR failed: {str(e)}'
+                },
+                'stdout': '',
+                'stderr': f'Tesseract OCR error: {str(e)}. Make sure Tesseract is installed: brew install tesseract (macOS) or sudo apt-get install tesseract-ocr (Linux)',
+                'execution_time': 0.0
+            }
+    except ImportError as e:
+        return {
+            'status': 'error',
+            'error': f'OCR node: Missing dependencies: {str(e)}',
+            'output': {
+                'text': '',
+                'confidence': 0,
+                'error': f'Missing dependencies: {str(e)}'
+            },
+            'stdout': '',
+            'stderr': f'Install OCR dependencies: pip install pytesseract Pillow. Also install Tesseract OCR system package.',
+            'execution_time': 0.0
+        }
+    except Exception as e:
+        return {
+            'status': 'error',
+            'error': f'OCR node failed: {str(e)}',
+            'output': {
+                'text': '',
+                'confidence': 0,
+                'error': str(e)
+            },
+            'stdout': '',
+            'stderr': str(e),
+            'execution_time': 0.0
+        }
+
 async def execute_browser_node(config: Dict[str, Any], input_data: Any, node_outputs_ref: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
     """Execute browser automation using Playwright"""
     try:
@@ -2205,159 +2392,205 @@ async def execute_browser_node(config: Dict[str, Any], input_data: Any, node_out
         ]
         
         async with async_playwright() as p:
-            # Launch browser
-            browser = await p.chromium.launch(headless=headless)
+            # Launch browser with fallback options
+            # Try Chromium first, fall back to Firefox, then WebKit if Chromium crashes
+            browser = None
+            context = None
+            browser_type = 'chromium'
+            launch_error = None
             
-            # Configure context options
-            context_options = {
-                'viewport': {'width': viewport_width, 'height': viewport_height},
-                'user_agent': custom_user_agent if user_agent_type == 'custom' and custom_user_agent else (random.choice(user_agents) if stealth_mode else None),
-            }
+            # Try Chromium first
+            try:
+                browser = await p.chromium.launch(
+                    headless=headless,
+                    args=['--disable-blink-features=AutomationControlled'] if stealth_mode else []
+                )
+                browser_type = 'chromium'
+            except Exception as e:
+                launch_error = str(e)
+                print(f"Chromium launch failed: {e}, trying Firefox...")
+                # Fallback to Firefox
+                try:
+                    browser = await p.firefox.launch(headless=headless)
+                    browser_type = 'firefox'
+                    print("Using Firefox as fallback")
+                except Exception as e2:
+                    launch_error = f"Chromium: {launch_error}, Firefox: {str(e2)}"
+                    print(f"Firefox launch failed: {e2}, trying WebKit...")
+                    # Fallback to WebKit
+                    try:
+                        browser = await p.webkit.launch(headless=headless)
+                        browser_type = 'webkit'
+                        print("Using WebKit as fallback")
+                    except Exception as e3:
+                        return {
+                            'status': 'error',
+                            'error': f'All browsers failed to launch. Chromium: {launch_error}, Firefox: {str(e2)}, WebKit: {str(e3)}',
+                            'output': None,
+                            'stdout': '',
+                            'stderr': f'Browser launch failures:\nChromium: {launch_error}\nFirefox: {str(e2)}\nWebKit: {str(e3)}\n\nTry: playwright install --force chromium firefox webkit'
+                            }
             
-            # Add stealth mode headers
-            if stealth_mode:
-                context_options['extra_http_headers'] = {
-                    'Accept-Language': 'en-US,en;q=0.9',
-                    'Accept-Encoding': 'gzip, deflate, br',
-                    'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
-                    'Connection': 'keep-alive',
-                    'Upgrade-Insecure-Requests': '1',
+            if not browser:
+                return {
+                    'status': 'error',
+                    'error': 'Failed to launch any browser',
+                    'output': None,
+                    'stdout': '',
+                    'stderr': 'Could not launch Chromium, Firefox, or WebKit. Try: playwright install --force'
                 }
             
-            # Create browser context
-            context = await browser.new_context(**context_options)
-            
-            # Load cookies if session exists
-            if cookies_file.exists():
-                try:
-                    async with aiofiles.open(cookies_file, 'r') as f:
-                        cookies_data = await f.read()
-                        cookies = json.loads(cookies_data)
-                        await context.add_cookies(cookies)
-                except Exception as e:
-                    print(f"Warning: Failed to load cookies: {e}")
-            
-            # Create page
-            page = await context.new_page()
-            
-            # Stealth mode: inject scripts to hide automation
-            if stealth_mode:
-                await page.add_init_script("""
-                    Object.defineProperty(navigator, 'webdriver', {
-                        get: () => undefined
-                    });
-                    window.chrome = {
-                        runtime: {}
-                    };
-                    Object.defineProperty(navigator, 'plugins', {
-                        get: () => [1, 2, 3, 4, 5]
-                    });
-                    Object.defineProperty(navigator, 'languages', {
-                        get: () => ['en-US', 'en']
-                    });
-                """)
-            
-            # Navigate to URL
-            await page.goto(processed_url, wait_until='domcontentloaded', timeout=timeout)
-            
-            # Wait conditions
-            if wait_for in ('selector', 'both'):
-                if wait_selector:
+            try:
+                # Configure context options
+                context_options = {
+                    'viewport': {'width': viewport_width, 'height': viewport_height},
+                    'user_agent': custom_user_agent if user_agent_type == 'custom' and custom_user_agent else (random.choice(user_agents) if stealth_mode else None),
+                }
+                
+                # Add stealth mode headers
+                if stealth_mode:
+                    context_options['extra_http_headers'] = {
+                        'Accept-Language': 'en-US,en;q=0.9',
+                        'Accept-Encoding': 'gzip, deflate, br',
+                        'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
+                        'Connection': 'keep-alive',
+                        'Upgrade-Insecure-Requests': '1',
+                    }
+                
+                # Create browser context
+                context = await browser.new_context(**context_options)
+                
+                # Load cookies if session exists
+                if cookies_file.exists():
                     try:
-                        await page.wait_for_selector(wait_selector, timeout=wait_timeout)
+                        async with aiofiles.open(cookies_file, 'r') as f:
+                            cookies_data = await f.read()
+                            cookies = json.loads(cookies_data)
+                            await context.add_cookies(cookies)
                     except Exception as e:
-                        print(f"Warning: Selector wait failed: {e}")
-            
-            if wait_for in ('network_idle', 'both'):
-                try:
-                    await page.wait_for_load_state('networkidle', timeout=wait_timeout)
-                except Exception as e:
-                    print(f"Warning: Network idle wait failed: {e}")
-            
-            # Collect outputs
-            output_data = {}
-            
-            # HTML output
-            if 'html' in output_formats:
-                html_content = await page.content()
-                output_data['html'] = html_content
-            
-            # Screenshot output
-            if 'screenshot' in output_formats:
-                screenshot_bytes = await page.screenshot(full_page=True)
-                screenshot_base64 = base64.b64encode(screenshot_bytes).decode('utf-8')
-                output_data['screenshot'] = screenshot_base64
-                # Also save to file
-                screenshot_path = session_dir / f'screenshot_{int(time.time())}.png'
-                async with aiofiles.open(screenshot_path, 'wb') as f:
-                    await f.write(screenshot_bytes)
-                output_data['screenshot_path'] = str(screenshot_path)
-            
-            # PDF output
-            if 'pdf' in output_formats:
-                pdf_bytes = await page.pdf(format='A4')
-                pdf_base64 = base64.b64encode(pdf_bytes).decode('utf-8')
-                output_data['pdf'] = pdf_base64
-                # Also save to file
-                pdf_path = session_dir / f'page_{int(time.time())}.pdf'
-                async with aiofiles.open(pdf_path, 'wb') as f:
-                    await f.write(pdf_bytes)
-                output_data['pdf_path'] = str(pdf_path)
-            
-            # JSON extraction
-            if 'json' in output_formats:
-                extraction_method = json_extraction.get('method', 'css')
+                        print(f"Warning: Failed to load cookies: {e}")
                 
-                if extraction_method == 'css':
-                    # CSS selector extraction
-                    selectors = json_extraction.get('selectors', {})
-                    extracted_data = {}
-                    
-                    for key, selector in selectors.items():
+                # Create page
+                page = await context.new_page()
+                
+                # Stealth mode: inject scripts to hide automation
+                if stealth_mode:
+                    await page.add_init_script("""
+                        Object.defineProperty(navigator, 'webdriver', {
+                            get: () => undefined
+                        });
+                        window.chrome = {
+                            runtime: {}
+                        };
+                        Object.defineProperty(navigator, 'plugins', {
+                            get: () => [1, 2, 3, 4, 5]
+                        });
+                        Object.defineProperty(navigator, 'languages', {
+                            get: () => ['en-US', 'en']
+                        });
+                    """)
+                
+                # Navigate to URL
+                await page.goto(processed_url, wait_until='domcontentloaded', timeout=timeout)
+                
+                # Wait conditions
+                if wait_for in ('selector', 'both'):
+                    if wait_selector:
                         try:
-                            elements = await page.query_selector_all(selector)
-                            if len(elements) == 1:
-                                # Single element - get text or attribute
-                                text = await elements[0].inner_text()
-                                extracted_data[key] = text.strip()
-                            elif len(elements) > 1:
-                                # Multiple elements - get all texts
-                                texts = []
-                                for elem in elements:
-                                    text = await elem.inner_text()
-                                    texts.append(text.strip())
-                                extracted_data[key] = texts
-                            else:
-                                extracted_data[key] = None
+                            await page.wait_for_selector(wait_selector, timeout=wait_timeout)
                         except Exception as e:
-                            print(f"Warning: Selector '{selector}' failed: {e}")
-                            extracted_data[key] = None
-                    
-                    output_data['json'] = extracted_data
+                            print(f"Warning: Selector wait failed: {e}")
                 
-                elif extraction_method == 'ai':
-                    # AI-assisted extraction
-                    ai_prompt = json_extraction.get('ai_prompt', '')
+                if wait_for in ('network_idle', 'both'):
+                    try:
+                        await page.wait_for_load_state('networkidle', timeout=wait_timeout)
+                    except Exception as e:
+                        print(f"Warning: Network idle wait failed: {e}")
+                
+                # Collect outputs
+                output_data = {}
+                
+                # HTML output
+                if 'html' in output_formats:
                     html_content = await page.content()
-                    
-                    # Check if input_data contains LLM output from upstream node
-                    llm_content = None
-                    if isinstance(input_data, dict):
-                        # Check for LLM node output structure
-                        if 'content' in input_data:
-                            llm_content = input_data['content']
-                        elif isinstance(input_data.get('output'), dict) and 'content' in input_data.get('output', {}):
-                            llm_content = input_data['output']['content']
-                    
-                    # Construct extraction prompt
-                    if ai_prompt:
-                        # Replace placeholders in ai_prompt with LLM content if available
-                        extraction_prompt = ai_prompt
-                        if llm_content:
-                            extraction_prompt = extraction_prompt.replace('{llm_output}', llm_content)
+                    output_data['html'] = html_content
+                
+                # Screenshot output
+                if 'screenshot' in output_formats:
+                    screenshot_bytes = await page.screenshot(full_page=True)
+                    screenshot_base64 = base64.b64encode(screenshot_bytes).decode('utf-8')
+                    output_data['screenshot'] = screenshot_base64
+                    # Also save to file
+                    screenshot_path = session_dir / f'screenshot_{int(time.time())}.png'
+                    async with aiofiles.open(screenshot_path, 'wb') as f:
+                        await f.write(screenshot_bytes)
+                    output_data['screenshot_path'] = str(screenshot_path)
+                
+                # PDF output
+                if 'pdf' in output_formats:
+                    pdf_bytes = await page.pdf(format='A4')
+                    pdf_base64 = base64.b64encode(pdf_bytes).decode('utf-8')
+                    output_data['pdf'] = pdf_base64
+                    # Also save to file
+                    pdf_path = session_dir / f'page_{int(time.time())}.pdf'
+                    async with aiofiles.open(pdf_path, 'wb') as f:
+                        await f.write(pdf_bytes)
+                    output_data['pdf_path'] = str(pdf_path)
+                
+                # JSON extraction
+                if 'json' in output_formats:
+                        extraction_method = json_extraction.get('method', 'css')
                         
-                        # Create full prompt for LLM
-                        full_prompt = f"""Extract structured data from the following HTML page based on this instruction:
+                        if extraction_method == 'css':
+                            # CSS selector extraction
+                            selectors = json_extraction.get('selectors', {})
+                            extracted_data = {}
+                            
+                            for key, selector in selectors.items():
+                                try:
+                                    elements = await page.query_selector_all(selector)
+                                    if len(elements) == 1:
+                                        # Single element - get text or attribute
+                                        text = await elements[0].inner_text()
+                                        extracted_data[key] = text.strip()
+                                    elif len(elements) > 1:
+                                        # Multiple elements - get all texts
+                                        texts = []
+                                        for elem in elements:
+                                            text = await elem.inner_text()
+                                            texts.append(text.strip())
+                                        extracted_data[key] = texts
+                                    else:
+                                        extracted_data[key] = None
+                                except Exception as e:
+                                    print(f"Warning: Selector '{selector}' failed: {e}")
+                                    extracted_data[key] = None
+                            
+                            output_data['json'] = extracted_data
+                            
+                        elif extraction_method == 'ai':
+                            # AI-assisted extraction
+                            ai_prompt = json_extraction.get('ai_prompt', '')
+                            html_content = await page.content()
+                            
+                            # Check if input_data contains LLM output from upstream node
+                            llm_content = None
+                            if isinstance(input_data, dict):
+                                # Check for LLM node output structure
+                                if 'content' in input_data:
+                                    llm_content = input_data['content']
+                                elif isinstance(input_data.get('output'), dict) and 'content' in input_data.get('output', {}):
+                                    llm_content = input_data['output']['content']
+                            
+                            # Construct extraction prompt
+                            if ai_prompt:
+                                # Replace placeholders in ai_prompt with LLM content if available
+                                extraction_prompt = ai_prompt
+                                if llm_content:
+                                    extraction_prompt = extraction_prompt.replace('{llm_output}', llm_content)
+                                
+                                # Create full prompt for LLM
+                                full_prompt = f"""Extract structured data from the following HTML page based on this instruction:
 
 {extraction_prompt}
 
@@ -2365,9 +2598,9 @@ HTML Content:
 {html_content[:50000]}  # Limit to avoid token limits
 
 Return ONLY valid JSON, no markdown formatting, no explanations. The JSON should match the structure requested in the instruction."""
-                    else:
-                        # Default extraction prompt
-                        full_prompt = f"""Extract all meaningful structured data from this HTML page and return it as JSON. Include:
+                            else:
+                                # Default extraction prompt
+                                full_prompt = f"""Extract all meaningful structured data from this HTML page and return it as JSON. Include:
 - Page title
 - Main headings
 - Links and their text
@@ -2378,81 +2611,100 @@ HTML Content:
 {html_content[:50000]}
 
 Return ONLY valid JSON, no markdown formatting, no explanations."""
-                    
-                    # Call LLM for extraction
-                    # Use the same LLM infrastructure as execute_llm_request
-                    # For now, we'll use a simple approach: try to use environment LLM config
-                    try:
-                        # Try to use OpenRouter or fallback to environment
-                        llm_config = {
-                            'provider': 'openrouter',
-                            'model': 'gpt-4o-mini',
-                            'user': full_prompt,
-                            'system': 'You are a data extraction assistant. Extract structured data from HTML and return ONLY valid JSON.',
-                            'temperature': 0.1,
-                            'max_tokens': 2000
-                        }
-                        
-                        # Call LLM
-                        llm_result = await execute_llm_request(llm_config, {})
-                        
-                        if llm_result['status'] == 'success' and llm_result.get('output'):
-                            llm_response = llm_result['output'].get('content', '')
                             
-                            # Try to parse JSON from response
-                            # Remove markdown code blocks if present
-                            json_str = llm_response.strip()
-                            if json_str.startswith('```'):
-                                # Extract JSON from code block
-                                lines = json_str.split('\n')
-                                json_str = '\n'.join(lines[1:-1]) if lines[-1].startswith('```') else '\n'.join(lines[1:])
-                            
+                            # Call LLM for extraction
+                            # Use the same LLM infrastructure as execute_llm_request
+                            # For now, we'll use a simple approach: try to use environment LLM config
                             try:
-                                extracted_json = json.loads(json_str)
-                                output_data['json'] = extracted_json
-                            except json.JSONDecodeError:
-                                # If JSON parsing fails, return the raw response
-                                output_data['json'] = {'raw_response': llm_response}
-                        else:
-                            output_data['json'] = {'error': 'LLM extraction failed', 'details': llm_result.get('error', 'Unknown error')}
+                                # Try to use OpenRouter or fallback to environment
+                                llm_config = {
+                                    'provider': 'openrouter',
+                                    'model': 'gpt-4o-mini',
+                                    'user': full_prompt,
+                                    'system': 'You are a data extraction assistant. Extract structured data from HTML and return ONLY valid JSON.',
+                                    'temperature': 0.1,
+                                    'max_tokens': 2000
+                                }
+                                
+                                # Call LLM
+                                llm_result = await execute_llm_request(llm_config, {})
+                                
+                                if llm_result['status'] == 'success' and llm_result.get('output'):
+                                    llm_response = llm_result['output'].get('content', '')
+                                    
+                                    # Try to parse JSON from response
+                                    # Remove markdown code blocks if present
+                                    json_str = llm_response.strip()
+                                    if json_str.startswith('```'):
+                                        # Extract JSON from code block
+                                        lines = json_str.split('\n')
+                                        json_str = '\n'.join(lines[1:-1]) if lines[-1].startswith('```') else '\n'.join(lines[1:])
+                                    
+                                    try:
+                                        extracted_json = json.loads(json_str)
+                                        output_data['json'] = extracted_json
+                                    except json.JSONDecodeError:
+                                        # If JSON parsing fails, return the raw response
+                                        output_data['json'] = {'raw_response': llm_response}
+                                else:
+                                    output_data['json'] = {'error': 'LLM extraction failed', 'details': llm_result.get('error', 'Unknown error')}
+                            except Exception as e:
+                                output_data['json'] = {'error': f'AI extraction failed: {str(e)}'}
+                
+                # Save cookies for session persistence
+                if session_id:
+                    try:
+                        cookies = await context.cookies()
+                        async with aiofiles.open(cookies_file, 'w') as f:
+                            await f.write(json.dumps(cookies, indent=2))
                     except Exception as e:
-                        output_data['json'] = {'error': f'AI extraction failed: {str(e)}'}
-            
-            # Save cookies for session persistence
-            if session_id:
-                try:
-                    cookies = await context.cookies()
-                    async with aiofiles.open(cookies_file, 'w') as f:
-                        await f.write(json.dumps(cookies, indent=2))
-                except Exception as e:
-                    print(f"Warning: Failed to save cookies: {e}")
-            
-            # Close browser
-            await browser.close()
-            
-            execution_time = time.time() - start_time
-            
-            # Merge with input data for downstream nodes
-            if isinstance(input_data, dict):
-                for key, value in input_data.items():
-                    if key not in output_data:
-                        output_data[key] = value
-            
-            return {
-                'status': 'success',
-                'output': output_data,
-                'stdout': f'Browser automation completed: {processed_url}',
-                'stderr': '',
-                'execution_time': execution_time
-            }
+                        print(f"Warning: Failed to save cookies: {e}")
+                
+                execution_time = time.time() - start_time
+                
+                # Merge with input data for downstream nodes
+                if isinstance(input_data, dict):
+                    for key, value in input_data.items():
+                        if key not in output_data:
+                            output_data[key] = value
+                
+                return {
+                    'status': 'success',
+                    'output': output_data,
+                    'stdout': f'Browser automation completed: {processed_url} (using {browser_type})',
+                    'stderr': '',
+                    'execution_time': execution_time
+                }
+            finally:
+                # Ensure browser cleanup even on errors
+                if browser:
+                    try:
+                        await browser.close()
+                    except:
+                        pass  # Ignore errors during cleanup
             
     except Exception as e:
+        error_msg = str(e)
+        # Provide helpful error messages for common issues
+        if 'SIGSEGV' in error_msg or 'SEGV' in error_msg or 'segmentation' in error_msg.lower():
+            error_msg = f'Browser crashed (segmentation fault). This is often caused by:\n' \
+                       f'1. Outdated or corrupted browser binaries - try: playwright install --force chromium\n' \
+                       f'2. macOS security restrictions - check System Preferences > Security\n' \
+                       f'3. Incompatible Chromium version - the system will automatically try Firefox/WebKit as fallback\n\n' \
+                       f'Original error: {error_msg}'
+        elif 'Target page, context or browser has been closed' in error_msg:
+            error_msg = f'Browser process crashed or was closed unexpectedly. This may indicate:\n' \
+                       f'1. Browser binaries need reinstallation: playwright install --force chromium firefox webkit\n' \
+                       f'2. System compatibility issue - try using Firefox or WebKit instead\n' \
+                       f'3. Memory/resource constraints\n\n' \
+                       f'Original error: {error_msg}'
+        
         return {
             'status': 'error',
-            'error': f'Browser automation failed: {str(e)}',
+            'error': f'Browser automation failed: {error_msg}',
             'output': None,
             'stdout': '',
-            'stderr': str(e)
+            'stderr': error_msg
         }
 
 async def execute_llm_request(config: Dict[str, Any], input_data: Any) -> Dict[str, Any]:
@@ -2808,6 +3060,9 @@ async def execute_sub_workflow(
             elif node_type == 'image':
                 config = node_data.get('config', {})
                 result = await execute_image_viewer(config, input_data)
+            elif node_type == 'ocr':
+                config = node_data.get('config', {})
+                result = await execute_ocr_node(config, input_data)
             elif node_type == 'browser':
                 config = node_data.get('config', {})
                 result = await execute_browser_node(config, input_data, node_outputs_ref)
@@ -3434,6 +3689,10 @@ async def run_workflow(request: dict):
             elif node_type == 'image':
                 config = node_data.get('config', {})
                 result = await execute_image_viewer(config, input_data)
+                
+            elif node_type == 'ocr':
+                config = node_data.get('config', {})
+                result = await execute_ocr_node(config, input_data)
                 
             elif node_type == 'embedding':
                 config = node_data.get('config', {})

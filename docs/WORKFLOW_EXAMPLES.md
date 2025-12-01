@@ -14,6 +14,7 @@ This document provides comprehensive documentation for all example workflows inc
 8. [Simple Mixed Workflow Demo](#simple-mixed-workflow-demo)
 9. [Bearer Token Authentication Workflow](#bearer-token-authentication-workflow)
 10. [Browser Node Test Workflow](#browser-node-test-workflow)
+11. [OCR Text Extraction Workflow](#ocr-text-extraction-workflow)
 
 ---
 
@@ -796,6 +797,105 @@ Start → Prepare URL → Browser Visit → JSON Viewer (output) → End
 
 ---
 
+## OCR Text Extraction Workflow
+
+**File**: `OCR_Workflow_Example.json`
+
+### Overview
+
+Demonstrates how to use the OCR (Optical Character Recognition) node to extract text from images. This workflow captures a screenshot from a website and uses Tesseract OCR to extract all visible text.
+
+### What It Does
+
+1. **Prepares URL**: Sets up a URL to visit (using httpbin.org/html as an example)
+2. **Captures Screenshot**: Uses Browser node to visit the page and capture a screenshot
+3. **Extracts Text**: OCR node processes the screenshot and extracts all text
+4. **Displays Results**: Shows the extracted text in the OCR viewer and JSON viewer
+
+### Workflow Structure
+
+```
+Start → Prepare URL → Capture Screenshot → Extract Text with OCR → View OCR Results → End
+                                    ↓
+                            View Screenshot
+```
+
+### Key Nodes
+
+- **Prepare URL (Python)**: Sets the target URL for the browser to visit
+- **Capture Screenshot (Browser)**: Visits the website and captures a screenshot in base64 format
+- **Extract Text with OCR (OCR)**: 
+  - Content Key: `screenshot` (automatically detects the screenshot from browser node)
+  - Language: `eng` (English)
+  - PSM: `6` (uniform block of text - good for most screenshots)
+- **View Screenshot (Image Viewer)**: Displays the captured screenshot
+- **View OCR Results (JSON Viewer)**: Shows the extracted text, confidence score, and word count
+
+### How to Use
+
+1. **Import the workflow** from `docs/OCR_Workflow_Example.json`
+2. **Run the workflow** - it will:
+   - Visit httpbin.org/html
+   - Capture a screenshot
+   - Extract text using OCR
+3. **View results**:
+   - Click the **Image Viewer** node to see the screenshot
+   - Click the **OCR** node to see the extracted text in the OCR viewer
+   - Click the **JSON Viewer** node to see structured OCR results
+
+### OCR Node Configuration
+
+The OCR node is configured with:
+- **Content Key**: `screenshot` - tells OCR where to find the image
+- **Language**: `eng` - English language pack (install with `brew install tesseract` on macOS)
+- **PSM**: `6` - Page Segmentation Mode for uniform text blocks
+
+### Output Structure
+
+The OCR node outputs:
+```json
+{
+  "text": "Extracted text content...",
+  "confidence": 95.5,
+  "language": "eng",
+  "psm": 6,
+  "word_count": 42
+}
+```
+
+### Requirements
+
+- **Tesseract OCR** must be installed on your system:
+  - macOS: `brew install tesseract`
+  - Linux: `sudo apt-get install tesseract-ocr` (or `yum install tesseract`)
+  - Windows: Download from https://github.com/UB-Mannheim/tesseract/wiki
+- **Python dependencies**: `pytesseract` and `Pillow` (already in requirements.txt)
+
+### Customization
+
+- **Change the URL**: Edit the Python node to visit any website
+- **Adjust OCR settings**: 
+  - Change `language` for different languages (e.g., `spa` for Spanish, `fra` for French)
+  - Change `psm` for different text layouts (7 for single line, 11 for sparse text)
+- **Use different image sources**: Connect OCR to any node that outputs images (file paths, base64, URLs)
+
+### Learning Points
+
+- How to chain Browser → OCR nodes for web text extraction
+- How OCR automatically detects image data from common field names
+- How to view OCR results in the dedicated OCR viewer
+- Understanding OCR confidence scores and metadata
+
+### Use Cases
+
+- Extract text from screenshots of web pages
+- Process scanned documents
+- Extract text from images in workflows
+- Convert image-based content to searchable text
+- Automate data entry from forms or documents
+
+---
+
 ## General Workflow Tips
 
 ### Importing Workflows
@@ -811,6 +911,8 @@ Start → Prepare URL → Browser Visit → JSON Viewer (output) → End
 - **Adjust Parameters**: Edit node configs (URLs, queries, thresholds)
 - **Add Nodes**: Insert new nodes between existing ones
 - **Modify Code**: Edit Python/TypeScript code in node editors
+- **Delete Nodes**: Right-click any node (except Start/End) and select Delete from the context menu
+- **Delete Connections**: Right-click on a connection edge and select Delete
 
 ### Debugging
 

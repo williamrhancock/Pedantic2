@@ -18,10 +18,11 @@ import {
   Layers,
   Braces,
   Monitor,
-  Image as ImageIcon
+  Image as ImageIcon,
+  ScanLine
 } from 'lucide-react'
 
-export type NodeType = 'start' | 'end' | 'python' | 'typescript' | 'http' | 'file' | 'condition' | 'database' | 'llm' | 'foreach' | 'endloop' | 'markdown' | 'html' | 'json' | 'embedding' | 'browser' | 'image'
+export type NodeType = 'start' | 'end' | 'python' | 'typescript' | 'http' | 'file' | 'condition' | 'database' | 'llm' | 'foreach' | 'endloop' | 'markdown' | 'html' | 'json' | 'embedding' | 'browser' | 'image' | 'ocr'
 
 interface GlassmorphicNodeProps {
   id: string
@@ -56,6 +57,7 @@ const nodeIcons = {
   html: FileCode,
   json: Braces,
   image: ImageIcon,
+  ocr: ScanLine,
   browser: Monitor,
 }
 
@@ -76,6 +78,7 @@ const nodeColors = {
   html: 'from-teal-500 to-teal-600',
   json: 'from-slate-500 to-slate-600',
   image: 'from-rose-500 to-rose-600',
+  ocr: 'from-fuchsia-500 to-fuchsia-600',
   browser: 'from-emerald-500 to-emerald-600',
 }
 
@@ -136,6 +139,7 @@ export const GlassmorphicNode = React.memo(function GlassmorphicNode({
         ${isExecuting || executionStatus === 'running' ? 'glass-card-executing' : ''}
         ${getStatusColor()}
       `}
+      onClick={onClick}
     >
       {/* Input Handle (left side) */}
       {showInput && Handle && Position && (

@@ -17,6 +17,7 @@ import { useTheme } from '@/contexts/ThemeContext'
 import { WorkflowNode, type WorkflowNodeType, type WorkflowNodeData } from './NodeTypes'
 import { AnimatedEdge } from './EdgeTypes'
 import { EdgeContextMenu } from './EdgeContextMenu'
+import { NodeContextMenu } from './NodeContextMenu'
 import { CustomControls } from './CustomControls'
 
 // Re-export types for convenience
@@ -62,6 +63,7 @@ interface WorkflowCanvasProps {
   onEdgesChange?: (edges: Edge[]) => void
   onConnect?: (connection: Connection) => void
   onNodeClick?: (nodeId: string) => void
+  onNodeDelete?: (nodeId: string) => void
   canvasRef?: React.RefObject<WorkflowCanvasRef> | React.ForwardedRef<WorkflowCanvasRef>
   isExecuting?: boolean
   nodesDraggable?: boolean
@@ -76,6 +78,7 @@ function WorkflowCanvasInner({
   onEdgesChange: externalOnEdgesChange,
   onConnect: externalOnConnect,
   onNodeClick,
+  onNodeDelete,
   canvasRef,
   isExecuting = false,
   nodesDraggable = true,
@@ -101,11 +104,12 @@ function WorkflowCanvasInner({
         isExecuting: node.isExecuting || isExecuting,
         executionStatus: node.executionStatus,
         skipDuringExecution: (node as any).skipDuringExecution || false,
+        onDelete: onNodeDelete ? () => onNodeDelete(node.id) : undefined,
       },
       hidden: false, // Force nodes to be visible - this is the key fix!
       draggable: nodesDraggable,
     }))
-  }, [initialNodes, isExecuting, nodesDraggable])
+  }, [initialNodes, isExecuting, nodesDraggable, onNodeDelete])
 
   const reactFlowEdges = useMemo<Edge[]>(() => {
     return initialConnections
@@ -156,6 +160,7 @@ function WorkflowCanvasInner({
   const [nodes, setNodes] = useState<Node[]>(reactFlowNodes)
   const [edges, setEdges] = useState<Edge[]>([])
   const [edgeMenuState, setEdgeMenuState] = useState<{ edgeId: string; x: number; y: number } | null>(null)
+  const [nodeMenuState, setNodeMenuState] = useState<{ nodeId: string; x: number; y: number } | null>(null)
   const prevNodeIdsRef = useRef<string>('')
   const isUpdatingFromPropsRef = useRef(false)
   const viewportInitializedRef = useRef(false)
@@ -377,11 +382,30 @@ function WorkflowCanvasInner({
   )
 
   const onNodeClickInternal = useCallback(
-    (_: React.MouseEvent, node: Node) => {
+    (event: React.MouseEvent, node: Node) => {
       if (onNodeClick) onNodeClick(node.id)
       setEdgeMenuState(null)
+      setNodeMenuState(null)
     },
     [onNodeClick]
+  )
+
+  const onNodeContextMenu = useCallback(
+    (event: React.MouseEvent, node: Node) => {
+      event.preventDefault()
+      const data = node.data as WorkflowNodeData
+      // Don't show context menu for start/end nodes
+      if (data.type === 'start' || data.type === 'end') {
+        return
+      }
+      setNodeMenuState({
+        nodeId: node.id,
+        x: event.clientX,
+        y: event.clientY,
+      })
+      setEdgeMenuState(null)
+    },
+    []
   )
 
   const handleDeleteEdge = useCallback(() => {
@@ -523,6 +547,7 @@ const handleCancelEdgeMenu = useCallback(() => {
         onEdgesChange={handleEdgesChange}
         onConnect={onConnect}
         onNodeClick={onNodeClickInternal}
+        onNodeContextMenu={onNodeContextMenu}
         onEdgeClick={onEdgeClick}
         onInit={onInit}
         nodeTypes={getNodeTypes()}
@@ -599,6 +624,24 @@ const handleCancelEdgeMenu = useCallback(() => {
           />
         </>
       )}
+      {nodeMenuState && (() => {
+        const node = initialNodes.find(n => n.id === nodeMenuState.nodeId)
+        const nodeTitle = node?.title || 'Node'
+        return (
+          <NodeContextMenu
+            x={nodeMenuState.x}
+            y={nodeMenuState.y}
+            nodeTitle={nodeTitle}
+            onDelete={() => {
+              if (onNodeDelete) {
+                onNodeDelete(nodeMenuState.nodeId)
+              }
+              setNodeMenuState(null)
+            }}
+            onCancel={() => setNodeMenuState(null)}
+          />
+        )
+      })()}
     </div>
   )
 }

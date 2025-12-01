@@ -1,7 +1,8 @@
 # Pedantic2: Because Your Workflows Deserve a Snarky Visual Overhaul (Locally, Duh)
 
-![Pedantic2 Banner](https://via.placeholder.com/800x200/FF6B6B/FFFFFF?text=Pedantic2%3A+Local+Agentic+Chaos+Builder)  
-*(Imagine a sleek, glassmorphic node graph here, but since we're local-first, draw your own. No cloud crayons required.)*
+![Pedantic2 Main Interface](docs/Pedantic2-main.png)
+
+![Pedantic2 LLM Workflow](docs/Pedantic2-LLM.png)
 
 ## 🚀 Tired of Cloud Vampires Sucking Your Data Dry?
 
@@ -14,7 +15,7 @@ Why "Pedantic2"? Because the first one was *too* forgiving. This version nags yo
 **New in Latest Version**:
 - **Skip During Execution**: Mark any node to skip during workflow execution while preserving data flow
 - **EndLoop nodes**: Proper ForEach loop termination and data aggregation
-- **Auto-arrange**: Aggressive zigzag layout for better connection visibility
+- **Auto-arrange**: Column-based layout (5 nodes per column) with special handling for ForEach loops
 - **Help icon**: Opens documentation viewer with anchor link support
 - **Database maintenance panel**: Workflow/node management, backup, and optimization
 - **Custom nodes**: Save, reuse, export, and import node templates
@@ -22,6 +23,9 @@ Why "Pedantic2"? Because the first one was *too* forgiving. This version nags yo
 - **JSON Viewer**: Auto-detect and format JSON with filtered/full view tabs
 - **Image Viewer**: Auto-detect and display images (base64, files, URLs) with zoom/pan controls
 - **Browser Node**: Playwright automation with headless/headful, stealth mode, session persistence, and multiple output formats
+- **OCR Node**: Extract text from images using Tesseract OCR
+- **Right-click context menu**: Delete nodes via right-click context menu (prevents accidental deletion)
+- **Start/End node timing**: Start node shows execution start time, End node shows total execution duration
 - **Improved execution timeline**: Real-time status with execution times
 - **Case-insensitive workflow names**: Workflow name matching is now case-insensitive
 - **Vector Database Support**: SQLite with sqlite-vec extension for local RAG workflows
@@ -57,6 +61,8 @@ Why "Pedantic2"? Because the first one was *too* forgiving. This version nags yo
   - Save As with overwrite confirmation (case-insensitive workflow names)
   - Execution timeline shows real-time status with execution times
   - ForEach loops with serial/parallel execution and EndLoop aggregation
+  - Right-click context menu: Delete nodes via right-click (with confirmation dialog)
+  - Start/End node timing: Start node displays "Started: [time]" and End node displays "Completed: [duration]" during execution
 - **Headless Mode**: Run via API or CLI. Schedule with cron/launchd/Task Scheduler. Because who needs a UI for 3 AM regrets?
 - **Security? We Pretend**: Timeouts, memory caps, localhost-only. Your secrets stay secret... unless you `print(password)` in a Python node. Rookie.
 
@@ -201,6 +207,95 @@ DB woes? Maintenance panel: Delete, backup, compact. Because SQLite bloat is rea
 - Windows? PowerShell everything. Unix envy included.
 - Infinite loops? Timeouts slap you. Cry less.
 - Prod? Scale your own bathroom rack.
+
+## 🚧 Potential ToDos (Because We're Not Done Yet)
+
+### High-Impact Nodes
+
+**Puppeteer/Chrome DevTools Protocol Node** (lighter alternative to Playwright)
+
+**Email Nodes** (IMAP + SMTP)
+- "Watch Inbox" trigger (poll or future webhook)
+- "Send Email" with attachments from previous nodes
+- "Parse Email" (extract body, attachments, links)
+- Instantly enables 70% of real-world business automations.
+
+**WebSocket Client Node**
+- Because half the interesting internet now speaks WebSockets (LiveKit, Binance, Twitter Spaces, etc.)
+
+**OCR Node** (Tesseract or Windows OCR / macOS Vision / easyocr)
+- Take a screenshot/PDF → extract text. The moment you add this + Browser node = unbeatable.
+- ✅ **Already implemented!** (Tesseract OCR)
+
+**Spreadsheet Node** (read/write/manipulate XLSX, CSV, Google Sheets local cache)
+- Built-in Pandas mini-mode: filter, pivot, groupby via simple UI
+- "Sheet → Rows → ForEach" pattern becomes trivial
+
+**SSH / Remote Command Node**
+- Run commands on your VPS, NAS, or Raspberry Pi cluster. Local-first doesn't mean single-machine-only.
+
+**Git Node**
+- Clone, commit+push, create PR, read file from repo at tag/branch
+- Bonus: "Deploy this workflow to my server" one-click pattern
+
+**Cron / Schedule Trigger Node** (visual cron UI inside the canvas)
+- Turns Pedantic2 into a real cron replacement with visual debugging.
+
+**Webhook Trigger Node**
+- Expose `http://localhost:3000/webhook/my_cool_trigger` → Start node. Instantly you have Zapier/Make at home.
+
+### Very Spicy But Doable Nodes
+
+**Local LLM Node** (Ollama / llama.cpp / LM Studio / OpenAI-compatible endpoint)
+- You already have cloud LLM, but a first-class "pick a local model" node with model auto-discovery would be legendary.
+
+**Audio Transcription Node** (Whisper.cpp or faster-whisper)
+- Drop an audio file → get text + timestamps + speaker diarization option.
+
+**Image Generation / Editing Node** (Stable Diffusion Automatic1111 API or ComfyUI API)
+- The moment you can chain "describe image with LLaVA → edit prompt → SD" locally, people will tattoo your name somewhere.
+
+**Cache / Memoize Node**
+- "Only run this expensive subgraph if inputs changed" with TTL. Saves hours when doing RAG or API calls.
+
+**Merge / Join Node** (SQL-style joins on arrays of objects)
+- Currently people do this in Python nodes — giving them a visual join would be chef's kiss.
+
+**Rate Limiter / Throttle Node**
+- "Only let max 5 items through per minute" — critical for not getting banned.
+
+**Human-in-the-Loop Node**
+- Pauses execution, shows data, waits for user input/approval in the UI (with optional timeout → default branch).
+
+**Telegram / Discord / Slack Bots**
+- Send message, wait for reply, react to messages, etc.
+
+**Crypto / Wallet Node**
+- Sign transactions, check balances (EVM & Solana). The degen crowd will flood your repo.
+
+**Time Travel / Version Node**
+- "Run this workflow as it existed 3 days ago" using the DB history. Mind-bending debugging superpower.
+
+### Small But Annoyingly Missing Quality-of-Life Nodes
+
+- **Delay / Sleep Node** (with "smart delay until next minute/hour" option)
+- **Random Node** (random int, choice from list, UUID, fake data)
+- **CSV ↔ JSON Converter Node**
+- **Regex Extract / Replace Node**
+- **JWT Encode/Decode Node**
+- **Crypto** (hash, encrypt/decrypt with key from env)
+
+### Niche but Will Make Specific People Cry Tears of Joy
+
+- **Tail File Node** (watch log file like `tail -f`)
+- **MQTT Client**
+- **Bluetooth LE Scanner**
+- **Home Assistant Node**
+- **Obsidian Vault Read/Write**
+
+---
+
+*Want to implement one of these? Fork, code, PR. We'll shower you with gratitude (and merge it faster than you can say "local-first").*
 
 ## 🙌 Contributing: Be the Snark You Wish to See
 

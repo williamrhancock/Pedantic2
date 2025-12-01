@@ -16,6 +16,7 @@ This comprehensive guide covers all node types available in the Visual Agentic W
    - [HTML Viewer Node](#html-viewer-node)
    - [JSON Viewer Node](#json-viewer-node)
    - [Image Viewer Node](#image-viewer-node)
+   - [OCR Node](#ocr-node)
    - [Conditional Logic Node](#conditional-logic-node)
    - [Database Query Node](#database-query-node)
    - [Embedding Node](#embedding-node)
@@ -46,15 +47,41 @@ The Visual Agentic Workflow Builder supports multiple node types for building so
 - 🌐 **HTML Viewer** - Display HTML content from upstream nodes
 - 📋 **JSON Viewer** - Display and format JSON with filtered/full view tabs
 - 🖼️ **Image Viewer** - Display images with zoom/pan controls
+- 🔍 **OCR Node** - Extract text from images using Tesseract OCR
 - 🔀 **Conditional Logic** - Branch workflows based on data conditions
 - 🗄️ **Database Queries** - Execute SQLite queries and operations
 - 🤖 **LLM AI Assistant** - Integrate large language models into workflows
 
 **Control Flow Nodes**:
-- ▶️ **Start Node** - Begin workflow execution
-- ⏹️ **End Node** - Complete workflow execution
+- ▶️ **Start Node** - Begin workflow execution (displays start time during execution)
+- ⏹️ **End Node** - Complete workflow execution (displays total duration during execution)
 - 🔄 **For Each Loop** - Iterate over arrays with serial or parallel execution
 - 🔁 **End Loop** - Marks the end of a ForEach loop and aggregates results
+
+### Managing Nodes
+
+#### Editing Nodes
+
+**Left-click** any node to open its editor:
+- Code nodes (Python/TypeScript): Edit code in Monaco Editor
+- Configuration nodes: Edit settings via form or JSON
+- Viewer nodes: View execution results
+
+#### Deleting Nodes
+
+**Right-click** any node (except Start and End) to open the context menu:
+- Select **Delete** to remove the node
+- A confirmation dialog will appear asking you to confirm deletion
+- All connections to/from the deleted node will be automatically removed
+- This action cannot be undone
+
+**Note**: Start and End nodes cannot be deleted as they are required for workflow execution.
+
+#### Node Connections
+
+- **Connect nodes**: Drag from a node's output handle (right side) to another node's input handle (left side)
+- **Delete connections**: Right-click on a connection edge to open the context menu and delete it
+- **Auto-arrange**: Use the auto-arrange button in the toolbar to automatically organize nodes in a zigzag layout
 
 ### Skip During Execution
 
@@ -65,7 +92,7 @@ Any node (except Start and End) can be marked to **Skip During Execution**. When
 - Useful for debugging, temporarily disabling nodes, or testing workflow paths
 
 **How to Enable:**
-1. Open the node editor
+1. Open the node editor (left-click the node)
 2. Check the "Skip During Execution" checkbox
 3. Save the node
 
@@ -1311,6 +1338,132 @@ After workflow execution:
 
 - [Browser Node](#browser-node) - Capture screenshots for viewing
 - [Browser Node Test Workflow](../Browser_Node_Test_Workflow.json) - Complete example with image viewer
+
+---
+
+### OCR Node
+
+The OCR (Optical Character Recognition) node extracts text from images using Tesseract OCR. Perfect for processing screenshots, scanned documents, or any image containing text.
+
+#### Basic Configuration
+
+```json
+{
+  "content_key": "screenshot",
+  "language": "eng",
+  "psm": 6
+}
+```
+
+#### Parameters
+
+- **`content_key`** (string, optional): The key containing image data. Supports:
+  - Direct keys: `"screenshot"`
+  - Nested paths: `"output.screenshot"`
+  - Leave empty to auto-detect image data
+- **`language`** (string): Tesseract language code (e.g., `"eng"` for English, `"spa"` for Spanish, `"fra"` for French)
+- **`psm`** (integer): Page Segmentation Mode (0-13). Common values:
+  - `6`: Uniform block of text (good for most screenshots)
+  - `7`: Single text line
+  - `11`: Sparse text
+  - `13`: Raw line (no layout analysis)
+
+#### How It Works
+
+1. **Image Detection**: Automatically finds image data in input (base64, data URIs, file paths, URLs)
+2. **OCR Processing**: Uses Tesseract OCR to extract text from the image
+3. **Text Extraction**: Returns extracted text with confidence scores and metadata
+
+#### Output Structure
+
+```json
+{
+  "text": "Extracted text content from the image...",
+  "confidence": 95.5,
+  "language": "eng",
+  "psm": 6,
+  "word_count": 42
+}
+```
+
+#### Requirements
+
+**Tesseract OCR must be installed on your system:**
+
+- **macOS**: `brew install tesseract`
+- **Linux (Debian/Ubuntu)**: `sudo apt-get install tesseract-ocr`
+- **Linux (RHEL/CentOS)**: `sudo yum install tesseract`
+- **Windows**: Download from https://github.com/UB-Mannheim/tesseract/wiki
+
+**Python dependencies** (already in requirements.txt):
+- `pytesseract==0.3.10`
+- `Pillow==10.1.0`
+
+#### Examples
+
+**Extract Text from Browser Screenshot:**
+Connect a Browser node (with `"screenshot"` in `output_formats`) to an OCR node:
+
+```json
+{
+  "content_key": "screenshot",
+  "language": "eng",
+  "psm": 6
+}
+```
+
+**Process Scanned Document:**
+```json
+{
+  "content_key": "document_image",
+  "language": "eng",
+  "psm": 6
+}
+```
+
+**Multi-Language Support:**
+For documents with multiple languages, install language packs:
+- macOS: `brew install tesseract-lang` (installs all language packs)
+- Linux: `sudo apt-get install tesseract-ocr-[lang]` (e.g., `tesseract-ocr-spa` for Spanish)
+
+Then use the language code in config:
+```json
+{
+  "language": "spa",
+  "psm": 6
+}
+```
+
+#### Viewing OCR Results
+
+After workflow execution:
+1. Click on the OCR node
+2. The OCR viewer modal displays:
+   - **Extracted Text**: Full text content from the image
+   - **Confidence Score**: Average confidence (0-100)
+   - **Language**: Language code used for extraction
+   - **Word Count**: Number of words extracted
+
+#### Common Use Cases
+
+- **Screenshot Text Extraction**: Extract text from website screenshots
+- **Document Scanning**: Process scanned PDFs or images
+- **Form Data Extraction**: Extract data from filled forms
+- **Receipt Processing**: Extract text from receipt images
+- **CAPTCHA Solving**: Extract text from CAPTCHA images (for testing purposes)
+
+#### Tips
+
+- **PSM Selection**: Use PSM 6 for most screenshots, PSM 7 for single-line text, PSM 11 for sparse text
+- **Language Packs**: Install additional language packs for multi-language documents
+- **Image Quality**: Higher resolution images produce better OCR results
+- **Preprocessing**: Consider using Python nodes to preprocess images (grayscale, contrast adjustment) before OCR
+
+#### See Also
+
+- [OCR Text Extraction Workflow](../WORKFLOW_EXAMPLES.md#ocr-text-extraction-workflow) - Complete OCR workflow example
+- [Browser Node](#browser-node) - Capture screenshots for OCR processing
+- [Image Viewer Node](#image-viewer-node) - View images before OCR
 
 ---
 

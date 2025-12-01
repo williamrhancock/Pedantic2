@@ -12,10 +12,18 @@ aiofiles==23.2.0
 python-dotenv==1.0.0
 markdown==3.5.1
 beautifulsoup4==4.12.2
-sentence-transformers==2.2.2
-playwright==1.40.0
+sentence-transformers>=5.0.0
+# Note: sentence-transformers 2.2.2 is incompatible with newer huggingface-hub versions
+# Version 5.0.0+ is required for compatibility with huggingface-hub 0.36.0+
+playwright==1.48.0
 # IMPORTANT: After installing playwright, you MUST run "playwright install" to download browser binaries
 # The browser node will not work without this step: pip install playwright && playwright install
+pytesseract==0.3.10
+Pillow==10.1.0
+# IMPORTANT: OCR node requires Tesseract OCR to be installed on the system
+# macOS: brew install tesseract
+# Linux: sudo apt-get install tesseract-ocr (or yum install tesseract)
+# Windows: Download from https://github.com/UB-Mannheim/tesseract/wiki
 # pysqlite3-binary: Optional - enables SQLite extension loading for vector databases
 # Install manually if needed: pip install pysqlite3-binary
 # Note: May not be available for all Python versions/platforms
