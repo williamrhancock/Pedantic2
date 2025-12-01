@@ -55,9 +55,9 @@ export function NodeEditorModal({
       // Check if it has viewer_data structure (from backend wrapper)
       if (parsed && typeof parsed === 'object' && 'viewer_data' in parsed) {
         const viewerData = parsed.viewer_data
-        // full_json_data and source are now JSON strings, not objects
+        // All data fields are now JSON strings, not objects
         return {
-          filtered: viewerData.content || JSON.stringify(viewerData.json_data || {}, null, 2),
+          filtered: viewerData.content || viewerData.json_data || '{}',
           full: viewerData.full_json || viewerData.full_json_data || viewerData.source || '{}'
         }
       }
@@ -65,9 +65,9 @@ export function NodeEditorModal({
       // Check if output has _viewer_data (direct structure from backend)
       if (parsed && typeof parsed === 'object' && parsed.output && parsed.output._viewer_data) {
         const viewerData = parsed.output._viewer_data
-        // full_json_data and source are now JSON strings, not objects
+        // All data fields are now JSON strings, not objects
         return {
-          filtered: viewerData.content || JSON.stringify(viewerData.json_data || {}, null, 2),
+          filtered: viewerData.content || viewerData.json_data || '{}',
           full: viewerData.full_json || viewerData.full_json_data || viewerData.source || '{}'
         }
       }

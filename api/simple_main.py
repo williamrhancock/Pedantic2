@@ -1717,7 +1717,7 @@ async def execute_json_viewer(config: Dict[str, Any], input_data: Any) -> Dict[s
         if isinstance(output_data, dict):
             output_data['_viewer_data'] = {
                 'content': json_string,  # Formatted JSON string for display (filtered)
-                'json_data': json_content,  # Parsed JSON data (filtered) - this is safe as it's the extracted content
+                'json_data': json_string,  # Store as string to avoid circular references
                 'full_json': full_json_string,  # Full input for "Full JSON" tab (JSON string, not object)
                 'full_json_data': full_json_string,  # Store as string to avoid circular references
                 'detected_key': detected_key,
@@ -1730,7 +1730,7 @@ async def execute_json_viewer(config: Dict[str, Any], input_data: Any) -> Dict[s
                 '_extracted_value': output_data,
                 '_viewer_data': {
                     'content': json_string,
-                    'json_data': json_content,
+                    'json_data': json_string,  # Store as string to avoid circular references
                     'full_json': full_json_string,
                     'full_json_data': full_json_string,  # Store as string to avoid circular references
                     'detected_key': detected_key,
