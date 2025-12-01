@@ -33,7 +33,7 @@
       "python_prepare_insert": {
         "type": "python",
         "title": "Prepare Image BLOB",
-        "code": "import base64, datetime\\n\\n\\ndef run(input):\\n    data_uri = input.get('image_data', '')\\n    if not data_uri or not data_uri.startswith('data:image/'):\\n        raise ValueError('image_data must be a data URI like data:image/png;base64,...')\\n\\n    header, b64 = data_uri.split(',', 1)\\n    mime_type = header.split(';')[0].split(':')[1]\\n\\n    image_bytes = base64.b64decode(b64)\\n\\n    return {\\n        'filename': input.get('filename', 'image.png'),\\n        'mime_type': mime_type,\\n        'image_bytes': image_bytes,\\n        'created_at': datetime.datetime.utcnow().isoformat()\\n    }",
+        "code": "import base64, datetime; def run(input): data_uri = input.get('image_data', ''); assert data_uri and data_uri.startswith('data:image/'), 'image_data must be a data URI like data:image/png;base64,...'; header, b64 = data_uri.split(',', 1); mime_type = header.split(';')[0].split(':')[1]; image_bytes = base64.b64decode(b64); return {'filename': input.get('filename', 'image.png'), 'mime_type': mime_type, 'image_bytes': image_bytes, 'created_at': datetime.datetime.utcnow().isoformat()}",
         "position": { "x": 500, "y": 300 }
       },
       "db_insert_image": {
@@ -66,7 +66,7 @@
       "python_to_data_uri": {
         "type": "python",
         "title": "Convert BLOB to Data URI",
-        "code": "import base64\\n\\n\\ndef run(input):\\n    rows = input.get('data', [])\\n    if not rows:\\n        raise ValueError('No image rows found in database')\\n\\n    row = rows[0]\\n    mime = row.get('mime_type', 'image/png')\\n    blob = row.get('data')  # BLOB from SQLite\\n\\n    # Convert BLOB to base64 data URI\\n    b64 = base64.b64encode(blob).decode('utf-8')\\n    data_uri = f'data:{mime};base64,{b64}'\\n\\n    return {\\n        'image_data': data_uri,\\n        'filename': row.get('filename'),\\n        'id': row.get('id')\\n    }",
+        "code": "import base64; def run(input): rows = input.get('data', []); assert rows, 'No image rows found in database'; row = rows[0]; mime = row.get('mime_type', 'image/png'); blob = row.get('data'); b64 = base64.b64encode(blob).decode('utf-8'); data_uri = f'data:{mime};base64,{b64}'; return {'image_data': data_uri, 'filename': row.get('filename'), 'id': row.get('id')}",
         "position": { "x": 1100, "y": 300 }
       },
       "image_viewer": {
