@@ -66,6 +66,15 @@ Why "Pedantic2"? Because the first one was *too* forgiving. This version nags yo
 
 Pro Tip: Custom nodes? Save configs as templates. Reuse that "scrape cat memes" workflow without the shame.
 
+## The easy way
+## 🐳 Docker: Because Virtualenvs Are So 2024
+
+One-command bliss:
+```bash
+git clone https://github.com/williamrhancock/Pedantic2.git
+cd Pedantic2/docker
+docker-compose up
+
 ## 🛠️ Installation: Easier Than Explaining GitHub to Your Mom
 
 **Prerequisites** (or suffer the postinstall script's wrath):
