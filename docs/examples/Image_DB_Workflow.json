@@ -17,7 +17,7 @@
       "python_image_input": {
         "type": "python",
         "title": "Fetch Pedantic2 PNG",
-        "code": "import base64, requests\\n\\nURL = 'https://raw.githubusercontent.com/williamrhancock/Pedantic2/main/docs/Pedantic2-main.png'\\n\\ndef run(input):\\n    resp = requests.get(URL, timeout=10)\\n    resp.raise_for_status()\\n    image_bytes = resp.content\\n    data_uri = 'data:image/png;base64,' + base64.b64encode(image_bytes).decode('utf-8')\\n    return {\\n        'filename': 'Pedantic2-main.png',\\n        'image_data': data_uri,\\n        'mime_type': 'image/png'\\n    }",
+        "code": "import base64, requests; URL = 'https://raw.githubusercontent.com/williamrhancock/Pedantic2/main/docs/Pedantic2-main.png'; def run(input): resp = requests.get(URL, timeout=10); resp.raise_for_status(); image_bytes = resp.content; data_uri = 'data:image/png;base64,' + base64.b64encode(image_bytes).decode('utf-8'); return {'filename': 'Pedantic2-main.png', 'image_data': data_uri, 'mime_type': 'image/png'}",
         "position": { "x": 300, "y": 200 }
       },
       "db_create_images": {
