@@ -41,11 +41,7 @@ export function CustomControls({
     
     if (!reactFlowInstance || nodes.length === 0) return
 
-    // Hierarchical layout algorithm
-    const nodeMap = new Map<string, WorkflowNode>()
-    nodes.forEach(node => nodeMap.set(node.id, node))
-
-    // Build adjacency lists
+    // Build adjacency lists to determine execution order
     const incoming = new Map<string, string[]>()
     const outgoing = new Map<string, string[]>()
     
@@ -61,96 +57,101 @@ export function CustomControls({
       }
     })
 
-    // Find start node (node with no incoming connections, or type === 'start')
+    // Find start node
     const startNode = nodes.find(n => n.type === 'start') || 
                      nodes.find(n => (incoming.get(n.id) || []).length === 0) ||
-                     nodes[0] // Fallback to first node
+                     nodes[0]
     
     if (!startNode) return
 
-    // Assign levels using BFS
-    const levels = new Map<string, number>()
+    // Topological sort to get execution order
+    const executionOrder: WorkflowNode[] = []
     const visited = new Set<string>()
-    const queue: Array<{ id: string; level: number }> = [{ id: startNode.id, level: 0 }]
-    
-    levels.set(startNode.id, 0)
-    visited.add(startNode.id)
+    const visiting = new Set<string>()
 
-    while (queue.length > 0) {
-      const { id, level } = queue.shift()!
-      const children = outgoing.get(id) || []
+    const visit = (nodeId: string) => {
+      if (visiting.has(nodeId)) return // Cycle detected, skip
+      if (visited.has(nodeId)) return
       
-      for (const childId of children) {
-        if (!visited.has(childId)) {
-          visited.add(childId)
-          const childLevel = level + 1
-          levels.set(childId, childLevel)
-          queue.push({ id: childId, level: childLevel })
-        } else {
-          // If already visited, update to max level if needed
-          const existingLevel = levels.get(childId) || 0
-          const newLevel = Math.max(existingLevel, level + 1)
-          levels.set(childId, newLevel)
-        }
-      }
+      visiting.add(nodeId)
+      const node = nodes.find(n => n.id === nodeId)
+      if (!node) return
+
+      // Visit all dependencies first
+      const deps = incoming.get(nodeId) || []
+      deps.forEach(depId => visit(depId))
+
+      visiting.delete(nodeId)
+      visited.add(nodeId)
+      executionOrder.push(node)
     }
 
-    // Assign levels to unvisited nodes (disconnected components)
+    // Visit all nodes starting from start node
+    visit(startNode.id)
+    
+    // Visit any remaining unvisited nodes
     nodes.forEach(node => {
-      if (!levels.has(node.id)) {
-        // Find the minimum level of any connected node, or use max level + 1
-        const maxLevel = Math.max(...Array.from(levels.values()), -1)
-        levels.set(node.id, maxLevel + 1)
+      if (!visited.has(node.id)) {
+        visit(node.id)
       }
     })
 
-    // Group nodes by level
-    const nodesByLevel = new Map<number, WorkflowNode[]>()
-    nodes.forEach(node => {
-      const level = levels.get(node.id) ?? 0
-      if (!nodesByLevel.has(level)) {
-        nodesByLevel.set(level, [])
-      }
-      nodesByLevel.get(level)!.push(node)
-    })
+    // Layout constants
+    const NODE_HEIGHT = 150  // Approximate node height
+    const NODE_SPACING = NODE_HEIGHT * 0.5  // Half a node worth of space (75px)
+    const TOTAL_NODE_SPACE = NODE_HEIGHT + NODE_SPACING  // Space per node including gap
+    const NODES_PER_COLUMN = 5
+    const COLUMN_WIDTH = 400  // One node width between columns
 
-    // Calculate positions with aggressive zigzag staggered layout
-    const HORIZONTAL_SPACING = 400
-    const VERTICAL_SPACING = 200
-    const STAGGER_OFFSET = 150  // Aggressive horizontal offset for clear zigzag
-    const VERTICAL_STAGGER = 120  // Vertical offset for above/below pattern
     const START_X = 100
     const START_Y = 100
 
     const updates: Array<{ id: string; position: { x: number; y: number } }> = []
     
-    nodesByLevel.forEach((levelNodes, level) => {
-      const baseX = START_X + (level * HORIZONTAL_SPACING)
-      const totalHeight = (levelNodes.length - 1) * VERTICAL_SPACING
-      const startY = START_Y - (totalHeight / 2)
+    let currentColumn = 0
+    let currentRow = 0
+    let currentY = START_Y
+
+    // Process nodes in execution order
+    for (let i = 0; i < executionOrder.length; i++) {
+      const node = executionOrder[i]
       
-      levelNodes.forEach((node, index) => {
-        // Aggressive zigzag: alternate nodes significantly above and below
-        const isEven = index % 2 === 0
-        const staggerX = isEven ? 0 : STAGGER_OFFSET
-        const x = baseX + staggerX
-        
-        // Create clear above/below pattern with significant vertical offset
-        const verticalOffset = isEven ? -VERTICAL_STAGGER : VERTICAL_STAGGER
-        const baseY = startY + (index * VERTICAL_SPACING)
-        const y = baseY + verticalOffset
-        
-        updates.push({
-          id: node.id,
-          position: { x, y }
-        })
+      // Check if we need to start a new column
+      const shouldStartNewColumn = 
+        currentRow >= NODES_PER_COLUMN ||  // Column is full (5 nodes)
+        node.type === 'foreach'            // foreach starts new column
+
+      if (shouldStartNewColumn) {
+        currentColumn++
+        currentRow = 0
+        currentY = START_Y
+      }
+
+      // Calculate position
+      const x = START_X + (currentColumn * COLUMN_WIDTH)
+      const y = currentY
+
+      updates.push({
+        id: node.id,
+        position: { x, y }
       })
-    })
+
+      // Move to next row
+      currentRow++
+      currentY += TOTAL_NODE_SPACE
+
+      // If endloop, end this column - next node will start a new column
+      if (node.type === 'endloop') {
+        currentColumn++
+        currentRow = 0
+        currentY = START_Y
+      }
+    }
 
     // Update node positions
     onNodesUpdate(updates)
 
-    // Fit view after a short delay to allow positions to update
+    // Fit view after a short delay
     setTimeout(() => {
       if (reactFlowInstance) {
         reactFlowInstance.fitView({ padding: 0.2, duration: 300 })

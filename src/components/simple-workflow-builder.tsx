@@ -269,30 +269,9 @@ export function SimpleWorkflowBuilder() {
   const [showDbMaintenance, setShowDbMaintenance] = useState(false)
   const [activeNodeType, setActiveNodeType] = useState<NodeType | null>(null)
 
-  // Generate connections based on node order
-  // Only create valid connections: skip if source is "end" or target is "start"
-  const generateConnections = (nodeList: WorkflowNode[]): Connection[] => {
-    const connections: Connection[] = []
-    for (let i = 0; i < nodeList.length - 1; i++) {
-      const sourceNode = nodeList[i]
-      const targetNode = nodeList[i + 1]
-      
-      // Skip invalid connections:
-      // - Can't connect FROM an "end" node (no output handle)
-      // - Can't connect TO a "start" node (no input handle)
-      if (sourceNode.type === 'end' || targetNode.type === 'start') {
-        continue
-      }
-      
-      connections.push({
-        from: sourceNode.id,
-        to: targetNode.id
-      })
-    }
-    return connections
-  }
-
-  const [connections, setConnections] = useState<Connection[]>(generateConnections(nodes))
+  // Connections are managed manually by the user via drag-and-drop
+  // We don't auto-connect nodes to preserve existing connections when adding new nodes
+  const [connections, setConnections] = useState<Connection[]>([])
 
   const [selectedNode, setSelectedNode] = useState<string | null>(null)
   const [isExecuting, setIsExecuting] = useState(false)
@@ -618,9 +597,12 @@ export function SimpleWorkflowBuilder() {
   const importWorkflowMutation = trpc.importWorkflow.useMutation()
 
   // Update nodes and mark as changed
+  // NOTE: We preserve existing connections instead of regenerating them
+  // This prevents auto-connecting new nodes which would mess up existing connections
   const updateNodes = useCallback((newNodes: WorkflowNode[]) => {
     setNodes(newNodes)
-    setConnections(generateConnections(newNodes))
+    // Preserve existing connections - don't regenerate them
+    // Connections are managed manually by the user via drag-and-drop
     markAsChanged()
   }, [markAsChanged])
 
