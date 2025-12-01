@@ -1550,7 +1550,7 @@ async def execute_json_viewer(config: Dict[str, Any], input_data: Any) -> Dict[s
                     return None
             return current
         
-        # Priority 1: Try the specified content_key if provided (supports nested paths)
+        # Priority 1: Try the specified content_key if provided (supports nested paths and comma-separated keys)
         if isinstance(input_data, dict) and content_key_explicitly_set:
             # Check if input_data is empty first
             if not input_data:
@@ -1573,52 +1573,75 @@ async def execute_json_viewer(config: Dict[str, Any], input_data: Any) -> Dict[s
                     'execution_time': 0.0
                 }
             
-            # Try nested path first (e.g., 'output.data')
-            if '.' in content_key:
-                candidate = get_nested_value(input_data, content_key)
-            else:
-                # Try direct key access
-                candidate = input_data.get(content_key) if content_key in input_data else None
+            # Support comma-separated keys (e.g., "data.userId, data.title")
+            keys_to_extract = [k.strip() for k in content_key.split(',') if k.strip()]
+            extracted_values = {}
+            all_found = True
+            missing_keys = []
             
-            if candidate is not None:
-                # If it's already a dict/list, use it directly
-                if isinstance(candidate, (dict, list)):
-                    json_content = candidate
-                    detected_key = content_key
-                # If it's a string, check if it's a JSON string first
-                elif isinstance(candidate, str):
-                    if is_json_string(candidate):
-                        # It's a JSON string, parse it
-                        json_content = json.loads(candidate)
-                        detected_key = content_key
-                    else:
-                        # It's a regular string value, wrap it for display
-                        json_content = {"value": candidate, "path": content_key, "type": "string"}
-                        detected_key = content_key
-                # If it's a primitive value (number, bool, None), wrap it in a dict for JSON display
-                elif isinstance(candidate, (int, float, bool)) or candidate is None:
-                    json_content = {"value": candidate, "path": content_key, "type": type(candidate).__name__}
-                    detected_key = content_key
-            else:
-                # Key was explicitly set but not found - return error message
+            for key_path in keys_to_extract:
+                # Try nested path (e.g., 'output.data' or 'data.userId')
+                if '.' in key_path:
+                    candidate = get_nested_value(input_data, key_path)
+                else:
+                    # Try direct key access
+                    candidate = input_data.get(key_path) if key_path in input_data else None
+                
+                if candidate is not None:
+                    extracted_values[key_path] = candidate
+                else:
+                    all_found = False
+                    missing_keys.append(key_path)
+            
+            if not all_found:
+                # Some keys were not found - return error message
                 return {
                     'status': 'error',
-                    'error': f'JSON viewer: content_key "{content_key}" not found in input data',
+                    'error': f'JSON viewer: content_key(s) not found in input data',
                     'output': {
                         'content': json.dumps({
-                            'error': f'Content key "{content_key}" not found',
+                            'error': f'Content key(s) not found: {", ".join(missing_keys)}',
+                            'found_keys': list(extracted_values.keys()),
+                            'missing_keys': missing_keys,
                             'available_keys': list(input_data.keys()) if isinstance(input_data, dict) else [],
                             'input_data': input_data,
-                            'hint': f'Available keys: {list(input_data.keys()) if isinstance(input_data, dict) else "N/A"}. For nested paths, use dot notation like "output.data".'
+                            'hint': f'Available keys: {list(input_data.keys()) if isinstance(input_data, dict) else "N/A"}. For nested paths, use dot notation like "output.data". Separate multiple keys with commas.'
                         }, indent=2),
                         'detected_key': None,
                         'content_key': content_key,
                         'source': input_data
                     },
-                    'stdout': f'JSON viewer: content_key "{content_key}" not found',
-                    'stderr': f'Content key "{content_key}" not found in input data. Available keys: {list(input_data.keys()) if isinstance(input_data, dict) else "N/A"}',
+                    'stdout': f'JSON viewer: content_key(s) not found: {", ".join(missing_keys)}',
+                    'stderr': f'Content key(s) not found in input data: {", ".join(missing_keys)}. Available keys: {list(input_data.keys()) if isinstance(input_data, dict) else "N/A"}',
                     'execution_time': 0.0
                 }
+            
+            # All keys found - use extracted values as output
+            # If only one key, use its value directly (for backward compatibility)
+            # If multiple keys, create a dict with all extracted values
+            if len(extracted_values) == 1:
+                single_key = list(extracted_values.keys())[0]
+                single_value = extracted_values[single_key]
+                # If it's already a dict/list, use it directly
+                if isinstance(single_value, (dict, list)):
+                    json_content = single_value
+                    detected_key = single_key
+                # If it's a string, check if it's a JSON string first
+                elif isinstance(single_value, str):
+                    if is_json_string(single_value):
+                        json_content = json.loads(single_value)
+                        detected_key = single_key
+                    else:
+                        json_content = {"value": single_value, "path": single_key, "type": "string"}
+                        detected_key = single_key
+                # If it's a primitive value, wrap it for display
+                elif isinstance(single_value, (int, float, bool)) or single_value is None:
+                    json_content = {"value": single_value, "path": single_key, "type": type(single_value).__name__}
+                    detected_key = single_key
+            else:
+                # Multiple keys - output as a dict with all extracted values
+                json_content = extracted_values
+                detected_key = ', '.join(keys_to_extract)
         
         # Priority 2: Only auto-detect if content_key was NOT explicitly set
         # If content_key was explicitly set and we found something, don't auto-detect
@@ -1671,16 +1694,44 @@ async def execute_json_viewer(config: Dict[str, Any], input_data: Any) -> Dict[s
         # Format JSON with indentation
         json_string = json.dumps(json_content, indent=2, ensure_ascii=False)
         
-        return {
-            'status': 'success',
-            'output': {
-                'content': json_string,
-                'json_data': json_content,
+        # Output structure: return the extracted keys as the main output
+        # This allows downstream nodes to use the selected keys
+        output_data = json_content  # The extracted/selected keys
+        
+        # Prepare full JSON for the "Full JSON" tab
+        full_json_string = json.dumps(input_data, indent=2, ensure_ascii=False) if isinstance(input_data, dict) else json.dumps(input_data, indent=2, ensure_ascii=False)
+        
+        # Store viewer_data inside output so it's preserved when stored in node_outputs
+        # But also keep the extracted keys as the main data for downstream nodes
+        if isinstance(output_data, dict):
+            output_data['_viewer_data'] = {
+                'content': json_string,  # Formatted JSON string for display (filtered)
+                'json_data': json_content,  # Parsed JSON data (filtered)
+                'full_json': full_json_string,  # Full input for "Full JSON" tab
+                'full_json_data': input_data,  # Full input data object
                 'detected_key': detected_key,
                 'content_key': content_key,
                 'source': input_data
-            },
-            'stdout': f'JSON viewer detected content from key: {detected_key}',
+            }
+        else:
+            # If output_data is not a dict (e.g., a list or primitive), wrap it
+            output_data = {
+                '_extracted_value': output_data,
+                '_viewer_data': {
+                    'content': json_string,
+                    'json_data': json_content,
+                    'full_json': full_json_string,
+                    'full_json_data': input_data,
+                    'detected_key': detected_key,
+                    'content_key': content_key,
+                    'source': input_data
+                }
+            }
+        
+        return {
+            'status': 'success',
+            'output': output_data,  # Contains extracted keys + _viewer_data
+            'stdout': f'JSON viewer extracted keys: {detected_key}',
             'stderr': '',
             'execution_time': 0.0
         }

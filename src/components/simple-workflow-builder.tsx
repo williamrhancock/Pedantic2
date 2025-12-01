@@ -1776,23 +1776,23 @@ export function SimpleWorkflowBuilder() {
           onUpdateCustomFromNode={isLocked ? undefined : handleUpdateCustomFromNode}
           onExportCustomNode={isLocked ? undefined : handleExportSelectedCustomNode}
           jsonViewerContent={(() => {
-            // For JSON nodes, try to find execution content
+            // For JSON nodes, try to find execution content with viewer_data structure
             if (selectedNodeData.type === 'json') {
               let nodeResult = executionResults.get(selectedNodeData.id)
               
               // If not found in executionResults, try to find it in timeline entries
-              if (!nodeResult || !nodeResult.output || !nodeResult.output.content) {
+              if (!nodeResult || !nodeResult.output) {
                 let timelineEntry = timelineEntries
                   .filter(e => e.nodeId === selectedNodeData.id && !e.isForEachResult && e.output)
                   .sort((a, b) => b.timestamp.getTime() - a.timestamp.getTime())[0]
                 
-                if (!timelineEntry || !timelineEntry.output || !timelineEntry.output.content) {
+                if (!timelineEntry || !timelineEntry.output) {
                   timelineEntry = timelineEntries
-                    .filter(e => e.nodeId === selectedNodeData.id && e.output && e.output.content)
+                    .filter(e => e.nodeId === selectedNodeData.id && e.output)
                     .sort((a, b) => b.timestamp.getTime() - a.timestamp.getTime())[0]
                 }
                 
-                if (timelineEntry && timelineEntry.output && timelineEntry.output.content) {
+                if (timelineEntry && timelineEntry.output) {
                   nodeResult = {
                     output: timelineEntry.output
                   }
@@ -1800,12 +1800,12 @@ export function SimpleWorkflowBuilder() {
               }
               
               // Check for-each results
-              if (!nodeResult || !nodeResult.output || !nodeResult.output.content) {
+              if (!nodeResult || !nodeResult.output) {
                 const forEachResults = timelineEntries
-                  .filter(e => e.isForEachResult && e.nodeId === selectedNodeData.id && e.output && e.output.content)
+                  .filter(e => e.isForEachResult && e.nodeId === selectedNodeData.id && e.output)
                   .sort((a, b) => (b.forEachIteration ?? 0) - (a.forEachIteration ?? 0))
                 
-                if (forEachResults.length > 0 && forEachResults[0].output && forEachResults[0].output.content) {
+                if (forEachResults.length > 0 && forEachResults[0].output) {
                   nodeResult = {
                     output: forEachResults[0].output
                   }
@@ -1813,14 +1813,14 @@ export function SimpleWorkflowBuilder() {
               }
               
               // Check executionResults for for-each nodes
-              if (!nodeResult || !nodeResult.output || !nodeResult.output.content) {
+              if (!nodeResult || !nodeResult.output) {
                 Array.from(executionResults.entries()).forEach(([resultNodeId, result]) => {
                   if (result.output && result.output.results && Array.isArray(result.output.results)) {
                     for (let i = result.output.results.length - 1; i >= 0; i--) {
                       const iteration = result.output.results[i]
                       if (iteration.node_executions && Array.isArray(iteration.node_executions)) {
                         const jsonExec = iteration.node_executions.find(
-                          (exec: any) => exec.node_id === selectedNodeData.id && exec.output && exec.output.content
+                          (exec: any) => exec.node_id === selectedNodeData.id && exec.output
                         )
                         if (jsonExec) {
                           nodeResult = {
@@ -1834,7 +1834,39 @@ export function SimpleWorkflowBuilder() {
                 })
               }
               
-              return nodeResult?.output?.content || undefined
+              // Return the full output structure (includes _viewer_data if available)
+              if (nodeResult?.output) {
+                // Check if output has _viewer_data (new structure)
+                if (nodeResult.output._viewer_data) {
+                  return JSON.stringify({
+                    viewer_data: nodeResult.output._viewer_data,
+                    output: nodeResult.output
+                  })
+                }
+                // Check if output has viewer_data (alternative structure)
+                if (nodeResult.output.viewer_data) {
+                  return JSON.stringify({
+                    viewer_data: nodeResult.output.viewer_data,
+                    output: nodeResult.output
+                  })
+                }
+                // Fallback to old structure (just content)
+                if (nodeResult.output.content) {
+                  return nodeResult.output.content
+                }
+                // If output is the data itself, wrap it
+                return JSON.stringify({
+                  viewer_data: {
+                    content: JSON.stringify(nodeResult.output, null, 2),
+                    json_data: nodeResult.output,
+                    full_json: JSON.stringify(nodeResult.output, null, 2),
+                    full_json_data: nodeResult.output,
+                    source: nodeResult.output
+                  },
+                  output: nodeResult.output
+                })
+              }
+              return undefined
             }
             return undefined
           })()}

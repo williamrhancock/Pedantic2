@@ -44,8 +44,32 @@ export function NodeEditorModal({
   onExportCustomNode,
   isCustom = false,
   customName,
-  jsonViewerContent,
+          jsonViewerContent,
 }: NodeEditorModalProps) {
+  // Parse jsonViewerContent to extract filtered and full JSON
+  const jsonViewerData = jsonViewerContent ? (() => {
+    try {
+      // Try to parse as JSON to get viewer_data structure
+      const parsed = typeof jsonViewerContent === 'string' ? JSON.parse(jsonViewerContent) : jsonViewerContent
+      // Check if it has viewer_data structure (from backend)
+      if (parsed && typeof parsed === 'object' && 'viewer_data' in parsed) {
+        return {
+          filtered: parsed.viewer_data.content || jsonViewerContent,
+          full: parsed.viewer_data.full_json || JSON.stringify(parsed.viewer_data.source || parsed, null, 2)
+        }
+      }
+      // Otherwise, treat as filtered content and get full from source
+      return {
+        filtered: jsonViewerContent,
+        full: null // Will be populated from execution results
+      }
+    } catch {
+      return {
+        filtered: jsonViewerContent,
+        full: null
+      }
+    }
+  })() : null
   const { isDark } = useTheme()
   const [editedCode, setEditedCode] = useState(code || '')
   const [editedConfig, setEditedConfig] = useState(config ? JSON.stringify(config, null, 2) : '')
@@ -63,8 +87,8 @@ export function NodeEditorModal({
   const [exportFilenameInput, setExportFilenameInput] = useState(
     (customName || nodeTitle || 'custom_node') + '.json'
   )
-  // For JSON nodes: toggle between edit and view mode
-  const [jsonViewMode, setJsonViewMode] = useState<'edit' | 'view'>('edit')
+  // For JSON nodes: tab selection (filtered or full)
+  const [jsonViewTab, setJsonViewTab] = useState<'filtered' | 'full'>('filtered')
 
   // Track the previous nodeId to detect when we're editing a different node
   const prevNodeIdRef = useRef<string | null>(null)
@@ -346,7 +370,7 @@ export function NodeEditorModal({
               </div>
             )}
 
-            {nodeType === 'json' && (
+            {nodeType === 'json' && !jsonViewerData && (
               <div className="mt-4">
                 <label className="text-sm font-semibold text-foreground mb-1 block">
                   Content Key (optional)
@@ -354,7 +378,7 @@ export function NodeEditorModal({
                 <input
                   type="text"
                   className="w-full px-3 py-2 rounded-lg bg-white/5 border border-white/10 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-purple-500"
-                  placeholder="data or output.data"
+                  placeholder="data.userId, data.title (comma-separated for multiple keys)"
                   value={(() => {
                     try {
                       const parsed = editedConfig ? JSON.parse(editedConfig) : {}
@@ -382,7 +406,7 @@ export function NodeEditorModal({
                   }}
                 />
                 <p className="text-xs text-muted-foreground mt-1">
-                  Specify the key path to extract JSON from (e.g., &quot;data&quot; or &quot;output.data&quot; for nested paths). Leave empty to auto-detect.
+                  Specify key paths to extract (e.g., &quot;data.userId&quot; or &quot;data.userId, data.title&quot; for multiple keys). Separate multiple keys with commas. Leave empty to auto-detect.
                 </p>
               </div>
             )}
@@ -488,40 +512,43 @@ export function NodeEditorModal({
 
           {/* Center: Editor */}
           <div className="flex-1 glass-card p-4 flex flex-col min-w-0">
-            <div className="mb-2 flex items-center justify-between">
-              <div>
-                <h3 className="text-sm font-semibold text-foreground">
-                  {nodeType === 'json' && jsonViewMode === 'view' 
-                    ? 'JSON Viewer' 
-                    : isCodeNode 
-                    ? 'Code Editor' 
-                    : 'Configuration Editor'}
-                </h3>
-                <p className="text-xs text-muted-foreground mt-1">
-                  {isCodeNode && nodeType === 'python' && 'Must have a "run(input)" function that returns output'}
-                  {isCodeNode && nodeType === 'typescript' && 'Must have an "async run(input)" function that returns output'}
-                  {nodeType === 'json' && jsonViewMode === 'view' && 'Read-only view of JSON content from workflow execution'}
-                </p>
-              </div>
-              {/* Toggle button for JSON nodes */}
-              {nodeType === 'json' && jsonViewerContent && (
-                <button
-                  onClick={() => setJsonViewMode(jsonViewMode === 'edit' ? 'view' : 'edit')}
-                  className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-white/5 hover:bg-white/10 border border-white/10 text-sm text-foreground transition-all hover:scale-105 active:scale-95"
-                  title={jsonViewMode === 'edit' ? 'View JSON content' : 'Edit configuration'}
-                >
-                  {jsonViewMode === 'edit' ? (
-                    <>
-                      <Eye className="w-4 h-4" />
-                      View
-                    </>
-                  ) : (
-                    <>
-                      <Edit className="w-4 h-4" />
-                      Edit
-                    </>
-                  )}
-                </button>
+            <div className="mb-2">
+              <h3 className="text-sm font-semibold text-foreground">
+                {nodeType === 'json' && jsonViewerData
+                  ? 'JSON Viewer' 
+                  : isCodeNode 
+                  ? 'Code Editor' 
+                  : 'Configuration Editor'}
+              </h3>
+              <p className="text-xs text-muted-foreground mt-1">
+                {isCodeNode && nodeType === 'python' && 'Must have a "run(input)" function that returns output'}
+                {isCodeNode && nodeType === 'typescript' && 'Must have an "async run(input)" function that returns output'}
+                {nodeType === 'json' && jsonViewerData && 'Read-only view of JSON content from workflow execution'}
+              </p>
+              {/* Tabs for JSON nodes when content is available */}
+              {nodeType === 'json' && jsonViewerData && (
+                <div className="flex gap-2 mt-3 border-b border-white/10">
+                  <button
+                    onClick={() => setJsonViewTab('filtered')}
+                    className={`px-3 py-1.5 text-sm font-medium transition-colors ${
+                      jsonViewTab === 'filtered'
+                        ? 'text-purple-400 border-b-2 border-purple-400'
+                        : 'text-muted-foreground hover:text-foreground'
+                    }`}
+                  >
+                    Filtered
+                  </button>
+                  <button
+                    onClick={() => setJsonViewTab('full')}
+                    className={`px-3 py-1.5 text-sm font-medium transition-colors ${
+                      jsonViewTab === 'full'
+                        ? 'text-purple-400 border-b-2 border-purple-400'
+                        : 'text-muted-foreground hover:text-foreground'
+                    }`}
+                  >
+                    Full JSON
+                  </button>
+                </div>
               )}
             </div>
             <div 
@@ -575,13 +602,13 @@ export function NodeEditorModal({
                     quickSuggestions: true,
                   }}
                 />
-              ) : nodeType === 'json' && jsonViewMode === 'view' && jsonViewerContent ? (
-                // JSON Viewer mode: show execution result
+              ) : nodeType === 'json' && jsonViewerData ? (
+                // JSON Viewer mode: show execution result with tabs
                 <Editor
-                  key={`${nodeId}-json-view`}
+                  key={`${nodeId}-json-${jsonViewTab}`}
                   height="100%"
                   language="json"
-                  value={jsonViewerContent}
+                  value={jsonViewTab === 'filtered' ? jsonViewerData.filtered : (jsonViewerData.full || '{}')}
                   theme={isDark ? 'vs-dark' : 'vs-light'}
                   options={{
                     minimap: { enabled: true },
