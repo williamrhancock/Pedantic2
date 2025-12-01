@@ -400,6 +400,10 @@ Commercial production use, SaaS, or resale requires a paid license.
 
 © William R. Hancock. Use it, abuse it, attribute it. Or don't – karma's a workflow.
 
+## 🙏 Credits
+
+- **Alex Garcia** ([asg017](https://github.com/asg017)) for the excellent [sqlite-vec](https://github.com/asg017/sqlite-vec) project and `vec0` binaries that make local vector search possible.
+
 ## 👋 Say Hi (or Complain)
 
 [@williamrhancock on GitHub](https://github.com/williamrhancock). Issues? File 'em. Stars? Shower 'em. Clouds? Keep walking.
