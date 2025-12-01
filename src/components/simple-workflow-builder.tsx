@@ -1836,7 +1836,7 @@ export function SimpleWorkflowBuilder() {
               
               // Return the full output structure (includes _viewer_data if available)
               if (nodeResult?.output) {
-                // Check if output has _viewer_data (new structure)
+                // Check if output has _viewer_data (new structure from backend)
                 if (nodeResult.output._viewer_data) {
                   return JSON.stringify({
                     viewer_data: nodeResult.output._viewer_data,
@@ -1850,11 +1850,15 @@ export function SimpleWorkflowBuilder() {
                     output: nodeResult.output
                   })
                 }
-                // Fallback to old structure (just content)
-                if (nodeResult.output.content) {
-                  return nodeResult.output.content
+                // Check if output itself is the viewer_data structure (from old format)
+                if (nodeResult.output.content && nodeResult.output.json_data) {
+                  return JSON.stringify({
+                    viewer_data: nodeResult.output,
+                    output: nodeResult.output
+                  })
                 }
-                // If output is the data itself, wrap it
+                // Fallback: if output is the data itself, try to construct viewer_data
+                // This handles cases where the output is just the extracted keys
                 return JSON.stringify({
                   viewer_data: {
                     content: JSON.stringify(nodeResult.output, null, 2),

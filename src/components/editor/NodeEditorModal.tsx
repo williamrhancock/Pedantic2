@@ -51,21 +51,34 @@ export function NodeEditorModal({
     try {
       // Try to parse as JSON to get viewer_data structure
       const parsed = typeof jsonViewerContent === 'string' ? JSON.parse(jsonViewerContent) : jsonViewerContent
-      // Check if it has viewer_data structure (from backend)
+      
+      // Check if it has viewer_data structure (from backend wrapper)
       if (parsed && typeof parsed === 'object' && 'viewer_data' in parsed) {
+        const viewerData = parsed.viewer_data
         return {
-          filtered: parsed.viewer_data.content || jsonViewerContent,
-          full: parsed.viewer_data.full_json || JSON.stringify(parsed.viewer_data.source || parsed, null, 2)
+          filtered: viewerData.content || JSON.stringify(viewerData.json_data || {}, null, 2),
+          full: viewerData.full_json || JSON.stringify(viewerData.full_json_data || viewerData.source || {}, null, 2)
         }
       }
+      
+      // Check if output has _viewer_data (direct structure from backend)
+      if (parsed && typeof parsed === 'object' && parsed.output && parsed.output._viewer_data) {
+        const viewerData = parsed.output._viewer_data
+        return {
+          filtered: viewerData.content || JSON.stringify(viewerData.json_data || {}, null, 2),
+          full: viewerData.full_json || JSON.stringify(viewerData.full_json_data || viewerData.source || {}, null, 2)
+        }
+      }
+      
       // Otherwise, treat as filtered content and get full from source
       return {
-        filtered: jsonViewerContent,
+        filtered: typeof jsonViewerContent === 'string' ? jsonViewerContent : JSON.stringify(jsonViewerContent, null, 2),
         full: null // Will be populated from execution results
       }
-    } catch {
+    } catch (e) {
+      console.error('Error parsing jsonViewerContent:', e, jsonViewerContent)
       return {
-        filtered: jsonViewerContent,
+        filtered: typeof jsonViewerContent === 'string' ? jsonViewerContent : JSON.stringify(jsonViewerContent || {}, null, 2),
         full: null
       }
     }
