@@ -175,3 +175,8 @@ out.log
 # Cursor IDE
 .cursor/
 .cursorrules
+
+# sqlite-vec binaries (track specific ones for convenience)
+!docker/sqlite3/vec0-x86_64.so
+!docker/sqlite3/vec0-aarch64.so
+!docker/sqlite3/vec0.dylib
