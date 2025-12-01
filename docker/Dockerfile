@@ -17,6 +17,9 @@ RUN npm ci --ignore-scripts && npm rebuild sqlite3 --build-from-source
 # Copy full source (needed for Next.js build)
 COPY . .
 
+# Verify critical files exist (debugging)
+RUN ls -la src/lib/trpc-provider.tsx src/lib/custom-nodes.ts src/lib/trpc.ts tsconfig.json next.config.js || true
+
 # Build Next.js app
 RUN npm run build
 

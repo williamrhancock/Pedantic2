@@ -1,4 +1,6 @@
 /** @type {import('next').NextConfig} */
+const path = require('path')
+
 const nextConfig = {
   transpilePackages: ['reactflow'],
   images: {
@@ -18,13 +20,20 @@ const nextConfig = {
     }
     
     // Explicitly resolve path aliases (fixes Docker build on Windows)
-    config.resolve.alias = {
-      ...config.resolve.alias,
-      '@': require('path').resolve(__dirname, 'src'),
-      '@/components': require('path').resolve(__dirname, 'src/components'),
-      '@/lib': require('path').resolve(__dirname, 'src/lib'),
-      '@/app': require('path').resolve(__dirname, 'src/app'),
-    };
+    // Set '@' to point to src directory - webpack will resolve @/lib/trpc-provider to src/lib/trpc-provider
+    const srcPath = path.resolve(__dirname, 'src')
+    
+    // Ensure resolve configuration exists
+    if (!config.resolve) {
+      config.resolve = {}
+    }
+    if (!config.resolve.alias) {
+      config.resolve.alias = {}
+    }
+    
+    // Set '@' alias to src - this matches tsconfig.json "@/*": ["./src/*"]
+    // Webpack will automatically resolve @/lib/trpc-provider to src/lib/trpc-provider
+    config.resolve.alias['@'] = srcPath
     
     return config;
   },
