@@ -66,7 +66,7 @@ Why "Pedantic2"? Because the first one was *too* forgiving. This version nags yo
 
 Pro Tip: Custom nodes? Save configs as templates. Reuse that "scrape cat memes" workflow without the shame.
 
-## The easy way
+## The Super Easy Way
 ## 🐳 Docker: Because Virtualenvs Are So 2024
 
 One-command bliss:
@@ -76,7 +76,7 @@ cd Pedantic2/docker
 docker-compose up
 ```
 
-## 🛠️ Installation: Easier Than Explaining GitHub to Your Mom
+## 🛠️ On Metal Installation: Easier Than Explaining GitHub to Your Mom
 
 **Prerequisites** (or suffer the postinstall script's wrath):
 - Node.js 18+ ([grab it](https://nodejs.org/))
