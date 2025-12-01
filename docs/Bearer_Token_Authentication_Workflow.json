@@ -10,20 +10,17 @@
   "workflow": {
     "nodes": {
     "start_1": {
-      "id": "start_1",
       "type": "start",
       "title": "Start",
       "position": { "x": 100, "y": 300 }
     },
     "python_credentials": {
-      "id": "python_credentials",
       "type": "python",
       "title": "Prepare Credentials",
       "code": "def run(input):\n    # Prepare credentials for authentication\n    # In a real scenario, you might get these from environment variables or a config\n    credentials = {\n        'username': 'your_username',  # Replace with actual username\n        'password': 'your_password',  # Replace with actual password\n        # Or for API key authentication:\n        # 'api_key': 'your_api_key',\n        # 'api_secret': 'your_api_secret'\n    }\n    \n    # Some APIs require client_id and client_secret\n    # credentials = {\n    #     'client_id': 'your_client_id',\n    #     'client_secret': 'your_client_secret',\n    #     'grant_type': 'client_credentials'\n    # }\n    \n    return {\n        'credentials': credentials,\n        'auth_url': 'https://api.example.com/auth/token'  # Replace with your auth endpoint\n    }",
       "position": { "x": 300, "y": 300 }
     },
     "http_auth": {
-      "id": "http_auth",
       "type": "http",
       "title": "Authenticate & Get Token",
       "config": {
@@ -38,14 +35,12 @@
       "position": { "x": 500, "y": 300 }
     },
     "python_extract_token": {
-      "id": "python_extract_token",
       "type": "python",
       "title": "Extract Bearer Token",
       "code": "def run(input):\n    # Extract the bearer token from the authentication response\n    # The token might be in different fields depending on the API:\n    # - 'access_token' (OAuth2)\n    # - 'token' (some APIs)\n    # - 'authToken' (others)\n    # - 'data.token' (nested)\n    \n    response_data = input.get('data', {})\n    \n    # Try common token field names\n    token = (\n        response_data.get('access_token') or\n        response_data.get('token') or\n        response_data.get('authToken') or\n        response_data.get('bearer_token') or\n        response_data.get('data', {}).get('token')\n    )\n    \n    if not token:\n        return {\n            'error': 'Token not found in response',\n            'response': response_data\n        }\n    \n    # Also extract token type and expiry if available\n    token_type = response_data.get('token_type', 'Bearer')\n    expires_in = response_data.get('expires_in', None)\n    \n    return {\n        'token': token,\n        'token_type': token_type,\n        'expires_in': expires_in,\n        'authorization_header': f'{token_type} {token}'\n    }",
       "position": { "x": 700, "y": 300 }
     },
     "json_view_token": {
-      "id": "json_view_token",
       "type": "json",
       "title": "View Token Info",
       "config": {
@@ -54,14 +49,12 @@
       "position": { "x": 900, "y": 300 }
     },
     "python_prepare_api_request": {
-      "id": "python_prepare_api_request",
       "type": "python",
       "title": "Prepare API Request",
       "code": "def run(input):\n    # Prepare an authenticated API request using the bearer token\n    authorization_header = input.get('authorization_header', '')\n    \n    if not authorization_header:\n        return {\n            'error': 'No authorization header available'\n        }\n    \n    return {\n        'api_url': 'https://api.example.com/v1/data',  # Replace with your API endpoint\n        'authorization_header': authorization_header,\n        'method': 'GET'  # or 'POST', 'PUT', etc.\n    }",
       "position": { "x": 1100, "y": 300 }
     },
     "http_authenticated_request": {
-      "id": "http_authenticated_request",
       "type": "http",
       "title": "Authenticated API Request",
       "config": {
@@ -76,14 +69,12 @@
       "position": { "x": 1300, "y": 300 }
     },
     "json_view_response": {
-      "id": "json_view_response",
       "type": "json",
       "title": "View API Response",
       "config": {},
       "position": { "x": 1500, "y": 300 }
     },
     "end_1": {
-      "id": "end_1",
       "type": "end",
       "title": "End",
       "position": { "x": 1700, "y": 300 }
