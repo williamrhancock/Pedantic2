@@ -252,7 +252,7 @@ The following modules are whitelisted and can be imported in Python nodes:
 **Utilities:**
 - `uuid`, `hashlib`, `statistics`, `decimal`, `fractions`, `calendar`, `copy`
 - `codecs`, `pprint`
-- `os` (limited to `os.getenv()` for environment variable access)
+- `os` (safe wrapper - see below for available functions)
 
 **Type System:**
 - `enum`, `dataclasses`, `typing`
@@ -261,6 +261,44 @@ The following modules are whitelisted and can be imported in Python nodes:
 - `sentence_transformers` (for embedding generation)
 
 **Note:** These modules are explicitly whitelisted for security. Attempting to import any other module will raise an `ImportError`.
+
+#### Safe OS Module
+
+The `os` module is available but wrapped in a safe sandbox that restricts all file operations to `/tmp/workflow_files/`. The following functions are available:
+
+**Environment:**
+- `os.getenv(key, default=None)` - Get environment variable
+
+**Path Operations (all restricted to `/tmp/workflow_files/`):**
+- `os.path.join(*paths)` - Join path components
+- `os.path.exists(path)` - Check if path exists
+- `os.path.isdir(path)` - Check if path is a directory
+- `os.path.isfile(path)` - Check if path is a file
+- `os.path.basename(path)` - Get basename of path
+- `os.path.dirname(path)` - Get dirname of path
+- `os.path.splitext(path)` - Split path into (root, ext) tuple
+- `os.path.abspath(path)` - Get absolute path (restricted to safe directory)
+- `os.path.getsize(path)` - Get file size in bytes
+
+**Directory Operations (all restricted to `/tmp/workflow_files/`):**
+- `os.listdir(path='.')` - List directory contents
+
+**Security:** All path operations automatically validate that paths are within `/tmp/workflow_files/`. Attempting to access paths outside this directory will raise a `PermissionError`.
+
+**Example:**
+```python
+import os
+
+# Check if file exists
+if os.path.exists("/tmp/workflow_files/data.txt"):
+    size = os.path.getsize("/tmp/workflow_files/data.txt")
+    print(f"File size: {size} bytes")
+
+# List directory contents
+files = os.listdir("/tmp/workflow_files/archives")
+for file in files:
+    print(os.path.basename(file))
+```
 
 #### Special Helper Functions
 
@@ -276,8 +314,19 @@ The following modules are whitelisted and can be imported in Python nodes:
 - Raises `PermissionError` if path is outside `/tmp/workflow_files/`
 - Example: `folder = safe_makedirs("/tmp/workflow_files/archives/2025", exist_ok=True)`
 
+**`open(file_path, mode='r', encoding=None, **kwargs) -> file`**
+- Safely open files within `/tmp/workflow_files/` - works exactly like Python's standard `open()`
+- Automatically creates parent directories if writing (`'w'`, `'a'`, `'x'` modes)
+- Supports all standard file modes: `'r'`, `'w'`, `'a'`, `'x'`, `'rb'`, `'wb'`, etc.
+- Can be used with `with` statements for context management
+- Raises `PermissionError` if path is outside `/tmp/workflow_files/`
+- Examples:
+  - Text write: `with open("/tmp/workflow_files/data.txt", 'w', encoding='utf-8') as f: f.write("Hello")`
+  - Binary write: `with open("/tmp/workflow_files/image.png", 'wb') as f: f.write(image_bytes)`
+  - Text read: `with open("/tmp/workflow_files/data.txt", 'r', encoding='utf-8') as f: content = f.read()`
+
 **`safe_write_file(path: str, content: str | bytes, mode: str = 'w', encoding: str = 'utf-8') -> str`**
-- Safely write files within `/tmp/workflow_files/`
+- Convenience function for writing files in one call
 - Automatically creates parent directories if needed
 - Supports text mode (`'w'`) and binary mode (`'wb'`)
 - Returns the absolute path of the written file
@@ -302,7 +351,45 @@ def run(input):
     }
 ```
 
-**File Operations with Safe Helpers:**
+**File Operations with open() (Recommended):**
+```python
+import base64, datetime, re
+
+def run(input):
+    # Create timestamped archive folder
+    ts = datetime.datetime.now().strftime('%Y%m%d_%H%M%S')
+    safe_name = re.sub(r'[^a-zA-Z0-9_-]', '_', input.get('title', 'page'))[:50]
+    html_path = f"/tmp/workflow_files/archive_{ts}_{safe_name}.html"
+    img_path = f"/tmp/workflow_files/screenshot_{ts}_{safe_name}.png"
+    md_path = f"/tmp/workflow_files/summary_{ts}_{safe_name}.md"
+    
+    # Write HTML file using standard open()
+    with open(html_path, 'w', encoding='utf-8') as f:
+        f.write(input.get('html', ''))
+    
+    # Write binary file (screenshot) using open()
+    if input.get('screenshot'):
+        data_url = input['screenshot']
+        if data_url.startswith('data:image/'):
+            img_b64 = data_url.split(',')[1]
+            with open(img_path, 'wb') as f:
+                f.write(base64.b64decode(img_b64))
+    
+    # Write markdown file
+    with open(md_path, 'w', encoding='utf-8') as f:
+        f.write(input.get('content', '# No summary generated'))
+    
+    return {
+        **input,
+        "saved_paths": {
+            "html": html_path,
+            "screenshot": img_path if input.get('screenshot') else None,
+            "summary": md_path
+        }
+    }
+```
+
+**File Operations with Helper Functions:**
 ```python
 import base64, datetime
 
@@ -315,16 +402,16 @@ def run(input):
     # Create directory
     safe_makedirs(folder, exist_ok=True)
     
-    # Write HTML file
+    # Write HTML file using helper
     safe_write_file(f"{folder}/page.html", input.get('html', ''), mode='w', encoding='utf-8')
     
-    # Write binary file (screenshot)
+    # Write binary file (screenshot) using helper
     if input.get('screenshot'):
         img_b64 = input['screenshot'].split(',')[1]  # Remove data:image/png;base64, prefix
         img_bytes = base64.b64decode(img_b64)
         safe_write_file(f"{folder}/screenshot.png", img_bytes, mode='wb')
     
-    # Write markdown file
+    # Write markdown file using helper
     safe_write_file(f"{folder}/SUMMARY.md", input.get('content', '# No summary'), mode='w', encoding='utf-8')
     
     return {**input, "saved_to": folder}

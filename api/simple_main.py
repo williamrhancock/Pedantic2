@@ -98,15 +98,115 @@ def execute_python_code(code: str, input_data: Any) -> Dict[str, Any]:
             'sentence_transformers'  # For embedding generation
         }
         
+        # Create safe os module wrapper
+        import os as real_os
+        from os import path as real_path
+        
+        class SafeOS:
+            """Safe wrapper for os module - only exposes safe functions and restricts paths to /tmp/workflow_files/"""
+            safe_base = Path('/tmp/workflow_files')
+            
+            @staticmethod
+            def _validate_path(path):
+                """Ensure path is within /tmp/workflow_files/"""
+                path_obj = Path(path)
+                if not path_obj.is_absolute():
+                    path_obj = SafeOS.safe_base / path_obj
+                else:
+                    try:
+                        path_obj.resolve().relative_to(SafeOS.safe_base.resolve())
+                    except ValueError:
+                        raise PermissionError(f"Path must be within /tmp/workflow_files/: {path}")
+                return str(path_obj.resolve())
+            
+            @staticmethod
+            def getenv(key, default=None):
+                """Get environment variable"""
+                return real_os.getenv(key, default)
+            
+            class path:
+                """Safe os.path wrapper"""
+                @staticmethod
+                def join(*paths):
+                    """Join path components"""
+                    return real_path.join(*paths)
+                
+                @staticmethod
+                def exists(path):
+                    """Check if path exists (restricted to /tmp/workflow_files/)"""
+                    safe_path = SafeOS._validate_path(path)
+                    return real_path.exists(safe_path)
+                
+                @staticmethod
+                def isdir(path):
+                    """Check if path is a directory (restricted to /tmp/workflow_files/)"""
+                    safe_path = SafeOS._validate_path(path)
+                    return real_path.isdir(safe_path)
+                
+                @staticmethod
+                def isfile(path):
+                    """Check if path is a file (restricted to /tmp/workflow_files/)"""
+                    safe_path = SafeOS._validate_path(path)
+                    return real_path.isfile(safe_path)
+                
+                @staticmethod
+                def basename(path):
+                    """Get basename of path"""
+                    return real_path.basename(path)
+                
+                @staticmethod
+                def dirname(path):
+                    """Get dirname of path"""
+                    return real_path.dirname(path)
+                
+                @staticmethod
+                def splitext(path):
+                    """Split path into (root, ext)"""
+                    return real_path.splitext(path)
+                
+                @staticmethod
+                def abspath(path):
+                    """Get absolute path (restricted to /tmp/workflow_files/)"""
+                    safe_path = SafeOS._validate_path(path)
+                    return real_path.abspath(safe_path)
+                
+                @staticmethod
+                def getsize(path):
+                    """Get file size (restricted to /tmp/workflow_files/)"""
+                    safe_path = SafeOS._validate_path(path)
+                    return real_path.getsize(safe_path)
+            
+            @staticmethod
+            def listdir(path='.'):
+                """List directory contents (restricted to /tmp/workflow_files/)"""
+                if path == '.':
+                    safe_path = str(SafeOS.safe_base)
+                else:
+                    safe_path = SafeOS._validate_path(path)
+                return real_os.listdir(safe_path)
+        
+        safe_os = SafeOS()
+        
         def safe_import(name, globals=None, locals=None, fromlist=(), level=0):
             if name not in allowed_modules:
                 raise ImportError(f"Module '{name}' is not allowed")
+            
+            # Special handling for os module - return safe wrapper
+            if name == 'os':
+                return safe_os
+            
+            # Special handling for os.path - return safe wrapper's path
+            if name == 'os.path' or (name == 'os' and fromlist and 'path' in fromlist):
+                return safe_os.path
+            
             return __import__(name, globals, locals, fromlist, level)
         
         # Import proper RestrictedPython print support
         from RestrictedPython.PrintCollector import PrintCollector
         
         restricted_globals['__import__'] = safe_import
+        # Also make safe_os available directly
+        restricted_globals['os'] = safe_os
         restricted_globals['_print_'] = PrintCollector
         restricted_globals['_getattr_'] = getattr
         # _getitem_ handles item access like obj[index]
@@ -188,6 +288,33 @@ def execute_python_code(code: str, input_data: Any) -> Dict[str, Any]:
             
             return str(path_obj)
         
+        def safe_open(file_path, mode='r', encoding=None, **kwargs):
+            """Safely open files, only within /tmp/workflow_files/ - works like standard open()"""
+            safe_base = Path('/tmp/workflow_files')
+            path_obj = Path(file_path)
+            
+            # Resolve to absolute path
+            if not path_obj.is_absolute():
+                path_obj = safe_base / path_obj
+            else:
+                # Ensure it's within safe_base
+                try:
+                    path_obj.resolve().relative_to(safe_base.resolve())
+                except ValueError:
+                    raise PermissionError(f"Path must be within /tmp/workflow_files/: {file_path}")
+            
+            # Create parent directories if writing
+            if 'w' in mode or 'a' in mode or 'x' in mode:
+                path_obj.parent.mkdir(parents=True, exist_ok=True)
+            
+            # Open file with standard open() - path is now validated
+            if encoding:
+                return open(path_obj, mode, encoding=encoding, **kwargs)
+            else:
+                return open(path_obj, mode, **kwargs)
+        
+        # Make 'open' point to safe_open in restricted environment
+        restricted_globals['open'] = safe_open
         restricted_globals['safe_makedirs'] = safe_makedirs
         restricted_globals['safe_write_file'] = safe_write_file
         
