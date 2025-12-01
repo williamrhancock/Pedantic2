@@ -251,8 +251,39 @@ Headless? POST to `/run` with workflow JSON. Or `npm run run-workflow -- 42` (ID
 
 - [Complete Workflow Nodes Guide](docs/WORKFLOW_NODES_GUIDE.md) - Detailed documentation for all node types
 - [Workflow Examples](docs/WORKFLOW_EXAMPLES.md) - Comprehensive guide to all example workflows
-- [LLM Workflow Generation Guide](docs/LLM_WORKFLOW_GENERATION_GUIDE.md) - For LLMs generating workflows
+- [LLM Workflow Generation Guide](docs/LLM_WORKFLOW_GENERATION_GUIDE.md) - For LLMs generating workflows (and for wiring up automatic workflow generation)
 - [Bearer Token Authentication Guide](docs/BEARER_TOKEN_AUTH_GUIDE.md) - Complete guide to authentication patterns and bearer token workflows
+
+### Using the LLM Workflow Generation Guide for Auto-Generated Workflows
+
+If you want an LLM (or any external tool) to **generate Pedantic2 workflows for you**, point it at  
+`docs/LLM_WORKFLOW_GENERATION_GUIDE.md` and tell it to strictly follow that spec.
+
+At a minimum, your prompt to the LLM should say something like:
+
+```text
+You are generating workflows for Pedantic2.
+Only produce JSON that matches docs/LLM_WORKFLOW_GENERATION_GUIDE.md.
+Do not invent new node types or fields.
+Always:
+- Include exactly one start node and at least one end node
+- Ensure every branch reaches an end node
+- Add EndLoop after every ForEach loop
+- Use unique, descriptive node and connection IDs
+Return ONLY valid JSON, no commentary.
+```
+
+Then:
+
+1. Paste the generated JSON into the **Import Workflow** dialog in Pedantic2, or  
+2. Save it under `docs/examples/` and load it via the UI.
+
+The guide already documents:
+- Full JSON schema for workflows
+- All node types, fields, and constraints
+- Critical rules (EndLoop after ForEach, connection IDs, required nodes)
+
+Treat it as the **single source of truth** for any automated workflow generator.
 
 
 DB woes? Maintenance panel: Delete, backup, compact. Because SQLite bloat is real.
