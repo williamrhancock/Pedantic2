@@ -2,6 +2,81 @@
 
 This guide provides complete specifications for generating valid Pedantic2 workflow JSON. Use this document to understand node types, their inputs/outputs, capabilities, limitations, and how data flows between nodes.
 
+## JSON Schema (Quick Reference)
+
+```json
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "type": "object",
+  "required": ["format", "metadata", "workflow"],
+  "properties": {
+    "format": {
+      "type": "string",
+      "const": "pedantic-workflow-v1"
+    },
+    "metadata": {
+      "type": "object",
+      "required": ["name"],
+      "properties": {
+        "name": { "type": "string" },
+        "description": { "type": "string" },
+        "tags": { "type": "array", "items": { "type": "string" } },
+        "exportedAt": { "type": "string", "format": "date-time" },
+        "version": { "type": "string" }
+      }
+    },
+    "workflow": {
+      "type": "object",
+      "required": ["nodes", "connections"],
+      "properties": {
+        "nodes": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "object",
+            "required": ["type", "title", "position"],
+            "properties": {
+              "type": { "type": "string" },
+              "title": { "type": "string" },
+              "position": {
+                "type": "object",
+                "required": ["x", "y"],
+                "properties": {
+                  "x": { "type": "number" },
+                  "y": { "type": "number" }
+                }
+              },
+              "code": { "type": "string" },
+              "config": { "type": "object" },
+              "skipDuringExecution": { "type": "boolean" }
+            }
+          }
+        },
+        "connections": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "object",
+            "required": ["source", "target", "sourceOutput", "targetInput"],
+            "properties": {
+              "source": { "type": "string" },
+              "target": { "type": "string" },
+              "sourceOutput": { "type": "string", "const": "output" },
+              "targetInput": { "type": "string", "const": "input" }
+            }
+          }
+        },
+        "metadata": {
+          "type": "object",
+          "properties": {
+            "nodeCount": { "type": "number" },
+            "lastModified": { "type": "string", "format": "date-time" }
+          }
+        }
+      }
+    }
+  }
+}
+```
+
 ## Table of Contents
 
 1. [Workflow JSON Structure](#workflow-json-structure)
@@ -70,10 +145,13 @@ Connections define data flow:
 - `sourceOutput`: Always `"output"` (the output handle)
 - `targetInput`: Always `"input"` (the input handle)
 
+**Connection IDs**: Connection IDs can be any unique string. Use descriptive names like `"start_to_python"`, `"foreach_to_llm"`, `"condition_branch_a"`, etc. to make workflows easier to understand and debug.
+
 **CRITICAL**: Every workflow MUST have:
 1. Exactly one `start` node
 2. At least one `end` node
 3. A connection path from `start` to `end`
+4. **Every branch must eventually reach at least one `end` node** - No orphan branches allowed. If you use conditional logic that creates multiple paths, ensure each path terminates at an `end` node.
 
 ---
 
@@ -1246,7 +1324,23 @@ Analyze this product: Laptop
 - Each iteration receives the **item itself** as input (replaces entire input)
 - Original workflow context is preserved in `_workflow_context` key
 - **Sub-workflow continues until an EndLoop node** (not End or another ForEach)
-- **CRITICAL**: Every ForEach loop MUST have a corresponding EndLoop node to mark where the loop ends
+
+<div style="background-color: #fee; border: 3px solid #c00; padding: 15px; margin: 20px 0; border-radius: 5px;">
+
+**⚠️ CRITICAL WARNING: ENDLOOP REQUIREMENT ⚠️**
+
+**EVERY ForEach loop MUST be followed by exactly one EndLoop node before leaving the loop scope.**
+
+This is the **single most common fatal error** when generating workflows. Without an EndLoop node:
+- ForEach results will not aggregate correctly
+- Data flow to downstream nodes will be broken
+- The workflow may execute but produce incorrect or incomplete results
+
+**Pattern**: `ForEach → [sub-workflow nodes] → EndLoop → [nodes after loop]`
+
+**DO NOT** connect nodes directly from ForEach to nodes outside the loop. **ALWAYS** use EndLoop as the bridge.
+
+</div>
 
 #### What For Each Nodes CAN Do
 ✅ Iterate over arrays from input  
