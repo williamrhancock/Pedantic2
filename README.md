@@ -74,6 +74,7 @@ One-command bliss:
 git clone https://github.com/williamrhancock/Pedantic2.git
 cd Pedantic2/docker
 docker-compose up
+```
 
 ## 🛠️ Installation: Easier Than Explaining GitHub to Your Mom
 
