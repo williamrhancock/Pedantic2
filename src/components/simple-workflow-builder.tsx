@@ -1780,6 +1780,14 @@ export function SimpleWorkflowBuilder() {
             if (selectedNodeData.type === 'json') {
               let nodeResult = executionResults.get(selectedNodeData.id)
               
+              console.log('JSON Viewer - Looking for execution results:', {
+                nodeId: selectedNodeData.id,
+                hasExecutionResults: !!nodeResult,
+                executionResultsSize: executionResults.size,
+                executionResultsKeys: Array.from(executionResults.keys()),
+                timelineEntriesCount: timelineEntries.length
+              })
+              
               // If not found in executionResults, try to find it in timeline entries
               if (!nodeResult || !nodeResult.output) {
                 let timelineEntry = timelineEntries
@@ -1796,6 +1804,7 @@ export function SimpleWorkflowBuilder() {
                   nodeResult = {
                     output: timelineEntry.output
                   }
+                  console.log('JSON Viewer - Found in timeline:', { nodeResult })
                 }
               }
               
@@ -1836,8 +1845,18 @@ export function SimpleWorkflowBuilder() {
               
               // Return the full output structure (includes _viewer_data if available)
               if (nodeResult?.output) {
+                console.log('JSON Viewer - Found nodeResult.output:', {
+                  hasOutput: !!nodeResult.output,
+                  outputKeys: Object.keys(nodeResult.output || {}),
+                  hasViewerData: !!nodeResult.output._viewer_data,
+                  hasViewerDataAlt: !!nodeResult.output.viewer_data,
+                  outputType: typeof nodeResult.output,
+                  outputSample: JSON.stringify(nodeResult.output).substring(0, 200)
+                })
+                
                 // Check if output has _viewer_data (new structure from backend)
                 if (nodeResult.output._viewer_data) {
+                  console.log('JSON Viewer - Using _viewer_data structure')
                   return JSON.stringify({
                     viewer_data: nodeResult.output._viewer_data,
                     output: nodeResult.output
@@ -1845,6 +1864,7 @@ export function SimpleWorkflowBuilder() {
                 }
                 // Check if output has viewer_data (alternative structure)
                 if (nodeResult.output.viewer_data) {
+                  console.log('JSON Viewer - Using viewer_data structure')
                   return JSON.stringify({
                     viewer_data: nodeResult.output.viewer_data,
                     output: nodeResult.output
@@ -1852,6 +1872,7 @@ export function SimpleWorkflowBuilder() {
                 }
                 // Check if output itself is the viewer_data structure (from old format)
                 if (nodeResult.output.content && nodeResult.output.json_data) {
+                  console.log('JSON Viewer - Using old format structure')
                   return JSON.stringify({
                     viewer_data: nodeResult.output,
                     output: nodeResult.output
@@ -1859,6 +1880,7 @@ export function SimpleWorkflowBuilder() {
                 }
                 // Fallback: if output is the data itself, try to construct viewer_data
                 // This handles cases where the output is just the extracted keys
+                console.log('JSON Viewer - Using fallback structure')
                 return JSON.stringify({
                   viewer_data: {
                     content: JSON.stringify(nodeResult.output, null, 2),
@@ -1870,6 +1892,7 @@ export function SimpleWorkflowBuilder() {
                   output: nodeResult.output
                 })
               }
+              console.log('JSON Viewer - No output found')
               return undefined
             }
             return undefined
