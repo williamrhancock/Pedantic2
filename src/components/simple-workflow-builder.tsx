@@ -1780,18 +1780,7 @@ export function SimpleWorkflowBuilder() {
             if (selectedNodeData.type === 'json') {
               let nodeResult = executionResults.get(selectedNodeData.id)
               
-              console.log('JSON Viewer - Looking for execution results:', {
-                nodeId: selectedNodeData.id,
-                hasExecutionResults: !!nodeResult,
-                nodeResult: nodeResult,
-                nodeResultKeys: nodeResult ? Object.keys(nodeResult) : [],
-                hasOutput: !!(nodeResult?.output),
-                outputType: nodeResult?.output ? typeof nodeResult.output : 'none',
-                outputKeys: nodeResult?.output && typeof nodeResult.output === 'object' ? Object.keys(nodeResult.output) : [],
-                executionResultsSize: executionResults.size,
-                executionResultsKeys: Array.from(executionResults.keys()),
-                timelineEntriesCount: timelineEntries.length
-              })
+              // Find execution results for JSON viewer
               
               // If not found in executionResults, try to find it in timeline entries
               if (!nodeResult || !nodeResult.output) {
@@ -1850,19 +1839,8 @@ export function SimpleWorkflowBuilder() {
               
               // Return the full output structure (includes _viewer_data if available)
               if (nodeResult?.output) {
-                console.log('JSON Viewer - Found nodeResult.output:', {
-                  hasOutput: !!nodeResult.output,
-                  outputKeys: Object.keys(nodeResult.output || {}),
-                  hasViewerData: !!nodeResult.output._viewer_data,
-                  hasViewerDataAlt: !!nodeResult.output.viewer_data,
-                  outputType: typeof nodeResult.output,
-                  outputSample: JSON.stringify(nodeResult.output).substring(0, 200),
-                  fullOutput: nodeResult.output
-                })
-                
                 // Check if output has _viewer_data (new structure from backend)
                 if (nodeResult.output._viewer_data) {
-                  console.log('JSON Viewer - Using _viewer_data structure')
                   return JSON.stringify({
                     viewer_data: nodeResult.output._viewer_data,
                     output: nodeResult.output
@@ -1870,7 +1848,6 @@ export function SimpleWorkflowBuilder() {
                 }
                 // Check if output has viewer_data (alternative structure)
                 if (nodeResult.output.viewer_data) {
-                  console.log('JSON Viewer - Using viewer_data structure')
                   return JSON.stringify({
                     viewer_data: nodeResult.output.viewer_data,
                     output: nodeResult.output
@@ -1878,7 +1855,6 @@ export function SimpleWorkflowBuilder() {
                 }
                 // Check if output itself is the viewer_data structure (from old format)
                 if (nodeResult.output.content && nodeResult.output.json_data) {
-                  console.log('JSON Viewer - Using old format structure')
                   return JSON.stringify({
                     viewer_data: nodeResult.output,
                     output: nodeResult.output
@@ -1886,24 +1862,17 @@ export function SimpleWorkflowBuilder() {
                 }
                 // Fallback: if output is the data itself, try to construct viewer_data
                 // This handles cases where the output is just the extracted keys
-                console.log('JSON Viewer - Using fallback structure')
                 return JSON.stringify({
                   viewer_data: {
                     content: JSON.stringify(nodeResult.output, null, 2),
-                    json_data: nodeResult.output,
+                    json_data: JSON.stringify(nodeResult.output, null, 2),
                     full_json: JSON.stringify(nodeResult.output, null, 2),
-                    full_json_data: nodeResult.output,
-                    source: nodeResult.output
+                    full_json_data: JSON.stringify(nodeResult.output, null, 2),
+                    source: JSON.stringify(nodeResult.output, null, 2)
                   },
                   output: nodeResult.output
                 })
               }
-              console.log('JSON Viewer - No output found', {
-                nodeResult: nodeResult,
-                hasNodeResult: !!nodeResult,
-                nodeResultType: typeof nodeResult,
-                nodeResultKeys: nodeResult ? Object.keys(nodeResult) : []
-              })
               return undefined
             }
             return undefined

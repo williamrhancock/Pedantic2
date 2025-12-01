@@ -1519,7 +1519,6 @@ async def execute_json_viewer(config: Dict[str, Any], input_data: Any) -> Dict[s
     """Execute JSON viewer node - automatically detects and formats JSON in any variable"""
     try:
         import json
-        print(f"DEBUG JSON Viewer: config={config}, input_data type={type(input_data)}, input_data keys={list(input_data.keys()) if isinstance(input_data, dict) else 'N/A'}")
         # Get content_key from config, default to empty string to differentiate from explicit 'content'
         content_key = config.get('content_key', '')
         # Check if content_key was explicitly set (not empty and not None)
@@ -1694,11 +1693,8 @@ async def execute_json_viewer(config: Dict[str, Any], input_data: Any) -> Dict[s
         
         # Ensure json_content is not None - fallback to input_data if needed
         if json_content is None:
-            print(f"DEBUG JSON Viewer: json_content is None, falling back to input_data")
             json_content = input_data if input_data is not None else {}
             detected_key = 'input'
-        
-        print(f"DEBUG JSON Viewer: json_content type={type(json_content)}, json_content is None={json_content is None}")
         
         # Format JSON with indentation
         json_string = json.dumps(json_content, indent=2, ensure_ascii=False)
@@ -1706,7 +1702,6 @@ async def execute_json_viewer(config: Dict[str, Any], input_data: Any) -> Dict[s
         # Output structure: return the extracted keys as the main output
         # This allows downstream nodes to use the selected keys
         output_data = json_content  # The extracted/selected keys
-        print(f"DEBUG JSON Viewer: output_data type={type(output_data)}, output_data is None={output_data is None}")
         
         # Prepare full JSON for the "Full JSON" tab
         full_json_string = json.dumps(input_data, indent=2, ensure_ascii=False) if isinstance(input_data, dict) else json.dumps(input_data, indent=2, ensure_ascii=False)
@@ -1739,21 +1734,14 @@ async def execute_json_viewer(config: Dict[str, Any], input_data: Any) -> Dict[s
                 }
             }
         
-        result = {
+        return {
             'status': 'success',
             'output': output_data,  # Contains extracted keys + _viewer_data
             'stdout': f'JSON viewer extracted keys: {detected_key}',
             'stderr': '',
             'execution_time': 0.0
         }
-        print(f"DEBUG JSON Viewer: Returning result with output type={type(result['output'])}, output is None={result['output'] is None}")
-        if isinstance(result['output'], dict):
-            print(f"DEBUG JSON Viewer: output keys={list(result['output'].keys())}")
-        return result
     except Exception as e:
-        print(f"DEBUG JSON Viewer: Exception occurred: {str(e)}")
-        import traceback
-        traceback.print_exc()
         return {
             'status': 'error',
             'error': f'JSON viewer failed: {str(e)}',
