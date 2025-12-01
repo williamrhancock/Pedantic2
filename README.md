@@ -157,7 +157,71 @@ Pro Tip: Custom nodes? Save configs as templates. Reuse that "scrape cat memes" 
 
 Manual Python drama? `cd api; python -m venv venv; source venv/bin/activate; pip install -r requirements.txt`. Weep if needed.
 
-**Docker?** Not yet. Pull requests welcome, slacker.
+## 🐳 Docker (Single-Container, Prod-like)
+
+Prefer containers? There's a single Docker image that runs **both** the Next.js frontend and the FastAPI backend.
+
+**Platform support:**  
+- Image is built and tested for **Linux x86_64/amd64** (including Docker Desktop on macOS/Windows using a linux/amd64 engine).  
+- Vector DB (sqlite-vec) inside Docker uses the **Linux x86_64 loadable extension** only.  
+- Native Linux arm64 (aarch64) containers are **not guaranteed** to have a working sqlite-vec extension yet. Everything else (Browser, OCR, HTTP, LLM, etc.) still works on arm64, but vector search may be disabled or noisy there.
+
+### Build the image
+
+From the repo root:
+
+```bash
+docker build -f docker/Dockerfile -t pedantic2 .
+```
+
+This will:
+- Build the Next.js frontend in a Node builder stage
+- Install Python dependencies (FastAPI backend)
+- Install Playwright browsers and Tesseract OCR
+- Bundle everything into a single runtime image
+
+### Run the container
+
+Minimal run (expects `.env` for API keys in the host working directory):
+
+```bash
+docker run --env-file .env -p 3000:3000 pedantic2
+```
+
+- Frontend: [http://localhost:3000](http://localhost:3000)
+- Backend (inside container): http://localhost:8000 (exposed if you map it)
+
+If you want direct access to the FastAPI API from the host:
+
+```bash
+docker run --env-file .env -p 3000:3000 -p 8000:8000 pedantic2
+```
+
+### Using docker-compose (optional)
+
+In the `docker/` folder:
+
+```bash
+cd docker
+docker-compose up --build
+```
+
+That will:
+- Build the `pedantic2` image from `docker/Dockerfile`
+- Start the app as `pedantic2-app`
+- Map:
+  - `3000:3000` for the frontend
+  - `8000:8000` for the API
+- Mount volumes:
+  - `workflow_files` → `/tmp/workflow_files`
+  - `workflow_dbs` → `/tmp/workflow_dbs`
+
+### Notes
+
+- All file operations still live under `/tmp/workflow_files/` **inside the container**. With volumes, that data persists across restarts.
+- SQLite DBs live under `/tmp/workflow_dbs/` when using the DB node. Again, volumes keep them around.
+- API keys and provider settings are still controlled via environment variables (`OPENROUTER_API_KEY`, `OPENAI_API_KEY`, etc.) – never bake secrets into images.
+
 
 ## 📖 Quickstart: From Blank Canvas to "Eureka!" (or "Why Me?")
 

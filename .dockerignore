@@ -1,0 +1,16 @@
+node_modules
+npm-debug.log*
+.next
+.git
+.gitignore
+Dockerfile
+docker-compose.yml
+*.md
+data.db
+data.dev.db
+__pycache__
+*.pyc
+api/__pycache__
+api/*.pyc
+
+
