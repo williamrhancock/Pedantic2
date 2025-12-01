@@ -173,9 +173,9 @@ export function NodeEditorModal({
       setEditedConfig(config ? JSON.stringify(config, null, 2) : '')
       setSkipExecution(skipDuringExecution || false)
       
-      // For JSON nodes: default to view mode if we have execution content, otherwise edit mode
-      if (nodeType === 'json') {
-        setJsonViewMode(jsonViewerContent ? 'view' : 'edit')
+      // For JSON nodes: default to filtered tab if we have execution content
+      if (nodeType === 'json' && jsonViewerContent) {
+        setJsonViewTab('filtered')
       }
       
       prevNodeIdRef.current = nodeId
