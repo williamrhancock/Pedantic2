@@ -225,15 +225,40 @@ Connections define data flow:
 ❌ Access variables from other nodes directly (only via `input` parameter)  
 
 #### Allowed Python Modules
-- Core: `json`, `math`, `random`, `datetime`, `time`, `re`, `base64`
-- Data: `collections`, `itertools`, `functools`, `operator`, `heapq`, `bisect`
-- Timezone: `pytz`, `zoneinfo`
-- Processing: `numpy`, `pandas`
-- HTTP: `requests`, `urllib`, `urllib.parse`, `urllib.request`, `urllib.error`
-- Text: `string`, `textwrap`, `difflib`, `html`, `csv`, `markdown`
-- Utilities: `uuid`, `hashlib`, `statistics`, `decimal`, `fractions`, `calendar`, `copy`
-- Types: `enum`, `dataclasses`, `typing`, `array`
-- Other: `codecs`, `pprint`
+
+The following modules are whitelisted and can be imported in Python nodes:
+
+**Core Libraries:**
+- `json`, `math`, `random`, `datetime`, `time`, `re`, `base64`
+
+**Data Structures & Algorithms:**
+- `collections`, `itertools`, `functools`, `operator`, `heapq`, `bisect`, `array`
+
+**Data Processing:**
+- `numpy`, `pandas`
+
+**Timezone Handling:**
+- `pytz`, `zoneinfo`
+
+**HTTP & Networking:**
+- `requests`, `urllib`, `urllib.parse`, `urllib.request`, `urllib.error`
+
+**Text Processing:**
+- `string`, `textwrap`, `difflib`, `html`, `csv`, `markdown`
+- `bs4` (BeautifulSoup for HTML/XML parsing)
+
+**Utilities:**
+- `uuid`, `hashlib`, `statistics`, `decimal`, `fractions`, `calendar`, `copy`
+- `codecs`, `pprint`
+- `os` (limited to `os.getenv()` for environment variable access)
+
+**Type System:**
+- `enum`, `dataclasses`, `typing`
+
+**Machine Learning:**
+- `sentence_transformers` (for embedding generation)
+
+**Note:** These modules are explicitly whitelisted for security. Attempting to import any other module will raise an `ImportError`.
 
 #### Special Helper Function
 - `markdown_to_html(md_text: str) -> str`: Converts markdown to HTML (uses `markdown` library if available, fallback regex otherwise)
