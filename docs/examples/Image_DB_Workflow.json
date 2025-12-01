@@ -26,7 +26,7 @@
         "config": {
           "operation": "create",
           "database": "images.db",
-          "query": "CREATE TABLE IF NOT EXISTS images (\\n  id INTEGER PRIMARY KEY AUTOINCREMENT,\\n  filename TEXT,\\n  mime_type TEXT,\\n  data BLOB,\\n  created_at TEXT\\n);"
+          "query": "CREATE TABLE IF NOT EXISTS images (id INTEGER PRIMARY KEY AUTOINCREMENT, filename TEXT, mime_type TEXT, data BLOB, created_at TEXT);"
         },
         "position": { "x": 500, "y": 100 }
       },
