@@ -58,9 +58,9 @@ COPY --from=frontend-builder /app/next.config.js ./next.config.js
 RUN mkdir -p /tmp/workflow_files /tmp/workflow_dbs
 COPY docker/sqlite3/vec0-x86_64.so /tmp/workflow_files/vec0.so
 
-# Copy start script
+# Copy start script and fix line endings (Windows CRLF -> Unix LF)
 COPY docker/start.sh /start.sh
-RUN chmod +x /start.sh
+RUN sed -i 's/\r$//' /start.sh && chmod +x /start.sh
 
 EXPOSE 3000
 EXPOSE 8000
