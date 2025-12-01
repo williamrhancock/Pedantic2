@@ -17,7 +17,7 @@
       "python_image_input": {
         "type": "python",
         "title": "Fetch Pedantic2 PNG",
-        "code": "import base64, requests; URL = 'https://raw.githubusercontent.com/williamrhancock/Pedantic2/main/docs/Pedantic2-main.png'; def run(input): resp = requests.get(URL, timeout=10); resp.raise_for_status(); image_bytes = resp.content; data_uri = 'data:image/png;base64,' + base64.b64encode(image_bytes).decode('utf-8'); return {'filename': 'Pedantic2-main.png', 'image_data': data_uri, 'mime_type': 'image/png'}",
+        "code": "import base64, requests\n\nURL = 'https://raw.githubusercontent.com/williamrhancock/Pedantic2/main/docs/Pedantic2-main.png'\n\ndef run(input):\n    resp = requests.get(URL, timeout=10)\n    resp.raise_for_status()\n    image_bytes = resp.content\n    data_uri = 'data:image/png;base64,' + base64.b64encode(image_bytes).decode('utf-8')\n    return {\n        'filename': 'Pedantic2-main.png',\n        'image_data': data_uri,\n        'mime_type': 'image/png'\n    }",
         "position": { "x": 300, "y": 200 }
       },
       "db_create_images": {
@@ -33,7 +33,7 @@
       "python_prepare_insert": {
         "type": "python",
         "title": "Prepare Image BLOB",
-        "code": "import base64, datetime\n\n\ndef run(input):\n    data_uri = input.get('image_data', '')\n    if not data_uri or not data_uri.startswith('data:image/'):\n        raise ValueError('image_data must be a data URI')\n\n    header, b64 = data_uri.split(',', 1)\n    mime_type = header.split(';')[0].split(':')[1]\n\n    image_bytes = base64.b64decode(b64)\n\n    return {\n        'filename': input.get('filename', 'image.png'),\n        'mime_type': mime_type,\n        'image_bytes': image_bytes,\n        'created_at': datetime.datetime.utcnow().isoformat()\n    }",
+        "code": "import base64, datetime\n\n\ndef run(input):\n    data_uri = input.get('image_data', '')\n    if not data_uri or not data_uri.startswith('data:image/'):\n        raise ValueError('image_data must be a data URI')\n\n    parts = data_uri.split(',', 1)\n    header = parts[0]\n    b64 = parts[1] if len(parts) > 1 else ''\n    mime_type = header.split(';')[0].split(':')[1]\n\n    image_bytes = base64.b64decode(b64)\n\n    return {\n        'filename': input.get('filename', 'image.png'),\n        'mime_type': mime_type,\n        'image_bytes': image_bytes,\n        'created_at': datetime.datetime.utcnow().isoformat()\n    }",
         "position": { "x": 500, "y": 300 }
       },
       "db_insert_image": {
