@@ -17,6 +17,15 @@ const nextConfig = {
       config.externals.push('reactflow');
     }
     
+    // Explicitly resolve path aliases (fixes Docker build on Windows)
+    config.resolve.alias = {
+      ...config.resolve.alias,
+      '@': require('path').resolve(__dirname, 'src'),
+      '@/components': require('path').resolve(__dirname, 'src/components'),
+      '@/lib': require('path').resolve(__dirname, 'src/lib'),
+      '@/app': require('path').resolve(__dirname, 'src/app'),
+    };
+    
     return config;
   },
 }
