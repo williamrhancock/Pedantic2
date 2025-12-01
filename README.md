@@ -263,9 +263,9 @@ At a minimum, your prompt to the LLM should say something like:
 
 ```text
 You are generating workflows for Pedantic2.
-Only produce JSON that matches docs/LLM_WORKFLOW_GENERATION_GUIDE.md.
+Only produce JSON that matches the attached rule.
 Do not invent new node types or fields.
-Use unique, descriptive node and connection IDs
+Use unique, descriptive node and connection IDs.
 Return ONLY valid JSON, no commentary.
 
 [Enter your wishlist workflow and watch it cook!]
