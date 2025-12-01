@@ -1,7 +1,0 @@
----
-alwaysApply: true
----
-Do NOT use worktrees, always work out of the app's root Pedantic2.
-Always add and commit but do not push after completing a task.
-Always run a npm run build and  try to fix errors before commiting.
-Ask any questions after I submit to the agent to seek clarity.
