@@ -301,7 +301,12 @@ DB woes? Maintenance panel: Delete, backup, compact. Because SQLite bloat is rea
 
 Fork, fix, PR. Tests? Add 'em. Docs? Flesh 'em. Moar nodes? Yes.
 
-## 📄 License: MIT – Steal Responsibly
+## License
+
+**Business Source License 1.1** (free for personal & non-commercial use)  
+Commercial production use, SaaS, or resale requires a paid license.
+
+→ Details: [LICENSE.md](LICENSE.md) • [Commercial pricing](COMMERCIAL.md)
 
 © William R. Hancock. Use it, abuse it, attribute it. Or don't – karma's a workflow.
 
