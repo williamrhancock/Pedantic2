@@ -1691,6 +1691,11 @@ async def execute_json_viewer(config: Dict[str, Any], input_data: Any) -> Dict[s
             json_content = input_data
             detected_key = 'input'
         
+        # Ensure json_content is not None - fallback to input_data if needed
+        if json_content is None:
+            json_content = input_data if input_data is not None else {}
+            detected_key = 'input'
+        
         # Format JSON with indentation
         json_string = json.dumps(json_content, indent=2, ensure_ascii=False)
         
