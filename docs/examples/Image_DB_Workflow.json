@@ -1,0 +1,143 @@
+{
+  "format": "pedantic-workflow-v1",
+  "metadata": {
+    "name": "Image to SQLite and Back",
+    "description": "Store a base64 image in SQLite as BLOB, read it back, and display it in the Image Viewer.",
+    "tags": ["images", "sqlite", "blob", "viewer"],
+    "exportedAt": "2025-12-01T00:00:00.000Z",
+    "version": "1.0.0"
+  },
+  "workflow": {
+    "nodes": {
+      "start": {
+        "type": "start",
+        "title": "Start",
+        "position": { "x": 100, "y": 200 }
+      },
+      "python_image_input": {
+        "type": "python",
+        "title": "Provide Image Input",
+        "code": "def run(input):\\n    # TODO: Replace this stub with your own image data source.\\n    # Expecting a data URI like: data:image/png;base64,iVBORw0KGgo...\\n    return {\\n        'filename': 'example.png',\\n        'image_data': input.get('image_data', ''),\\n        'mime_type': 'image/png'\\n    }",
+        "position": { "x": 300, "y": 200 }
+      },
+      "db_create_images": {
+        "type": "database",
+        "title": "Create Images Table",
+        "config": {
+          "operation": "create",
+          "database": "images.db",
+          "query": "CREATE TABLE IF NOT EXISTS images (\\n  id INTEGER PRIMARY KEY AUTOINCREMENT,\\n  filename TEXT,\\n  mime_type TEXT,\\n  data BLOB,\\n  created_at TEXT\\n);"
+        },
+        "position": { "x": 500, "y": 100 }
+      },
+      "python_prepare_insert": {
+        "type": "python",
+        "title": "Prepare Image BLOB",
+        "code": "import base64, datetime\\n\\n\\ndef run(input):\\n    data_uri = input.get('image_data', '')\\n    if not data_uri or not data_uri.startswith('data:image/'):\\n        raise ValueError('image_data must be a data URI like data:image/png;base64,...')\\n\\n    header, b64 = data_uri.split(',', 1)\\n    mime_type = header.split(';')[0].split(':')[1]\\n\\n    image_bytes = base64.b64decode(b64)\\n\\n    return {\\n        'filename': input.get('filename', 'image.png'),\\n        'mime_type': mime_type,\\n        'image_bytes': image_bytes,\\n        'created_at': datetime.datetime.utcnow().isoformat()\\n    }",
+        "position": { "x": 500, "y": 300 }
+      },
+      "db_insert_image": {
+        "type": "database",
+        "title": "Insert Image into DB",
+        "config": {
+          "operation": "insert",
+          "database": "images.db",
+          "query": "INSERT INTO images (filename, mime_type, data, created_at) VALUES (?, ?, ?, ?);",
+          "params": [
+            "{filename}",
+            "{mime_type}",
+            "{image_bytes}",
+            "{created_at}"
+          ]
+        },
+        "position": { "x": 700, "y": 300 }
+      },
+      "db_select_latest_image": {
+        "type": "database",
+        "title": "Select Latest Image",
+        "config": {
+          "operation": "select",
+          "database": "images.db",
+          "query": "SELECT id, filename, mime_type, data FROM images ORDER BY id DESC LIMIT 1;",
+          "params": []
+        },
+        "position": { "x": 900, "y": 300 }
+      },
+      "python_to_data_uri": {
+        "type": "python",
+        "title": "Convert BLOB to Data URI",
+        "code": "import base64\\n\\n\\ndef run(input):\\n    rows = input.get('data', [])\\n    if not rows:\\n        raise ValueError('No image rows found in database')\\n\\n    row = rows[0]\\n    mime = row.get('mime_type', 'image/png')\\n    blob = row.get('data')  # BLOB from SQLite\\n\\n    # Convert BLOB to base64 data URI\\n    b64 = base64.b64encode(blob).decode('utf-8')\\n    data_uri = f'data:{mime};base64,{b64}'\\n\\n    return {\\n        'image_data': data_uri,\\n        'filename': row.get('filename'),\\n        'id': row.get('id')\\n    }",
+        "position": { "x": 1100, "y": 300 }
+      },
+      "image_viewer": {
+        "type": "image",
+        "title": "View Image from DB",
+        "config": {
+          "content_key": "image_data"
+        },
+        "position": { "x": 1300, "y": 250 }
+      },
+      "end": {
+        "type": "end",
+        "title": "End",
+        "position": { "x": 1500, "y": 250 }
+      }
+    },
+    "connections": {
+      "start_to_python_input": {
+        "source": "start",
+        "target": "python_image_input",
+        "sourceOutput": "output",
+        "targetInput": "input"
+      },
+      "python_input_to_db_create": {
+        "source": "python_image_input",
+        "target": "db_create_images",
+        "sourceOutput": "output",
+        "targetInput": "input"
+      },
+      "db_create_to_prepare": {
+        "source": "db_create_images",
+        "target": "python_prepare_insert",
+        "sourceOutput": "output",
+        "targetInput": "input"
+      },
+      "prepare_to_insert": {
+        "source": "python_prepare_insert",
+        "target": "db_insert_image",
+        "sourceOutput": "output",
+        "targetInput": "input"
+      },
+      "insert_to_select": {
+        "source": "db_insert_image",
+        "target": "db_select_latest_image",
+        "sourceOutput": "output",
+        "targetInput": "input"
+      },
+      "select_to_data_uri": {
+        "source": "db_select_latest_image",
+        "target": "python_to_data_uri",
+        "sourceOutput": "output",
+        "targetInput": "input"
+      },
+      "data_uri_to_image_viewer": {
+        "source": "python_to_data_uri",
+        "target": "image_viewer",
+        "sourceOutput": "output",
+        "targetInput": "input"
+      },
+      "image_viewer_to_end": {
+        "source": "image_viewer",
+        "target": "end",
+        "sourceOutput": "output",
+        "targetInput": "input"
+      }
+    },
+    "metadata": {
+      "nodeCount": 8,
+      "lastModified": "2025-12-01T00:00:00.000Z"
+    }
+  }
+}
+
+
