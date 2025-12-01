@@ -548,6 +548,17 @@ Use `{field_name}` placeholders in your configuration to insert data from the pr
 }
 ```
 
+#### Authentication Patterns
+
+For workflows that require authentication, see the [Bearer Token Authentication Workflow](../docs/Bearer_Token_Authentication_Workflow.json) example, which demonstrates:
+
+- Preparing credentials (username/password, OAuth2, API keys)
+- Authenticating to obtain bearer tokens
+- Extracting tokens from authentication responses
+- Using bearer tokens in subsequent authenticated requests
+
+See [Bearer Token Authentication Guide](../docs/BEARER_TOKEN_AUTH_GUIDE.md) for detailed patterns and best practices.
+
 #### Examples
 
 **GET Request with Query Parameters:**

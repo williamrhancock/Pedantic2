@@ -154,6 +154,10 @@ Manual Python drama? `cd api; python -m venv venv; source venv/bin/activate; pip
 - Start → HTTP (GET /cats) → Python (`return data + " meow snark"`) → Condition (if funny?) → File Write → End.
 - Boom: Local cat facts, zero AWS bills.
 
+**Example Workflow: "Bearer Token Authentication"**
+- Start → Prepare Credentials → Authenticate → Extract Token → Use Token in API Request → End.
+- Perfect for OAuth2, API key exchange, or username/password authentication. See [Bearer Token Authentication Guide](docs/BEARER_TOKEN_AUTH_GUIDE.md) for details.
+
 **Using API Keys in Workflows:**
 - **LLM Nodes**: Use `api_key_name` in config (e.g., `"api_key_name": "OPENROUTER_API_KEY"`) or set per-node override
 - **HTTP Nodes**: Use Python node to inject keys from environment: `os.getenv('API_KEY_NAME')` → `{API_KEY_NAME}` placeholder
@@ -167,6 +171,7 @@ Headless? POST to `/run` with workflow JSON. Or `npm run run-workflow -- 42` (ID
 - [Complete Workflow Nodes Guide](docs/WORKFLOW_NODES_GUIDE.md) - Detailed documentation for all node types
 - [Workflow Examples](docs/WORKFLOW_EXAMPLES.md) - Comprehensive guide to all example workflows
 - [LLM Workflow Generation Guide](docs/LLM_WORKFLOW_GENERATION_GUIDE.md) - For LLMs generating workflows
+- [Bearer Token Authentication Guide](docs/BEARER_TOKEN_AUTH_GUIDE.md) - Complete guide to authentication patterns and bearer token workflows
 
 
 DB woes? Maintenance panel: Delete, backup, compact. Because SQLite bloat is real.

@@ -12,6 +12,7 @@ This document provides comprehensive documentation for all example workflows inc
 6. [Complete All Nodes Workflow](#complete-all-nodes-workflow)
 7. [Mixed Python TypeScript Workflow](#mixed-python-typescript-workflow)
 8. [Simple Mixed Workflow Demo](#simple-mixed-workflow-demo)
+9. [Bearer Token Authentication Workflow](#bearer-token-authentication-workflow)
 
 ---
 
