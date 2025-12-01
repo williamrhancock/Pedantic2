@@ -16,8 +16,8 @@
       },
       "python_image_input": {
         "type": "python",
-        "title": "Provide Image Input",
-        "code": "def run(input):\\n    # TODO: Replace this stub with your own image data source.\\n    # Expecting a data URI like: data:image/png;base64,iVBORw0KGgo...\\n    return {\\n        'filename': 'example.png',\\n        'image_data': input.get('image_data', ''),\\n        'mime_type': 'image/png'\\n    }",
+        "title": "Fetch Pedantic2 PNG",
+        "code": "import base64, requests\\n\\nURL = 'https://raw.githubusercontent.com/williamrhancock/Pedantic2/main/docs/Pedantic2-main.png'\\n\\ndef run(input):\\n    resp = requests.get(URL, timeout=10)\\n    resp.raise_for_status()\\n    image_bytes = resp.content\\n    data_uri = 'data:image/png;base64,' + base64.b64encode(image_bytes).decode('utf-8')\\n    return {\\n        'filename': 'Pedantic2-main.png',\\n        'image_data': data_uri,\\n        'mime_type': 'image/png'\\n    }",
         "position": { "x": 300, "y": 200 }
       },
       "db_create_images": {
