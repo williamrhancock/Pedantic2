@@ -2,6 +2,8 @@
 
 ![Pedantic2 Main Interface](docs/Pedantic2-main.png)
 
+[UPDATE]  If you want to just grab from docker here's the url: https://hub.docker.com/r/sudoname/pendantic2
+
 ## 🚀 Tired of Cloud Vampires Sucking Your Data Dry?
 
 Look, we get it: You're a dev with big automation dreams, but the cloud overlords want your firstborn (or at least your credit card) for every ping. Enter **Pedantic2** – the agentic workflow builder that's so stubbornly local, it runs in your bathroom server rack *or* just your laptop. No subscriptions, no vendor lock-in, no "unexpected bill" therapy sessions. Just you, your code, and a visual editor that's prettier than your last breakup.
